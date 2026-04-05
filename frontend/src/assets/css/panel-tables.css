@@ -1,0 +1,169 @@
+/* Shared data tables: Students, Teachers, Classes panels */
+
+.panel-table-wrap {
+  margin-left: 1.5rem;
+  margin-right: 1.5rem;
+  margin-bottom: 0.75rem;
+  border-radius: 1rem;
+  border: 1px solid #e2e8f0;
+  overflow: hidden;
+  background: #fff;
+  box-shadow:
+    0 1rem 2rem -1.7rem rgba(15, 23, 42, 0.28),
+    0 0.35rem 0.8rem -0.8rem rgba(15, 23, 42, 0.12);
+}
+
+.panel-table-wrap .table-responsive {
+  margin: 0;
+  overflow-x: auto;
+}
+
+.panel-data-table {
+  --panel-table-border: #edf2f7;
+  margin-bottom: 0;
+}
+
+.panel-data-table thead th {
+  padding: 0.9rem 1rem;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #64748b;
+  background: linear-gradient(180deg, #fbfcfe 0%, #f6f8fb 100%);
+  border-bottom: 1px solid #e2e8f0;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+.panel-data-table thead th:first-child {
+  padding-left: 1.35rem;
+}
+
+.panel-data-table thead th:last-child {
+  width: 1%;
+  padding-right: 1.35rem;
+}
+
+.panel-data-table tbody td {
+  padding: 0.95rem 1rem;
+  vertical-align: middle;
+  border-bottom: 1px solid var(--panel-table-border);
+  background: #fff;
+}
+
+.panel-data-table tbody td:first-child {
+  padding-left: 1.35rem;
+}
+
+.panel-data-table tbody td:last-child {
+  padding-right: 1.35rem;
+}
+
+.panel-data-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.panel-data-table tbody tr:nth-child(even) td {
+  background: #fcfdff;
+}
+
+.panel-data-table tbody tr:not(.panel-table-empty):hover td {
+  background-color: #f5f8ff;
+}
+
+.panel-data-table .panel-table-empty td {
+  text-align: center;
+  color: #67748e;
+  font-size: 0.875rem;
+  background: #fafbfc;
+  padding: 1.6rem 1rem !important;
+  border-bottom: none !important;
+}
+
+.panel-data-table .panel-table-empty:hover td {
+  background: #fafbfc !important;
+}
+
+.panel-table-actions a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2rem;
+  padding: 0.15rem 0;
+  text-decoration: none;
+  transition: color 0.15s ease, opacity 0.15s ease;
+}
+
+.panel-table-actions a:hover {
+  opacity: 0.85;
+}
+
+.panel-data-table .panel-primary-text {
+  color: #1f2a44;
+  font-weight: 700;
+}
+
+.panel-data-table .panel-muted-text {
+  color: #64748b;
+}
+
+.panel-data-table h6,
+.panel-data-table p {
+  margin-bottom: 0;
+}
+
+.panel-data-table .text-xs {
+  line-height: 1.45;
+}
+
+.panel-data-table .badge {
+  padding: 0.45rem 0.7rem;
+  border-radius: 999px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.panel-data-table .d-flex.px-2.py-1 {
+  padding: 0 !important;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.panel-data-table .cursor-pointer {
+  cursor: pointer;
+}
+
+@media (max-width: 991.98px) {
+  .panel-data-table thead th,
+  .panel-data-table tbody td {
+    padding-top: 0.8rem;
+    padding-bottom: 0.8rem;
+  }
+}
+
+@media (max-width: 767.98px) {
+  .panel-table-wrap {
+    margin-left: 1rem;
+    margin-right: 1rem;
+    border-radius: 0.85rem;
+  }
+
+  .panel-data-table thead th {
+    font-size: 0.64rem;
+  }
+
+  .panel-data-table tbody td {
+    padding: 0.75rem 0.85rem;
+  }
+
+  .panel-data-table thead th:first-child,
+  .panel-data-table tbody td:first-child {
+    padding-left: 1rem;
+  }
+
+  .panel-data-table thead th:last-child,
+  .panel-data-table tbody td:last-child {
+    padding-right: 1rem;
+  }
+}
