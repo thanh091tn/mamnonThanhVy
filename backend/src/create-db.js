@@ -1,6 +1,11 @@
-import "dotenv/config";
+import path from "path";
+import { fileURLToPath } from "url";
+import dotenv from "dotenv";
 import pg from "pg";
 import { parseIntoClientConfig } from "pg-connection-string";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+dotenv.config({ path: path.join(__dirname, "..", ".env") });
 
 const targetDb = process.env.PGDATABASE || "school";
 

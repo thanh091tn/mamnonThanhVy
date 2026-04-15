@@ -4,6 +4,7 @@ import { useStore } from "vuex";
 import { api } from "@/api/client.js";
 import ArgonAlert from "@/components/ArgonAlert.vue";
 import ArgonButton from "@/components/ArgonButton.vue";
+import ConfirmLogoutPopup from "@/components/ConfirmLogoutPopup.vue";
 import { VueDatePicker } from "@vuepic/vue-datepicker";
 import "@vuepic/vue-datepicker/dist/main.css";
 import { vi } from "date-fns/locale";
@@ -45,6 +46,12 @@ const leaveErr = ref("");
 const leaveOkMsg = ref("");
 const myTeacherRecords = ref([]);
 const myLeaveLoading = ref(false);
+const showConfirmPopup = ref(false);
+const confirmPopupTitle = ref("");
+const confirmPopupMessage = ref("");
+const confirmPopupConfirmText = ref("");
+const confirmPopupDanger = ref(true);
+const pendingLeaveAction = ref(null);
 
 const teacherStatusOptions = [
   { value: "present", label: "Đi dạy" },
@@ -123,6 +130,48 @@ async function cancelMyLeave(dateStr) {
     await loadMyTeacherLeaveRecords();
   } catch (e) {
     leaveErr.value = e.response?.data?.error || e.message || "Hủy thất bại";
+  }
+}
+
+function closeConfirmPopup() {
+  showConfirmPopup.value = false;
+  pendingLeaveAction.value = null;
+}
+
+function openSubmitLeaveConfirm() {
+  const [startDate, endDate] = Array.isArray(leaveRange.value) ? leaveRange.value : [];
+  const startIso = dateToIso(startDate);
+  const endIso = dateToIso(endDate || startDate);
+  const dateText =
+    startIso && endIso
+      ? startIso === endIso
+        ? `ngày ${startIso}`
+        : `từ ${startIso} đến ${endIso}`
+      : "khoảng ngày đã chọn";
+
+  confirmPopupTitle.value = "Xác nhận đăng ký nghỉ";
+  confirmPopupMessage.value = `Xác nhận gửi đăng ký nghỉ ${dateText}?`;
+  confirmPopupConfirmText.value = "Gửi đăng ký";
+  confirmPopupDanger.value = false;
+  pendingLeaveAction.value = submitLeaveRequest;
+  showConfirmPopup.value = true;
+}
+
+function openCancelLeaveConfirm(dateStr) {
+  confirmPopupTitle.value = "Xác nhận hủy đăng ký nghỉ";
+  confirmPopupMessage.value = `Xác nhận hủy đăng ký nghỉ ngày ${dateStr}?`;
+  confirmPopupConfirmText.value = "Hủy đăng ký";
+  confirmPopupDanger.value = true;
+  pendingLeaveAction.value = () => cancelMyLeave(dateStr);
+  showConfirmPopup.value = true;
+}
+
+async function confirmPendingLeaveAction() {
+  const action = pendingLeaveAction.value;
+  showConfirmPopup.value = false;
+  pendingLeaveAction.value = null;
+  if (typeof action === "function") {
+    await action();
   }
 }
 
@@ -232,7 +281,7 @@ onMounted(() => {
                   type="button"
                   class="teacher-leave-submit"
                   :disabled="leaveSubmitting"
-                  @click="submitLeaveRequest"
+                  @click="openSubmitLeaveConfirm"
                 >
                   <i class="ni ni-send me-1"></i>
                   {{ leaveSubmitting ? "Đang gửi…" : "Gửi đăng ký nghỉ" }}
@@ -290,7 +339,7 @@ onMounted(() => {
                       color="danger"
                       variant="outline"
                       type="button"
-                      @click="cancelMyLeave(row.attendanceDate)"
+                      @click="openCancelLeaveConfirm(row.attendanceDate)"
                     >
                       Hủy
                     </argon-button>
@@ -302,6 +351,18 @@ onMounted(() => {
         </div>
       </div>
     </div>
+
+    <confirm-logout-popup
+      :open="showConfirmPopup"
+      :title="confirmPopupTitle"
+      :message="confirmPopupMessage"
+      :confirm-text="confirmPopupConfirmText"
+      cancel-text="Hủy"
+      icon-class="ni ni-ui-04"
+      :danger="confirmPopupDanger"
+      @cancel="closeConfirmPopup"
+      @confirm="confirmPendingLeaveAction"
+    />
 
     <div v-if="myOtherAttendanceRows.length" class="card teacher-leave-history-card">
       <div class="card-header pb-0">

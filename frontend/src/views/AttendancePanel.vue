@@ -5,6 +5,7 @@ import { api } from '../api/client.js'
 import ArgonAlert from '@/components/ArgonAlert.vue'
 import ArgonButton from '@/components/ArgonButton.vue'
 import AppDateField from '@/components/AppDateField.vue'
+import ConfirmLogoutPopup from '@/components/ConfirmLogoutPopup.vue'
 
 const store = useStore()
 
@@ -224,6 +225,12 @@ const leaveErr = ref('')
 const leaveOkMsg = ref('')
 const myTeacherRecords = ref([])
 const myLeaveLoading = ref(false)
+const showConfirmPopup = ref(false)
+const confirmPopupTitle = ref('')
+const confirmPopupMessage = ref('')
+const confirmPopupConfirmText = ref('')
+const confirmPopupDanger = ref(true)
+const pendingLeaveAction = ref(null)
 
 const myLeaveRows = computed(() => {
   const t = localTodayStr()
@@ -288,6 +295,38 @@ async function cancelMyLeave(dateStr) {
     await loadMyTeacherLeaveRecords()
   } catch (e) {
     leaveErr.value = e.response?.data?.error || e.message || 'Hủy thất bại'
+  }
+}
+
+function closeConfirmPopup() {
+  showConfirmPopup.value = false
+  pendingLeaveAction.value = null
+}
+
+function openSubmitLeaveConfirm() {
+  confirmPopupTitle.value = 'Xác nhận đăng ký nghỉ'
+  confirmPopupMessage.value = `Xác nhận gửi đăng ký nghỉ ngày ${leaveDate.value}?`
+  confirmPopupConfirmText.value = 'Gửi đăng ký'
+  confirmPopupDanger.value = false
+  pendingLeaveAction.value = submitLeaveRequest
+  showConfirmPopup.value = true
+}
+
+function openCancelLeaveConfirm(dateStr) {
+  confirmPopupTitle.value = 'Xác nhận hủy đăng ký nghỉ'
+  confirmPopupMessage.value = `Xác nhận hủy đăng ký nghỉ ngày ${dateStr}?`
+  confirmPopupConfirmText.value = 'Hủy đăng ký'
+  confirmPopupDanger.value = true
+  pendingLeaveAction.value = () => cancelMyLeave(dateStr)
+  showConfirmPopup.value = true
+}
+
+async function confirmPendingLeaveAction() {
+  const action = pendingLeaveAction.value
+  showConfirmPopup.value = false
+  pendingLeaveAction.value = null
+  if (typeof action === 'function') {
+    await action()
   }
 }
 
@@ -694,7 +733,7 @@ onMounted(() => {
                 type="button"
                 class="w-100"
                 :disabled="leaveSubmitting"
-                @click="submitLeaveRequest"
+                @click="openSubmitLeaveConfirm"
               >
                 {{ leaveSubmitting ? 'Đang gửi…' : 'Gửi đăng ký nghỉ' }}
               </argon-button>
@@ -753,7 +792,7 @@ onMounted(() => {
                       color="danger"
                       variant="outline"
                       type="button"
-                      @click="cancelMyLeave(row.attendanceDate)"
+                      @click="openCancelLeaveConfirm(row.attendanceDate)"
                     >
                       Hủy đăng ký
                     </argon-button>
@@ -764,6 +803,18 @@ onMounted(() => {
           </div>
         </div>
       </div>
+
+      <confirm-logout-popup
+        :open="showConfirmPopup"
+        :title="confirmPopupTitle"
+        :message="confirmPopupMessage"
+        :confirm-text="confirmPopupConfirmText"
+        cancel-text="Hủy"
+        icon-class="ni ni-ui-04"
+        :danger="confirmPopupDanger"
+        @cancel="closeConfirmPopup"
+        @confirm="confirmPendingLeaveAction"
+      />
 
       <div
         v-if="myOtherAttendanceRows.length"

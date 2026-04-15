@@ -14,6 +14,22 @@ const props = defineProps({
     type: String,
     default: "Bạn có chắc muốn đăng xuất không?",
   },
+  confirmText: {
+    type: String,
+    default: "Đăng xuất",
+  },
+  cancelText: {
+    type: String,
+    default: "Hủy",
+  },
+  iconClass: {
+    type: String,
+    default: "ni ni-button-power",
+  },
+  danger: {
+    type: Boolean,
+    default: true,
+  },
 });
 
 const emit = defineEmits(["cancel", "confirm"]);
@@ -41,16 +57,25 @@ onBeforeUnmount(() => {
         :aria-label="title"
       >
         <div class="confirm-popup-icon">
-          <i class="ni ni-button-power"></i>
+          <i :class="iconClass"></i>
         </div>
         <h5 class="confirm-popup-title mb-2">{{ title }}</h5>
         <p class="confirm-popup-message mb-0">{{ message }}</p>
         <div class="confirm-popup-actions">
-          <button type="button" class="confirm-popup-btn confirm-popup-btn--ghost" @click="emit('cancel')">
-            Hủy
+          <button
+            type="button"
+            class="confirm-popup-btn confirm-popup-btn--ghost"
+            @click="emit('cancel')"
+          >
+            {{ cancelText }}
           </button>
-          <button type="button" class="confirm-popup-btn confirm-popup-btn--danger" @click="emit('confirm')">
-            Đăng xuất
+          <button
+            type="button"
+            class="confirm-popup-btn"
+            :class="danger ? 'confirm-popup-btn--danger' : 'confirm-popup-btn--primary'"
+            @click="emit('confirm')"
+          >
+            {{ confirmText }}
           </button>
         </div>
       </div>
@@ -78,10 +103,10 @@ onBeforeUnmount(() => {
 }
 
 .confirm-popup-card {
-  width: min(100%, 24rem);
-  padding: 1.35rem 1.25rem 1.1rem;
+  width: min(100%, 28rem);
+  padding: 1.5rem 1.5rem 1.2rem;
   border: 1px solid #e2e8f0;
-  border-radius: 1.1rem;
+  border-radius: 1.2rem;
   background: #fff;
   box-shadow: 0 1.5rem 3rem -1.8rem rgba(15, 23, 42, 0.45);
   text-align: center;
@@ -103,29 +128,37 @@ onBeforeUnmount(() => {
 .confirm-popup-title {
   color: #1f2a44;
   font-weight: 700;
+  font-size: 1.1rem;
+  line-height: 1.35;
 }
 
 .confirm-popup-message {
+  max-width: 23rem;
+  margin: 0.2rem auto 0;
   color: #64748b;
-  font-size: 0.92rem;
-  line-height: 1.55;
+  font-size: 0.95rem;
+  line-height: 1.65;
+  text-align: center;
+  text-wrap: pretty;
 }
 
 .confirm-popup-actions {
   display: flex;
   gap: 0.75rem;
   justify-content: center;
-  margin-top: 1.15rem;
+  margin-top: 1.35rem;
 }
 
 .confirm-popup-btn {
-  min-width: 8rem;
+  flex: 1 1 0;
+  min-width: 0;
   min-height: 2.65rem;
   padding: 0.65rem 1rem;
   border-radius: 0.8rem;
   border: 1px solid transparent;
   font-size: 0.88rem;
   font-weight: 700;
+  white-space: nowrap;
   transition: background 0.18s ease, color 0.18s ease, border-color 0.18s ease;
 }
 
@@ -148,7 +181,25 @@ onBeforeUnmount(() => {
   background: linear-gradient(135deg, #b91c1c, #dc2626);
 }
 
+.confirm-popup-btn--primary {
+  background: linear-gradient(135deg, #2563eb, #3b82f6);
+  color: #fff;
+}
+
+.confirm-popup-btn--primary:hover {
+  background: linear-gradient(135deg, #1d4ed8, #2563eb);
+}
+
 @media (max-width: 575.98px) {
+  .confirm-popup-card {
+    width: min(100%, 22rem);
+    padding: 1.25rem 1rem 1rem;
+  }
+
+  .confirm-popup-message {
+    max-width: none;
+  }
+
   .confirm-popup-actions {
     flex-direction: column;
   }

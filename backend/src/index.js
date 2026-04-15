@@ -11,6 +11,7 @@ import classesRouter from "./routes/classes.js";
 import uploadRouter from "./routes/upload.js";
 import attendanceRouter from "./routes/attendance.js";
 import authRouter from "./routes/auth.js";
+import feesRouter from "./routes/fees.js";
 import { requireAuth } from "./middleware/auth.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -38,6 +39,7 @@ app.use("/api/students", requireAuth, studentsRouter);
 app.use("/api/teachers", requireAuth, teachersRouter);
 app.use("/api/classes", requireAuth, classesRouter);
 app.use("/api/attendance", requireAuth, attendanceRouter);
+app.use("/api/fees", requireAuth, feesRouter);
 
 app.use((_req, res) => {
   res.status(404).json({ error: "Not found" });

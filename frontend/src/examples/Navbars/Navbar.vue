@@ -40,7 +40,7 @@ function confirmLogout() {
 const currentRouteName = computed(() => route.name);
 const currentDirectory = computed(() => {
   const dir = route.path.split("/")[1] || "";
-  return dir ? dir.charAt(0).toUpperCase() + dir.slice(1) : "Dashboard";
+  return dir ? dir.charAt(0).toUpperCase() + dir.slice(1) : "Trang chủ";
 });
 
 const minimizeSidebar = () => store.commit("sidebarMinimize");
@@ -154,11 +154,11 @@ const closeMenu = () => {
                     </div>
                     <div class="d-flex flex-column justify-content-center">
                       <h6 class="mb-1 text-sm font-weight-normal">
-                        <span class="font-weight-bold">New message</span> from Laur
+                        <span class="font-weight-bold">Tin nhắn mới</span> từ Laur
                       </h6>
                       <p class="mb-0 text-xs text-secondary">
                         <i class="fa fa-clock me-1"></i>
-                        13 minutes ago
+                        13 phút trước
                       </p>
                     </div>
                   </div>
@@ -176,11 +176,11 @@ const closeMenu = () => {
                     </div>
                     <div class="d-flex flex-column justify-content-center">
                       <h6 class="mb-1 text-sm font-weight-normal">
-                        <span class="font-weight-bold">New album</span> by Travis Scott
+                        <span class="font-weight-bold">Album mới</span> của Travis Scott
                       </h6>
                       <p class="mb-0 text-xs text-secondary">
                         <i class="fa fa-clock me-1"></i>
-                        1 day
+                        1 ngày trước
                       </p>
                     </div>
                   </div>
@@ -231,11 +231,11 @@ const closeMenu = () => {
                     </div>
                     <div class="d-flex flex-column justify-content-center">
                       <h6 class="mb-1 text-sm font-weight-normal">
-                        Payment successfully completed
+                        Thanh toán đã hoàn tất
                       </h6>
                       <p class="mb-0 text-xs text-secondary">
                         <i class="fa fa-clock me-1"></i>
-                        2 days
+                        2 ngày trước
                       </p>
                     </div>
                   </div>

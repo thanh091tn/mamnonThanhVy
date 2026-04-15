@@ -50,7 +50,7 @@ const getRoute = () => route.path.split("/")[1];
           class="text-xs text-uppercase font-weight-bolder mb-0"
           :class="isRTL ? 'me-2' : ''"
         >
-          {{ isRTL ? "المدرسة" : "Trường học" }}
+          {{ isRTL ? "School" : "Trường học" }}
         </h6>
       </li>
 
@@ -58,7 +58,7 @@ const getRoute = () => route.path.split("/")[1];
         <sidenav-item
           to="/school"
           :class="getRoute() === 'school' ? 'active' : ''"
-          :navText="isRTL ? 'المدرسة' : 'Trường học'"
+          :navText="isRTL ? 'School' : 'Trường học'"
         >
           <template #icon>
             <i class="ni ni-building text-primary text-sm"></i>
@@ -70,7 +70,7 @@ const getRoute = () => route.path.split("/")[1];
         <sidenav-item
           to="/attendance"
           :class="getRoute() === 'attendance' ? 'active' : ''"
-          :navText="isRTL ? 'الحضور' : 'Điểm danh'"
+          :navText="isRTL ? 'Attendance' : 'Điểm danh'"
         >
           <template #icon>
             <i class="ni ni-check-bold sidenav-attendance-icon text-sm"></i>
@@ -82,7 +82,7 @@ const getRoute = () => route.path.split("/")[1];
         <sidenav-item
           to="/teacher-leave"
           :class="getRoute() === 'teacher-leave' ? 'active' : ''"
-          :navText="isRTL ? 'طلب إجازة' : 'Xin nghỉ GV'"
+          :navText="isRTL ? 'Teacher Leave' : 'Xin nghỉ GV'"
         >
           <template #icon>
             <i class="ni ni-briefcase-24 text-warning text-sm"></i>
@@ -94,10 +94,79 @@ const getRoute = () => route.path.split("/")[1];
         <sidenav-item
           to="/leave-calendar"
           :class="getRoute() === 'leave-calendar' ? 'active' : ''"
-          :navText="isRTL ? 'تقويم الإجازات' : 'Lịch nghỉ GV'"
+          :navText="isRTL ? 'Leave Calendar' : 'Lịch nghỉ GV'"
         >
           <template #icon>
             <i class="ni ni-calendar-grid-58 text-success text-sm"></i>
+          </template>
+        </sidenav-item>
+      </li>
+
+      <li v-if="authUser?.role === 'manager'" class="nav-item sidenav-section-title">
+        <h6
+          class="text-xs text-uppercase font-weight-bolder mb-0"
+          :class="isRTL ? 'me-2' : ''"
+        >
+          {{ isRTL ? "Fees" : "Học phí" }}
+        </h6>
+      </li>
+
+      <li v-if="authUser?.role === 'manager'" class="nav-item">
+        <sidenav-item
+          to="/fee-items"
+          :class="getRoute() === 'fee-items' ? 'active' : ''"
+          :navText="isRTL ? 'Fee Items' : 'Khoản thu'"
+        >
+          <template #icon>
+            <i class="ni ni-books text-primary text-sm"></i>
+          </template>
+        </sidenav-item>
+      </li>
+
+      <li v-if="authUser?.role === 'manager'" class="nav-item">
+        <sidenav-item
+          to="/fee-periods"
+          :class="getRoute() === 'fee-periods' ? 'active' : ''"
+          :navText="isRTL ? 'Fee Periods' : 'Kỳ thu'"
+        >
+          <template #icon>
+            <i class="ni ni-calendar-grid-58 text-info text-sm"></i>
+          </template>
+        </sidenav-item>
+      </li>
+
+      <li v-if="authUser?.role === 'manager'" class="nav-item">
+        <sidenav-item
+          to="/fee-policies"
+          :class="getRoute() === 'fee-policies' ? 'active' : ''"
+          :navText="isRTL ? 'Discounts' : 'Miễn giảm'"
+        >
+          <template #icon>
+            <i class="ni ni-tag text-success text-sm"></i>
+          </template>
+        </sidenav-item>
+      </li>
+
+      <li v-if="authUser?.role === 'manager'" class="nav-item">
+        <sidenav-item
+          to="/fee-services"
+          :class="getRoute() === 'fee-services' ? 'active' : ''"
+          :navText="isRTL ? 'Services' : 'ĐK dịch vụ'"
+        >
+          <template #icon>
+            <i class="ni ni-bus-front-12 text-info text-sm"></i>
+          </template>
+        </sidenav-item>
+      </li>
+
+      <li v-if="authUser?.role === 'manager'" class="nav-item">
+        <sidenav-item
+          to="/fee-collection"
+          :class="getRoute() === 'fee-collection' ? 'active' : ''"
+          :navText="isRTL ? 'Statements' : 'Tính HP'"
+        >
+          <template #icon>
+            <i class="ni ni-money-coins text-warning text-sm"></i>
           </template>
         </sidenav-item>
       </li>
@@ -107,7 +176,7 @@ const getRoute = () => route.path.split("/")[1];
           class="text-xs text-uppercase font-weight-bolder mb-0"
           :class="isRTL ? 'me-2' : ''"
         >
-          {{ isRTL ? "صفحات المرافق" : "Tài khoản" }}
+          {{ isRTL ? "Account" : "Tài khoản" }}
         </h6>
       </li>
 
@@ -115,7 +184,7 @@ const getRoute = () => route.path.split("/")[1];
         <sidenav-item
           to="/profile"
           :class="getRoute() === 'profile' ? 'active' : ''"
-          :navText="isRTL ? 'حساب تعريفي' : 'Hồ sơ'"
+          :navText="isRTL ? 'Profile' : 'Hồ sơ'"
         >
           <template #icon>
             <i class="ni ni-single-02 text-dark text-sm"></i>
@@ -127,7 +196,7 @@ const getRoute = () => route.path.split("/")[1];
         <sidenav-item
           to="/signin"
           :class="getRoute() === 'signin' ? 'active' : ''"
-          :navText="isRTL ? 'تسجيل الدخول' : 'Đăng nhập'"
+          :navText="isRTL ? 'Sign in' : 'Đăng nhập'"
         >
           <template #icon>
             <i class="ni ni-single-copy-04 text-danger text-sm"></i>
@@ -139,7 +208,7 @@ const getRoute = () => route.path.split("/")[1];
         <sidenav-item
           to="/signup"
           :class="getRoute() === 'signup' ? 'active' : ''"
-          :navText="isRTL ? 'اشتراك' : 'Đăng ký'"
+          :navText="isRTL ? 'Sign up' : 'Đăng ký'"
         >
           <template #icon>
             <i class="ni ni-collection text-info text-sm"></i>
@@ -156,7 +225,7 @@ const getRoute = () => route.path.split("/")[1];
           <span class="sidenav-mini-icon sidenav-logout-icon">
             <i class="ni ni-button-power text-danger text-sm"></i>
           </span>
-          <span class="nav-link-text ms-1">{{ isRTL ? "خروج" : "Đăng xuất" }}</span>
+          <span class="nav-link-text ms-1">{{ isRTL ? "Logout" : "Đăng xuất" }}</span>
         </a>
       </li>
     </ul>

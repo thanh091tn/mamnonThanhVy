@@ -1,5 +1,11 @@
+import path from "path";
+import { fileURLToPath } from "url";
+import dotenv from "dotenv";
 import pg from "pg";
 import { parseIntoClientConfig } from "pg-connection-string";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+dotenv.config({ path: path.join(__dirname, "..", ".env") });
 
 const { Pool } = pg;
 
@@ -114,6 +120,9 @@ export async function initDb() {
       ALTER TABLE students ADD COLUMN IF NOT EXISTS join_date DATE;
     `);
     await client.query(`
+      ALTER TABLE students ADD COLUMN IF NOT EXISTS leave_date DATE;
+    `);
+    await client.query(`
       ALTER TABLE students ADD COLUMN IF NOT EXISTS status VARCHAR(50) DEFAULT 'active';
     `);
     await client.query(`
@@ -210,6 +219,447 @@ export async function initDb() {
     await client.query(`
       CREATE UNIQUE INDEX IF NOT EXISTS idx_users_teacher_id_unique
       ON users (teacher_id) WHERE teacher_id IS NOT NULL;
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS fee_periods (
+        id SERIAL PRIMARY KEY,
+        month_key VARCHAR(7) NOT NULL UNIQUE,
+        title VARCHAR(500) NOT NULL,
+        due_date DATE,
+        status VARCHAR(20) NOT NULL DEFAULT 'draft'
+          CHECK (status IN ('draft', 'published', 'closed')),
+        created_by_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+    `);
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS fee_item_templates (
+        id SERIAL PRIMARY KEY,
+        name VARCHAR(500) NOT NULL UNIQUE,
+        default_amount NUMERIC(12,2) NOT NULL DEFAULT 0,
+        is_optional BOOLEAN NOT NULL DEFAULT FALSE,
+        sort_order INTEGER NOT NULL DEFAULT 0,
+        active BOOLEAN NOT NULL DEFAULT TRUE,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+    `);
+    await client.query(`
+      ALTER TABLE fee_item_templates
+      ADD COLUMN IF NOT EXISTS charge_timing VARCHAR(20) NOT NULL DEFAULT 'advance';
+    `);
+    await client.query(`
+      ALTER TABLE fee_item_templates
+      ADD COLUMN IF NOT EXISTS quantity_mode VARCHAR(30) NOT NULL DEFAULT 'fixed';
+    `);
+    await client.query(`
+      ALTER TABLE fee_item_templates
+      ADD COLUMN IF NOT EXISTS unit_price NUMERIC(12,2) NOT NULL DEFAULT 0;
+    `);
+    await client.query(`
+      ALTER TABLE fee_item_templates
+      ADD COLUMN IF NOT EXISTS unit_name VARCHAR(100) NOT NULL DEFAULT 'Ngay';
+    `);
+    await client.query(`
+      ALTER TABLE fee_item_templates
+      ADD COLUMN IF NOT EXISTS fixed_quantity NUMERIC(12,2) NOT NULL DEFAULT 0;
+    `);
+    await client.query(`
+      ALTER TABLE fee_item_templates
+      ADD COLUMN IF NOT EXISTS formula_type VARCHAR(40) NOT NULL DEFAULT 'fixed_x_price_x_frequency';
+    `);
+    await client.query(`
+      ALTER TABLE fee_item_templates
+      ADD COLUMN IF NOT EXISTS frequency_multiplier NUMERIC(12,2) NOT NULL DEFAULT 1;
+    `);
+    await client.query(`
+      ALTER TABLE fee_item_templates
+      ADD COLUMN IF NOT EXISTS charge_weekdays VARCHAR(50) NOT NULL DEFAULT '1,2,3,4,5,6';
+    `);
+    await client.query(`
+      ALTER TABLE fee_item_templates
+      ADD COLUMN IF NOT EXISTS code VARCHAR(100);
+    `);
+    await client.query(`
+      ALTER TABLE fee_item_templates
+      ADD COLUMN IF NOT EXISTS category VARCHAR(30) NOT NULL DEFAULT 'fixed';
+    `);
+    await client.query(`
+      ALTER TABLE fee_item_templates
+      ADD COLUMN IF NOT EXISTS calc_type VARCHAR(40) NOT NULL DEFAULT 'monthly_fixed';
+    `);
+    await client.query(`
+      ALTER TABLE fee_item_templates
+      ADD COLUMN IF NOT EXISTS billing_cycle VARCHAR(30) NOT NULL DEFAULT 'monthly';
+    `);
+    await client.query(`
+      ALTER TABLE fee_item_templates
+      ADD COLUMN IF NOT EXISTS description TEXT DEFAULT '';
+    `);
+    await client.query(`
+      ALTER TABLE fee_item_templates
+      ADD COLUMN IF NOT EXISTS effective_start_month VARCHAR(7) DEFAULT '';
+    `);
+    await client.query(`
+      ALTER TABLE fee_item_templates
+      ADD COLUMN IF NOT EXISTS effective_end_month VARCHAR(7) DEFAULT '';
+    `);
+    await client.query(`
+      ALTER TABLE fee_item_templates
+      ADD COLUMN IF NOT EXISTS scope_type VARCHAR(20) NOT NULL DEFAULT 'all';
+    `);
+    await client.query(`
+      ALTER TABLE fee_item_templates
+      ADD COLUMN IF NOT EXISTS apply_levels TEXT NOT NULL DEFAULT '';
+    `);
+    await client.query(`
+      ALTER TABLE fee_item_templates
+      ADD COLUMN IF NOT EXISTS apply_class_ids TEXT NOT NULL DEFAULT '';
+    `);
+    await client.query(`
+      ALTER TABLE fee_item_templates
+      ADD COLUMN IF NOT EXISTS proration_mode VARCHAR(30) NOT NULL DEFAULT 'full_month';
+    `);
+    await client.query(`
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_fee_item_templates_code_unique
+      ON fee_item_templates(code)
+      WHERE code IS NOT NULL AND code <> '';
+    `);
+    await client.query(`
+      CREATE INDEX IF NOT EXISTS idx_fee_item_templates_active
+      ON fee_item_templates(active, sort_order, id);
+    `);
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS fee_period_items (
+        id SERIAL PRIMARY KEY,
+        period_id INTEGER NOT NULL REFERENCES fee_periods(id) ON DELETE CASCADE,
+        name VARCHAR(500) NOT NULL,
+        amount NUMERIC(12,2) NOT NULL DEFAULT 0,
+        is_optional BOOLEAN NOT NULL DEFAULT FALSE,
+        sort_order INTEGER NOT NULL DEFAULT 0,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+    `);
+    await client.query(`
+      CREATE INDEX IF NOT EXISTS idx_fee_period_items_period
+      ON fee_period_items(period_id, sort_order, id);
+    `);
+    await client.query(`
+      ALTER TABLE fee_period_items
+      ADD COLUMN IF NOT EXISTS charge_timing VARCHAR(20) NOT NULL DEFAULT 'advance';
+    `);
+    await client.query(`
+      ALTER TABLE fee_period_items
+      ADD COLUMN IF NOT EXISTS quantity_mode VARCHAR(30) NOT NULL DEFAULT 'fixed';
+    `);
+    await client.query(`
+      ALTER TABLE fee_period_items
+      ADD COLUMN IF NOT EXISTS unit_price NUMERIC(12,2) NOT NULL DEFAULT 0;
+    `);
+    await client.query(`
+      ALTER TABLE fee_period_items
+      ADD COLUMN IF NOT EXISTS unit_name VARCHAR(100) NOT NULL DEFAULT 'Ngay';
+    `);
+    await client.query(`
+      ALTER TABLE fee_period_items
+      ADD COLUMN IF NOT EXISTS fixed_quantity NUMERIC(12,2) NOT NULL DEFAULT 0;
+    `);
+    await client.query(`
+      ALTER TABLE fee_period_items
+      ADD COLUMN IF NOT EXISTS formula_type VARCHAR(40) NOT NULL DEFAULT 'fixed_x_price_x_frequency';
+    `);
+    await client.query(`
+      ALTER TABLE fee_period_items
+      ADD COLUMN IF NOT EXISTS frequency_multiplier NUMERIC(12,2) NOT NULL DEFAULT 1;
+    `);
+    await client.query(`
+      ALTER TABLE fee_period_items
+      ADD COLUMN IF NOT EXISTS charge_weekdays VARCHAR(50) NOT NULL DEFAULT '1,2,3,4,5,6';
+    `);
+    await client.query(`
+      ALTER TABLE fee_period_items
+      ADD COLUMN IF NOT EXISTS template_id INTEGER REFERENCES fee_item_templates(id) ON DELETE SET NULL;
+    `);
+    await client.query(`
+      ALTER TABLE fee_period_items
+      ADD COLUMN IF NOT EXISTS code VARCHAR(100) NOT NULL DEFAULT '';
+    `);
+    await client.query(`
+      ALTER TABLE fee_period_items
+      ADD COLUMN IF NOT EXISTS category VARCHAR(30) NOT NULL DEFAULT 'fixed';
+    `);
+    await client.query(`
+      ALTER TABLE fee_period_items
+      ADD COLUMN IF NOT EXISTS calc_type VARCHAR(40) NOT NULL DEFAULT 'monthly_fixed';
+    `);
+    await client.query(`
+      ALTER TABLE fee_period_items
+      ADD COLUMN IF NOT EXISTS billing_cycle VARCHAR(30) NOT NULL DEFAULT 'monthly';
+    `);
+    await client.query(`
+      ALTER TABLE fee_period_items
+      ADD COLUMN IF NOT EXISTS description TEXT DEFAULT '';
+    `);
+    await client.query(`
+      ALTER TABLE fee_period_items
+      ADD COLUMN IF NOT EXISTS scope_type VARCHAR(20) NOT NULL DEFAULT 'all';
+    `);
+    await client.query(`
+      ALTER TABLE fee_period_items
+      ADD COLUMN IF NOT EXISTS apply_levels TEXT NOT NULL DEFAULT '';
+    `);
+    await client.query(`
+      ALTER TABLE fee_period_items
+      ADD COLUMN IF NOT EXISTS apply_class_ids TEXT NOT NULL DEFAULT '';
+    `);
+    await client.query(`
+      ALTER TABLE fee_period_items
+      ADD COLUMN IF NOT EXISTS proration_mode VARCHAR(30) NOT NULL DEFAULT 'full_month';
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS discount_policies (
+        id SERIAL PRIMARY KEY,
+        name VARCHAR(500) NOT NULL,
+        discount_type VARCHAR(20) NOT NULL
+          CHECK (discount_type IN ('amount', 'percent')),
+        discount_value NUMERIC(12,2) NOT NULL DEFAULT 0,
+        start_month VARCHAR(7) NOT NULL,
+        end_month VARCHAR(7),
+        active BOOLEAN NOT NULL DEFAULT TRUE,
+        note TEXT DEFAULT '',
+        created_by_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+    `);
+    await client.query(`
+      ALTER TABLE discount_policies
+      ADD COLUMN IF NOT EXISTS apply_scope VARCHAR(30) NOT NULL DEFAULT 'invoice';
+    `);
+    await client.query(`
+      ALTER TABLE discount_policies
+      ADD COLUMN IF NOT EXISTS target_category VARCHAR(30) DEFAULT '';
+    `);
+    await client.query(`
+      ALTER TABLE discount_policies
+      ADD COLUMN IF NOT EXISTS target_fee_item_code VARCHAR(100) DEFAULT '';
+    `);
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS discount_policy_students (
+        id SERIAL PRIMARY KEY,
+        policy_id INTEGER NOT NULL REFERENCES discount_policies(id) ON DELETE CASCADE,
+        student_id INTEGER NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        UNIQUE (policy_id, student_id)
+      );
+    `);
+    await client.query(`
+      CREATE INDEX IF NOT EXISTS idx_discount_policy_students_student
+      ON discount_policy_students(student_id, policy_id);
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS student_fee_periods (
+        id SERIAL PRIMARY KEY,
+        student_id INTEGER NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+        period_id INTEGER NOT NULL REFERENCES fee_periods(id) ON DELETE CASCADE,
+        base_amount NUMERIC(12,2) NOT NULL DEFAULT 0,
+        previous_balance NUMERIC(12,2) NOT NULL DEFAULT 0,
+        adjustment_amount NUMERIC(12,2) NOT NULL DEFAULT 0,
+        discount_amount NUMERIC(12,2) NOT NULL DEFAULT 0,
+        final_amount NUMERIC(12,2) NOT NULL DEFAULT 0,
+        paid_amount NUMERIC(12,2) NOT NULL DEFAULT 0,
+        payment_status VARCHAR(20) NOT NULL DEFAULT 'unpaid'
+          CHECK (payment_status IN ('unpaid', 'partial', 'paid')),
+        generated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        UNIQUE (student_id, period_id)
+      );
+    `);
+    await client.query(`
+      CREATE INDEX IF NOT EXISTS idx_student_fee_periods_period_status
+      ON student_fee_periods(period_id, payment_status, student_id);
+    `);
+    await client.query(`
+      ALTER TABLE student_fee_periods
+      ADD COLUMN IF NOT EXISTS previous_balance NUMERIC(12,2) NOT NULL DEFAULT 0;
+    `);
+    await client.query(`
+      ALTER TABLE student_fee_periods
+      ADD COLUMN IF NOT EXISTS adjustment_amount NUMERIC(12,2) NOT NULL DEFAULT 0;
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS student_fee_period_items (
+        id SERIAL PRIMARY KEY,
+        student_fee_period_id INTEGER NOT NULL REFERENCES student_fee_periods(id) ON DELETE CASCADE,
+        fee_period_item_id INTEGER REFERENCES fee_period_items(id) ON DELETE SET NULL,
+        item_name VARCHAR(500) NOT NULL,
+        item_code VARCHAR(100) NOT NULL DEFAULT '',
+        line_type VARCHAR(30) NOT NULL DEFAULT 'charge',
+        category VARCHAR(30) NOT NULL DEFAULT 'fixed',
+        calc_type VARCHAR(40) NOT NULL DEFAULT 'monthly_fixed',
+        quantity NUMERIC(12,2) NOT NULL DEFAULT 0,
+        unit_price NUMERIC(12,2) NOT NULL DEFAULT 0,
+        base_amount NUMERIC(12,2) NOT NULL DEFAULT 0,
+        discount_amount NUMERIC(12,2) NOT NULL DEFAULT 0,
+        final_amount NUMERIC(12,2) NOT NULL DEFAULT 0,
+        formula_text TEXT DEFAULT '',
+        note TEXT DEFAULT '',
+        source_type VARCHAR(40) NOT NULL DEFAULT 'SystemRule',
+        source_reference TEXT DEFAULT '',
+        is_optional BOOLEAN NOT NULL DEFAULT FALSE,
+        sort_order INTEGER NOT NULL DEFAULT 0
+      );
+    `);
+    await client.query(`
+      CREATE INDEX IF NOT EXISTS idx_student_fee_period_items_period
+      ON student_fee_period_items(student_fee_period_id, sort_order, id);
+    `);
+    await client.query(`
+      ALTER TABLE student_fee_period_items
+      ADD COLUMN IF NOT EXISTS item_code VARCHAR(100) NOT NULL DEFAULT '';
+    `);
+    await client.query(`
+      ALTER TABLE student_fee_period_items
+      ADD COLUMN IF NOT EXISTS line_type VARCHAR(30) NOT NULL DEFAULT 'charge';
+    `);
+    await client.query(`
+      ALTER TABLE student_fee_period_items
+      ADD COLUMN IF NOT EXISTS category VARCHAR(30) NOT NULL DEFAULT 'fixed';
+    `);
+    await client.query(`
+      ALTER TABLE student_fee_period_items
+      ADD COLUMN IF NOT EXISTS calc_type VARCHAR(40) NOT NULL DEFAULT 'monthly_fixed';
+    `);
+    await client.query(`
+      ALTER TABLE student_fee_period_items
+      ADD COLUMN IF NOT EXISTS quantity NUMERIC(12,2) NOT NULL DEFAULT 0;
+    `);
+    await client.query(`
+      ALTER TABLE student_fee_period_items
+      ADD COLUMN IF NOT EXISTS unit_price NUMERIC(12,2) NOT NULL DEFAULT 0;
+    `);
+    await client.query(`
+      ALTER TABLE student_fee_period_items
+      ADD COLUMN IF NOT EXISTS discount_amount NUMERIC(12,2) NOT NULL DEFAULT 0;
+    `);
+    await client.query(`
+      ALTER TABLE student_fee_period_items
+      ADD COLUMN IF NOT EXISTS final_amount NUMERIC(12,2) NOT NULL DEFAULT 0;
+    `);
+    await client.query(`
+      ALTER TABLE student_fee_period_items
+      ADD COLUMN IF NOT EXISTS formula_text TEXT DEFAULT '';
+    `);
+    await client.query(`
+      ALTER TABLE student_fee_period_items
+      ADD COLUMN IF NOT EXISTS note TEXT DEFAULT '';
+    `);
+    await client.query(`
+      ALTER TABLE student_fee_period_items
+      ADD COLUMN IF NOT EXISTS source_type VARCHAR(40) NOT NULL DEFAULT 'SystemRule';
+    `);
+    await client.query(`
+      ALTER TABLE student_fee_period_items
+      ADD COLUMN IF NOT EXISTS source_reference TEXT DEFAULT '';
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS student_fee_period_discounts (
+        id SERIAL PRIMARY KEY,
+        student_fee_period_id INTEGER NOT NULL REFERENCES student_fee_periods(id) ON DELETE CASCADE,
+        policy_id INTEGER REFERENCES discount_policies(id) ON DELETE SET NULL,
+        policy_name VARCHAR(500) NOT NULL,
+        discount_type VARCHAR(20) NOT NULL
+          CHECK (discount_type IN ('amount', 'percent')),
+        discount_value NUMERIC(12,2) NOT NULL DEFAULT 0,
+        discount_amount NUMERIC(12,2) NOT NULL DEFAULT 0
+      );
+    `);
+    await client.query(`
+      CREATE INDEX IF NOT EXISTS idx_student_fee_period_discounts_period
+      ON student_fee_period_discounts(student_fee_period_id, id);
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS fee_payments (
+        id SERIAL PRIMARY KEY,
+        student_fee_period_id INTEGER NOT NULL REFERENCES student_fee_periods(id) ON DELETE CASCADE,
+        amount NUMERIC(12,2) NOT NULL DEFAULT 0,
+        paid_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        method VARCHAR(50) NOT NULL DEFAULT 'cash',
+        invoice_number VARCHAR(100) NOT NULL DEFAULT '',
+        note TEXT DEFAULT '',
+        created_by_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+    `);
+    await client.query(`
+      CREATE INDEX IF NOT EXISTS idx_fee_payments_student_fee_period
+      ON fee_payments(student_fee_period_id, paid_at DESC, id DESC);
+    `);
+    await client.query(`
+      ALTER TABLE fee_payments
+      ADD COLUMN IF NOT EXISTS invoice_number VARCHAR(100) NOT NULL DEFAULT '';
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS student_service_subscriptions (
+        id SERIAL PRIMARY KEY,
+        student_id INTEGER NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+        fee_item_template_id INTEGER NOT NULL REFERENCES fee_item_templates(id) ON DELETE CASCADE,
+        start_date DATE NOT NULL,
+        end_date DATE,
+        status VARCHAR(20) NOT NULL DEFAULT 'active',
+        quantity_override NUMERIC(12,2),
+        unit_price_override NUMERIC(12,2),
+        note TEXT DEFAULT '',
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+    `);
+    await client.query(`
+      CREATE INDEX IF NOT EXISTS idx_student_service_subscriptions_lookup
+      ON student_service_subscriptions(student_id, fee_item_template_id, start_date, end_date);
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS student_service_usage_entries (
+        id SERIAL PRIMARY KEY,
+        subscription_id INTEGER NOT NULL REFERENCES student_service_subscriptions(id) ON DELETE CASCADE,
+        month_key VARCHAR(7) NOT NULL,
+        quantity NUMERIC(12,2) NOT NULL DEFAULT 0,
+        note TEXT DEFAULT '',
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        UNIQUE (subscription_id, month_key)
+      );
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS fee_adjustments (
+        id SERIAL PRIMARY KEY,
+        student_id INTEGER NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+        period_id INTEGER NOT NULL REFERENCES fee_periods(id) ON DELETE CASCADE,
+        fee_item_template_id INTEGER REFERENCES fee_item_templates(id) ON DELETE SET NULL,
+        line_name VARCHAR(500) NOT NULL,
+        adjustment_type VARCHAR(30) NOT NULL DEFAULT 'charge',
+        quantity NUMERIC(12,2) NOT NULL DEFAULT 1,
+        unit_price NUMERIC(12,2) NOT NULL DEFAULT 0,
+        amount NUMERIC(12,2) NOT NULL DEFAULT 0,
+        note TEXT DEFAULT '',
+        source_type VARCHAR(40) NOT NULL DEFAULT 'Adjustment',
+        created_by_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+    `);
+    await client.query(`
+      CREATE INDEX IF NOT EXISTS idx_fee_adjustments_period_student
+      ON fee_adjustments(period_id, student_id, id);
     `);
   } finally {
     client.release();

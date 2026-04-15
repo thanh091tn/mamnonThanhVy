@@ -7,6 +7,11 @@ import SchoolPanel from '../views/SchoolPanel.vue'
 import AttendancePanel from '../views/AttendancePanel.vue'
 import TeacherLeaveCalendar from '../views/TeacherLeaveCalendar.vue'
 import TeacherLeaveRequest from '../views/TeacherLeaveRequest.vue'
+import FeeItems from '../views/FeeItems.vue'
+import FeePeriods from '../views/FeePeriods.vue'
+import FeePolicies from '../views/FeePolicies.vue'
+import FeeCollection from '../views/FeeCollection.vue'
+import FeeServices from '../views/FeeServices.vue'
 
 const routes = [
   {
@@ -33,6 +38,36 @@ const routes = [
     path: '/leave-calendar',
     name: 'LeaveCalendar',
     component: TeacherLeaveCalendar,
+    meta: { requiresAuth: true, requiresManager: true },
+  },
+  {
+    path: '/fee-items',
+    name: 'FeeItems',
+    component: FeeItems,
+    meta: { requiresAuth: true, requiresManager: true },
+  },
+  {
+    path: '/fee-periods',
+    name: 'FeePeriods',
+    component: FeePeriods,
+    meta: { requiresAuth: true, requiresManager: true },
+  },
+  {
+    path: '/fee-policies',
+    name: 'FeePolicies',
+    component: FeePolicies,
+    meta: { requiresAuth: true, requiresManager: true },
+  },
+  {
+    path: '/fee-services',
+    name: 'FeeServices',
+    component: FeeServices,
+    meta: { requiresAuth: true, requiresManager: true },
+  },
+  {
+    path: '/fee-collection',
+    name: 'FeeCollection',
+    component: FeeCollection,
     meta: { requiresAuth: true, requiresManager: true },
   },
   {
