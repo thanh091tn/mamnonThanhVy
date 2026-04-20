@@ -31,7 +31,7 @@ const roleLabel = computed(() => {
 
 const displayName = computed(() => {
   if (!user.value) return "";
-  return user.value.name?.trim() || user.value.email || "";
+  return user.value.name?.trim() || user.value.phone || user.value.email || "";
 });
 
 const teacherStatusLabel = computed(() => {
@@ -133,6 +133,7 @@ watch(
                 <p class="mb-0 font-weight-bold text-sm profile-role">
                   {{ roleLabel }}
                 </p>
+                <p v-if="user?.phone" class="mb-0 text-xs profile-email">{{ user.phone }}</p>
                 <p v-if="user?.email" class="mb-0 text-xs profile-email">{{ user.email }}</p>
               </div>
             </div>
@@ -172,6 +173,10 @@ watch(
                 <div class="col-md-6">
                   <label class="form-control-label">Email</label>
                   <argon-input :model-value="user.email || ''" disabled />
+                </div>
+                <div class="col-md-6">
+                  <label class="form-control-label">Số điện thoại đăng nhập</label>
+                  <argon-input :model-value="user.phone || '—'" disabled />
                 </div>
                 <div class="col-md-6">
                   <label class="form-control-label">Vai trò</label>
@@ -238,7 +243,7 @@ watch(
           <profile-card
             :display-name="displayName"
             :role-label="roleLabel"
-            :email="user.email || ''"
+            :email="user.phone || user.email || ''"
             :user-id="user.id"
             :teacher-phone="teacher?.phone || ''"
             :teacher-address="teacher?.address || ''"

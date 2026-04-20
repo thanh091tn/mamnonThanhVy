@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted } from "vue";
+import { ref, computed, onMounted, watch } from "vue";
 import { useStore } from "vuex";
 import { api } from "@/api/client.js";
 import ArgonAlert from "@/components/ArgonAlert.vue";
@@ -37,6 +37,9 @@ function todayDateValue() {
 }
 
 const authUser = computed(() => store.state.authUser);
+const leaveMode = ref("full_day");
+const leaveSession = ref("morning");
+const leaveSingleDate = ref(todayDateValue());
 const leaveDate = ref(localTodayStr());
 const leaveEndDate = ref(localTodayStr());
 const leaveRange = ref([todayDateValue(), todayDateValue()]);
@@ -60,6 +63,59 @@ const teacherStatusOptions = [
   { value: "leave", label: "Phép" },
   { value: "excused", label: "Có phép" },
 ];
+
+const leaveModeOptions = [
+  {
+    value: "half_day",
+    title: "Nghỉ nửa ngày",
+    description: "Chọn một ngày và buổi nghỉ",
+    icon: "ni ni-time-alarm",
+  },
+  {
+    value: "date_range",
+    title: "Nghỉ trong khoảng ngày",
+    description: "Chọn ngày bắt đầu và kết thúc",
+    icon: "ni ni-calendar-grid-58",
+  },
+  {
+    value: "full_day",
+    title: "Nghỉ 1 ngày",
+    description: "Chọn một ngày nghỉ trọn ngày",
+    icon: "ni ni-calendar-grid-61",
+  },
+];
+
+const leaveSessionOptions = [
+  { value: "morning", label: "Buổi sáng" },
+  { value: "afternoon", label: "Buổi chiều" },
+];
+
+function leaveTypeLabel(type, session = "") {
+  if (type === "half_day") {
+    return session === "afternoon" ? "Nửa ngày - chiều" : "Nửa ngày - sáng";
+  }
+  if (type === "date_range") return "Khoảng ngày";
+  return "Nghỉ 1 ngày";
+}
+
+function currentLeaveDates() {
+  if (leaveMode.value === "date_range") {
+    const [startDate, endDate] = Array.isArray(leaveRange.value) ? leaveRange.value : [];
+    const startIso = dateToIso(startDate);
+    const endIso = dateToIso(endDate || startDate);
+    return { startIso, endIso };
+  }
+  const startIso = dateToIso(leaveSingleDate.value);
+  return { startIso, endIso: startIso };
+}
+
+function syncLeavePreview() {
+  const { startIso, endIso } = currentLeaveDates();
+  leaveDate.value = startIso || "";
+  leaveEndDate.value = endIso || startIso || "";
+}
+
+watch([leaveMode, leaveSingleDate, leaveRange], syncLeavePreview, { immediate: true });
 
 const myLeaveRows = computed(() => {
   const t = localTodayStr();
@@ -97,16 +153,18 @@ async function submitLeaveRequest() {
   leaveOkMsg.value = "";
   leaveSubmitting.value = true;
   try {
-    const [startDate, endDate] = Array.isArray(leaveRange.value) ? leaveRange.value : [];
-    leaveDate.value = dateToIso(startDate);
-    leaveEndDate.value = dateToIso(endDate || startDate);
+    syncLeavePreview();
     await api.post("/attendance/teachers/me/leave-request", {
       date: leaveDate.value,
       toDate: leaveEndDate.value,
+      leaveType: leaveMode.value,
+      leaveSession: leaveMode.value === "half_day" ? leaveSession.value : undefined,
       note: leaveNote.value,
     });
     leaveOkMsg.value =
-      leaveDate.value === leaveEndDate.value
+      leaveMode.value === "half_day"
+        ? `Đã gửi đăng ký nghỉ nửa ngày (${leaveSession.value === "afternoon" ? "buổi chiều" : "buổi sáng"}) ${leaveDate.value}.`
+        : leaveDate.value === leaveEndDate.value
         ? "Đã gửi đăng ký nghỉ phép."
         : `Đã gửi đăng ký nghỉ từ ${leaveDate.value} đến ${leaveEndDate.value}.`;
     leaveNote.value = "";
@@ -139,9 +197,7 @@ function closeConfirmPopup() {
 }
 
 function openSubmitLeaveConfirm() {
-  const [startDate, endDate] = Array.isArray(leaveRange.value) ? leaveRange.value : [];
-  const startIso = dateToIso(startDate);
-  const endIso = dateToIso(endDate || startDate);
+  const { startIso, endIso } = currentLeaveDates();
   const dateText =
     startIso && endIso
       ? startIso === endIso
@@ -150,7 +206,7 @@ function openSubmitLeaveConfirm() {
       : "khoảng ngày đã chọn";
 
   confirmPopupTitle.value = "Xác nhận đăng ký nghỉ";
-  confirmPopupMessage.value = `Xác nhận gửi đăng ký nghỉ ${dateText}?`;
+  confirmPopupMessage.value = `Xác nhận gửi đăng ký ${leaveTypeLabel(leaveMode.value, leaveSession.value).toLowerCase()} ${dateText}?`;
   confirmPopupConfirmText.value = "Gửi đăng ký";
   confirmPopupDanger.value = false;
   pendingLeaveAction.value = submitLeaveRequest;
@@ -198,7 +254,7 @@ onMounted(() => {
 
       <div class="teacher-leave-highlight">
         <span class="teacher-leave-highlight-label">Tài khoản</span>
-        <strong>{{ authUser?.name || authUser?.email || "Giáo viên" }}</strong>
+        <strong>{{ authUser?.name || authUser?.phone || authUser?.email || "Giáo viên" }}</strong>
         <small>{{ authUser?.email || "Đăng nhập bằng tài khoản giáo viên" }}</small>
       </div>
     </section>
@@ -211,10 +267,10 @@ onMounted(() => {
             Tạo đơn xin nghỉ
           </h6>
           <p class="text-sm text-secondary mb-0">
-            Chọn khoảng ngày nghỉ và thêm ghi chú nếu cần.
+            Chọn loại nghỉ, ngày nghỉ và thêm ghi chú nếu cần.
           </p>
           <p class="text-xs text-secondary mt-2 mb-0">
-            Có thể đăng ký nhiều ngày liên tiếp trong một lần gửi.
+            Hỗ trợ nghỉ nửa ngày, nghỉ 1 ngày hoặc nghỉ nhiều ngày liên tiếp.
           </p>
         </div>
         <div class="card-body teacher-leave-form-body">
@@ -237,11 +293,33 @@ onMounted(() => {
 
           <div class="teacher-leave-form-grid">
             <div class="teacher-leave-picker-shell">
+              <div class="teacher-leave-mode-grid">
+                <button
+                  v-for="option in leaveModeOptions"
+                  :key="option.value"
+                  type="button"
+                  class="teacher-leave-mode-option"
+                  :class="{ active: leaveMode === option.value }"
+                  @click="leaveMode = option.value"
+                >
+                  <i :class="option.icon"></i>
+                  <span>
+                    <strong>{{ option.title }}</strong>
+                    <small>{{ option.description }}</small>
+                  </span>
+                </button>
+              </div>
+
               <div class="teacher-leave-field-head">
-                <span class="teacher-leave-field-label">Khoảng ngày nghỉ</span>
-                <small class="teacher-leave-field-meta">Chọn nhanh khoảng thời gian cần nghỉ</small>
+                <span class="teacher-leave-field-label">
+                  {{ leaveMode === "date_range" ? "Khoảng ngày nghỉ" : "Ngày nghỉ" }}
+                </span>
+                <small class="teacher-leave-field-meta">
+                  {{ leaveMode === "date_range" ? "Chọn ngày bắt đầu và kết thúc" : "Chọn ngày cần nghỉ" }}
+                </small>
               </div>
               <VueDatePicker
+                v-if="leaveMode === 'date_range'"
                 v-model="leaveRange"
                 range
                 :min-date="todayDateValue()"
@@ -254,10 +332,42 @@ onMounted(() => {
                 placeholder="Chọn khoảng ngày nghỉ"
                 class="teacher-leave-datepicker"
               />
+              <VueDatePicker
+                v-else
+                v-model="leaveSingleDate"
+                :min-date="todayDateValue()"
+                :enable-time-picker="false"
+                :auto-apply="true"
+                :locale="vi"
+                format="dd/MM/yyyy"
+                select-text="Chọn"
+                cancel-text="Hủy"
+                placeholder="Chọn ngày nghỉ"
+                class="teacher-leave-datepicker"
+              />
+
+              <div v-if="leaveMode === 'half_day'" class="teacher-leave-session-row">
+                <button
+                  v-for="option in leaveSessionOptions"
+                  :key="option.value"
+                  type="button"
+                  class="teacher-leave-session-option"
+                  :class="{ active: leaveSession === option.value }"
+                  @click="leaveSession = option.value"
+                >
+                  {{ option.label }}
+                </button>
+              </div>
+
               <div class="teacher-leave-range-preview">
+                <span class="teacher-leave-chip teacher-leave-chip--type">
+                  {{ leaveTypeLabel(leaveMode, leaveSession) }}
+                </span>
                 <span class="teacher-leave-chip">{{ leaveDate || "Chưa chọn" }}</span>
-                <i class="ni ni-bold-right teacher-leave-chip-arrow"></i>
-                <span class="teacher-leave-chip">{{ leaveEndDate || leaveDate || "Chưa chọn" }}</span>
+                <template v-if="leaveMode === 'date_range'">
+                  <i class="ni ni-bold-right teacher-leave-chip-arrow"></i>
+                  <span class="teacher-leave-chip">{{ leaveEndDate || leaveDate || "Chưa chọn" }}</span>
+                </template>
               </div>
             </div>
 
@@ -321,6 +431,7 @@ onMounted(() => {
               <thead>
                 <tr>
                   <th>Ngày</th>
+                  <th>Loại nghỉ</th>
                   <th>Trạng thái</th>
                   <th>Ghi chú</th>
                   <th style="width: 130px"></th>
@@ -329,6 +440,11 @@ onMounted(() => {
               <tbody>
                 <tr v-for="row in myLeaveRows" :key="row.attendanceDate">
                   <td class="teacher-leave-date">{{ row.attendanceDate }}</td>
+                  <td>
+                    <span class="badge bg-gradient-info">
+                      {{ leaveTypeLabel(row.leaveType, row.leaveSession) }}
+                    </span>
+                  </td>
                   <td>
                     <span class="badge bg-gradient-secondary">Nghỉ phép</span>
                   </td>
@@ -375,6 +491,7 @@ onMounted(() => {
             <thead>
               <tr>
                 <th>Ngày</th>
+                <th>Loại</th>
                 <th>Trạng thái</th>
                 <th>Ghi chú</th>
               </tr>
@@ -382,6 +499,9 @@ onMounted(() => {
             <tbody>
               <tr v-for="row in myOtherAttendanceRows" :key="row.attendanceDate + row.status">
                 <td class="teacher-leave-date">{{ row.attendanceDate }}</td>
+                <td class="text-sm">
+                  {{ leaveTypeLabel(row.leaveType, row.leaveSession) }}
+                </td>
                 <td class="text-sm">
                   {{ teacherStatusOptions.find((o) => o.value === row.status)?.label || row.status }}
                 </td>
@@ -533,6 +653,86 @@ onMounted(() => {
 
 .teacher-leave-picker-shell {
   overflow: visible;
+}
+
+.teacher-leave-mode-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.55rem;
+  margin-bottom: 1rem;
+}
+
+.teacher-leave-mode-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.45rem;
+  min-height: 76px;
+  padding: 0.65rem;
+  border: 1px solid #e5edf6;
+  border-radius: 0.85rem;
+  background: #fff;
+  color: #344767;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.16s ease, background 0.16s ease, box-shadow 0.16s ease;
+}
+
+.teacher-leave-mode-option i {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.9rem;
+  height: 1.9rem;
+  border-radius: 0.65rem;
+  background: #fff7ed;
+  color: #d97706;
+  flex-shrink: 0;
+}
+
+.teacher-leave-mode-option strong,
+.teacher-leave-mode-option small {
+  display: block;
+  line-height: 1.25;
+}
+
+.teacher-leave-mode-option strong {
+  font-size: 0.78rem;
+}
+
+.teacher-leave-mode-option small {
+  margin-top: 0.18rem;
+  color: #8392ab;
+  font-size: 0.68rem;
+}
+
+.teacher-leave-mode-option.active {
+  border-color: #f59e0b;
+  background: #fff7ed;
+  box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.12);
+}
+
+.teacher-leave-session-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.55rem;
+  margin-top: 0.75rem;
+}
+
+.teacher-leave-session-option {
+  min-height: 2.45rem;
+  border: 1px solid #dbe4f0;
+  border-radius: 0.75rem;
+  background: #fff;
+  color: #344767;
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.teacher-leave-session-option.active {
+  border-color: #14b8a6;
+  background: #ecfdf5;
+  color: #0f766e;
 }
 
 .teacher-leave-field-head {
@@ -717,6 +917,12 @@ onMounted(() => {
   font-weight: 700;
 }
 
+.teacher-leave-chip--type {
+  background: #ecfeff;
+  border-color: #a5f3fc;
+  color: #0e7490;
+}
+
 .teacher-leave-chip-arrow {
   color: #c2410c;
   font-size: 0.8rem;
@@ -817,6 +1023,10 @@ onMounted(() => {
   }
 
   .teacher-leave-form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .teacher-leave-mode-grid {
     grid-template-columns: 1fr;
   }
 }

@@ -9,6 +9,8 @@ const router = Router();
 
 const STUDENT_ATT_STATUSES = new Set(["present", "absent", "late", "excused"]);
 const SESSIONS = new Set(["full", "morning", "afternoon"]);
+const TEACHER_LEAVE_TYPES = new Set(["full_day", "half_day", "date_range"]);
+const TEACHER_LEAVE_SESSIONS = new Set(["morning", "afternoon"]);
 
 function isValidDate(s) {
   return /^\d{4}-\d{2}-\d{2}$/.test(s) && !isNaN(Date.parse(s));
@@ -38,6 +40,60 @@ function datesInRange(from, to) {
     cur.setDate(cur.getDate() + 1);
   }
   return out;
+}
+
+async function assertClassAccess(db, req, rawClassId) {
+  const classId = Number(rawClassId);
+  if (!Number.isInteger(classId) || classId < 1) {
+    return { status: 400, error: "classId must be a positive integer" };
+  }
+
+  const cls = await db.query(`SELECT id FROM classes WHERE id = $1`, [classId]);
+  if (!cls.rowCount) {
+    return { status: 404, error: "Class not found" };
+  }
+
+  if (req.user?.role === "manager") {
+    return { classId };
+  }
+
+  if (req.user?.role === "teacher" && req.user.teacherId != null) {
+    const access = await db.query(
+      `SELECT 1
+       FROM class_teachers
+       WHERE class_id = $1 AND teacher_id = $2`,
+      [classId, req.user.teacherId]
+    );
+    if (access.rowCount) {
+      return { classId };
+    }
+  }
+
+  return { status: 403, error: "Class is not assigned to this teacher" };
+}
+
+async function assertStudentAccess(db, req, rawStudentId) {
+  const studentId = Number(rawStudentId);
+  if (!Number.isInteger(studentId) || studentId < 1) {
+    return { status: 400, error: "studentId must be a positive integer" };
+  }
+
+  const student = await db.query(`SELECT id, class_id FROM students WHERE id = $1`, [studentId]);
+  if (!student.rowCount) {
+    return { status: 404, error: "Student not found" };
+  }
+
+  const classId = student.rows[0].class_id;
+  if (classId == null) {
+    if (req.user?.role === "manager") {
+      return { studentId, classId: null };
+    }
+    return { status: 403, error: "Student is not assigned to a class" };
+  }
+
+  const access = await assertClassAccess(db, req, classId);
+  if (access.error) return access;
+  return { studentId, classId };
 }
 
 /** @returns {{ from: string, to: string }} */
@@ -74,9 +130,9 @@ router.get("/students", async (req, res, next) => {
     if (!SESSIONS.has(session))
       return res.status(400).json({ error: "session must be full, morning, or afternoon" });
 
-    const cid = Number(classId);
-    const cls = await pool.query("SELECT id FROM classes WHERE id = $1", [cid]);
-    if (!cls.rowCount) return res.status(404).json({ error: "Class not found" });
+    const access = await assertClassAccess(pool, req, classId);
+    if (access.error) return res.status(access.status).json({ error: access.error });
+    const cid = access.classId;
 
     const r = await pool.query(
       `SELECT s.id   AS student_id,
@@ -136,7 +192,9 @@ router.get("/students", async (req, res, next) => {
  */
 router.get("/students/student/:studentId", async (req, res, next) => {
   try {
-    const studentId = Number(req.params.studentId);
+    const access = await assertStudentAccess(pool, req, req.params.studentId);
+    if (access.error) return res.status(access.status).json({ error: access.error });
+    const studentId = access.studentId;
     const { from, to } = req.query;
     const params = [studentId];
     let dateFilter = "";
@@ -182,34 +240,50 @@ router.put("/students/bulk", async (req, res, next) => {
     if (!Array.isArray(items) || !items.length)
       return res.status(400).json({ error: "items array is required" });
 
-    const cid = Number(classId);
-    const cls = await client.query("SELECT id FROM classes WHERE id = $1", [cid]);
-    if (!cls.rowCount) return res.status(404).json({ error: "Class not found" });
+    const access = await assertClassAccess(client, req, classId);
+    if (access.error) return res.status(access.status).json({ error: access.error });
+    const cid = access.classId;
 
+    const studentIds = [];
     for (const it of items) {
-      if (!it.studentId) return res.status(400).json({ error: "each item needs studentId" });
+      const studentId = Number(it.studentId);
+      if (!Number.isInteger(studentId) || studentId < 1) {
+        return res.status(400).json({ error: "each item needs studentId" });
+      }
+      if (!studentIds.includes(studentId)) studentIds.push(studentId);
       const st = String(it.status || "present").toLowerCase();
       if (!STUDENT_ATT_STATUSES.has(st))
         return res.status(400).json({ error: `Invalid status: ${it.status}` });
     }
 
+    const ownedStudents = await client.query(
+      `SELECT id FROM students WHERE class_id = $1 AND id = ANY($2::int[])`,
+      [cid, studentIds]
+    );
+    if (ownedStudents.rowCount !== studentIds.length) {
+      return res.status(400).json({ error: "All students must belong to the selected class" });
+    }
+
     await client.query("BEGIN");
 
     const upserted = [];
+    const recordedByTeacherId =
+      req.user?.role === "teacher" && req.user.teacherId != null ? req.user.teacherId : null;
     for (const it of items) {
       const st = String(it.status || "present").toLowerCase();
       const note = it.note != null ? String(it.note) : "";
       const r = await client.query(
         `INSERT INTO student_attendance
-           (student_id, class_id, attendance_date, session, status, note, updated_at)
-         VALUES ($1, $2, $3, $4, $5, $6, NOW())
+           (student_id, class_id, attendance_date, session, status, note, recorded_by_teacher_id, updated_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
          ON CONFLICT (student_id, attendance_date, session)
          DO UPDATE SET status = EXCLUDED.status,
                        note = EXCLUDED.note,
                        class_id = EXCLUDED.class_id,
+                       recorded_by_teacher_id = EXCLUDED.recorded_by_teacher_id,
                        updated_at = NOW()
          RETURNING *`,
-        [Number(it.studentId), cid, date, session, st, note]
+        [Number(it.studentId), cid, date, session, st, note, recordedByTeacherId]
       );
       upserted.push(r.rows[0]);
     }
@@ -237,11 +311,14 @@ router.delete("/students/record", async (req, res, next) => {
     if (!SESSIONS.has(session))
       return res.status(400).json({ error: "session must be full, morning, or afternoon" });
 
+    const access = await assertStudentAccess(pool, req, studentId);
+    if (access.error) return res.status(access.status).json({ error: access.error });
+
     const r = await pool.query(
       `DELETE FROM student_attendance
        WHERE student_id = $1 AND attendance_date = $2 AND session = $3
        RETURNING id`,
-      [Number(studentId), date, session]
+      [access.studentId, date, session]
     );
     res.json({ deleted: r.rowCount });
   } catch (e) {
@@ -301,11 +378,17 @@ router.post("/teachers/me/leave-request", async (req, res, next) => {
       return res.status(403).json({ error: "Chỉ giáo viên mới xin nghỉ được" });
     }
     const tid = req.user.teacherId;
-    const { date, toDate, note } = req.body || {};
+    const { date, toDate, note, leaveType = "full_day", leaveSession } = req.body || {};
     if (!date || !isValidDate(date)) {
       return res.status(400).json({ error: "date must be YYYY-MM-DD" });
     }
-    const endDate = toDate == null || toDate === "" ? date : toDate;
+    if (!TEACHER_LEAVE_TYPES.has(leaveType)) {
+      return res.status(400).json({ error: "leaveType must be full_day, half_day, or date_range" });
+    }
+    if (leaveType === "half_day" && !TEACHER_LEAVE_SESSIONS.has(leaveSession)) {
+      return res.status(400).json({ error: "leaveSession must be morning or afternoon for half_day" });
+    }
+    const endDate = leaveType === "date_range" && toDate != null && toDate !== "" ? toDate : date;
     if (!isValidDate(endDate)) {
       return res.status(400).json({ error: "toDate must be YYYY-MM-DD" });
     }
@@ -319,18 +402,26 @@ router.post("/teachers/me/leave-request", async (req, res, next) => {
     if (!ex.rowCount) return res.status(404).json({ error: "Teacher not found" });
     const noteStr = note != null ? String(note).trim().slice(0, 2000) : "";
     const requestedDates = datesInRange(date, endDate);
+    if (leaveType !== "date_range" && requestedDates.length > 1) {
+      return res.status(400).json({ error: "Only date_range can include more than one day" });
+    }
     if (requestedDates.length > 31) {
       return res.status(400).json({ error: "Chỉ được đăng ký tối đa 31 ngày mỗi lần" });
     }
+    const leaveSessionValue = leaveType === "half_day" ? leaveSession : null;
     const r = await pool.query(
       `INSERT INTO teacher_attendance
-         (teacher_id, attendance_date, status, note, updated_at)
-       SELECT $1, d::date, 'leave', $3, NOW()
+         (teacher_id, attendance_date, status, leave_type, leave_session, note, updated_at)
+       SELECT $1, d::date, 'leave', $3, $4, $5, NOW()
        FROM unnest($2::text[]) AS d
        ON CONFLICT (teacher_id, attendance_date)
-       DO UPDATE SET status = 'leave', note = EXCLUDED.note, updated_at = NOW()
+       DO UPDATE SET status = 'leave',
+                     leave_type = EXCLUDED.leave_type,
+                     leave_session = EXCLUDED.leave_session,
+                     note = EXCLUDED.note,
+                     updated_at = NOW()
        RETURNING *`,
-      [tid, requestedDates, noteStr]
+      [tid, requestedDates, leaveType, leaveSessionValue, noteStr]
     );
     const nameR = await pool.query(`SELECT name FROM teachers WHERE id = $1`, [tid]);
     res.status(201).json({
@@ -403,6 +494,8 @@ router.get("/teachers/leave-calendar", async (req, res, next) => {
               ta.teacher_id,
               ta.attendance_date,
               ta.status,
+              ta.leave_type,
+              ta.leave_session,
               ta.note,
               ta.created_at,
               ta.updated_at,

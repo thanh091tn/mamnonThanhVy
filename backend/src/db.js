@@ -79,6 +79,13 @@ export async function initDb() {
       );
     `);
     await client.query(`
+      CREATE TABLE IF NOT EXISTS teacher_roles (
+        id SERIAL PRIMARY KEY,
+        name VARCHAR(200) NOT NULL UNIQUE,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+    `);
+    await client.query(`
       CREATE TABLE IF NOT EXISTS teachers (
         id SERIAL PRIMARY KEY,
         name VARCHAR(500) NOT NULL,
@@ -86,6 +93,9 @@ export async function initDb() {
         email VARCHAR(500) DEFAULT '',
         phone VARCHAR(100) DEFAULT ''
       );
+    `);
+    await client.query(`
+      ALTER TABLE teachers ADD COLUMN IF NOT EXISTS role_id INTEGER REFERENCES teacher_roles(id) ON DELETE SET NULL;
     `);
     await client.query(`
       ALTER TABLE teachers ADD COLUMN IF NOT EXISTS address TEXT DEFAULT '';
@@ -96,6 +106,20 @@ export async function initDb() {
     await client.query(`
       ALTER TABLE teachers ADD COLUMN IF NOT EXISTS gender VARCHAR(20) DEFAULT 'male';
     `);
+    await client.query(`
+      INSERT INTO teacher_roles (name)
+      SELECT DISTINCT TRIM(subject)
+      FROM teachers
+      WHERE subject IS NOT NULL AND TRIM(subject) <> ''
+      ON CONFLICT (name) DO NOTHING;
+    `);
+    await client.query(`
+      UPDATE teachers t
+      SET role_id = tr.id
+      FROM teacher_roles tr
+      WHERE t.role_id IS NULL
+        AND TRIM(COALESCE(t.subject, '')) = tr.name;
+    `);
 
     await client.query(`
       CREATE TABLE IF NOT EXISTS classes (
@@ -105,6 +129,25 @@ export async function initDb() {
         room VARCHAR(200) DEFAULT '',
         teacher_id INTEGER REFERENCES teachers(id) ON DELETE SET NULL
       );
+    `);
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS class_teachers (
+        class_id INTEGER NOT NULL REFERENCES classes(id) ON DELETE CASCADE,
+        teacher_id INTEGER NOT NULL REFERENCES teachers(id) ON DELETE CASCADE,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        PRIMARY KEY (class_id, teacher_id)
+      );
+    `);
+    await client.query(`
+      CREATE INDEX IF NOT EXISTS idx_class_teachers_teacher
+      ON class_teachers(teacher_id, class_id);
+    `);
+    await client.query(`
+      INSERT INTO class_teachers (class_id, teacher_id)
+      SELECT id, teacher_id
+      FROM classes
+      WHERE teacher_id IS NOT NULL
+      ON CONFLICT DO NOTHING;
     `);
     await client.query(`
       ALTER TABLE students
@@ -137,6 +180,20 @@ export async function initDb() {
     await client.query(`ALTER TABLE students ADD COLUMN IF NOT EXISTS birth_place TEXT DEFAULT '';`);
     await client.query(`ALTER TABLE students ADD COLUMN IF NOT EXISTS father_birth_year VARCHAR(10) DEFAULT '';`);
     await client.query(`ALTER TABLE students ADD COLUMN IF NOT EXISTS mother_birth_year VARCHAR(10) DEFAULT '';`);
+    await client.query(`ALTER TABLE students ADD COLUMN IF NOT EXISTS father_name TEXT DEFAULT '';`);
+    await client.query(`ALTER TABLE students ADD COLUMN IF NOT EXISTS father_birth_date DATE;`);
+    await client.query(`ALTER TABLE students ADD COLUMN IF NOT EXISTS father_phone VARCHAR(100) DEFAULT '';`);
+    await client.query(`ALTER TABLE students ADD COLUMN IF NOT EXISTS father_email TEXT DEFAULT '';`);
+    await client.query(`ALTER TABLE students ADD COLUMN IF NOT EXISTS father_login TEXT DEFAULT '';`);
+    await client.query(`ALTER TABLE students ADD COLUMN IF NOT EXISTS father_id_number VARCHAR(50) DEFAULT '';`);
+    await client.query(`ALTER TABLE students ADD COLUMN IF NOT EXISTS father_occupation TEXT DEFAULT '';`);
+    await client.query(`ALTER TABLE students ADD COLUMN IF NOT EXISTS mother_name TEXT DEFAULT '';`);
+    await client.query(`ALTER TABLE students ADD COLUMN IF NOT EXISTS mother_birth_date DATE;`);
+    await client.query(`ALTER TABLE students ADD COLUMN IF NOT EXISTS mother_phone VARCHAR(100) DEFAULT '';`);
+    await client.query(`ALTER TABLE students ADD COLUMN IF NOT EXISTS mother_email TEXT DEFAULT '';`);
+    await client.query(`ALTER TABLE students ADD COLUMN IF NOT EXISTS mother_login TEXT DEFAULT '';`);
+    await client.query(`ALTER TABLE students ADD COLUMN IF NOT EXISTS mother_id_number VARCHAR(50) DEFAULT '';`);
+    await client.query(`ALTER TABLE students ADD COLUMN IF NOT EXISTS mother_occupation TEXT DEFAULT '';`);
     await client.query(`ALTER TABLE students ADD COLUMN IF NOT EXISTS id_number VARCHAR(50) DEFAULT '';`);
     await client.query(`ALTER TABLE students ADD COLUMN IF NOT EXISTS id_issued_place TEXT DEFAULT '';`);
     await client.query(`ALTER TABLE students ADD COLUMN IF NOT EXISTS id_issued_date DATE;`);
@@ -194,11 +251,21 @@ export async function initDb() {
         teacher_id INTEGER NOT NULL REFERENCES teachers(id) ON DELETE CASCADE,
         attendance_date DATE NOT NULL,
         status VARCHAR(20) NOT NULL DEFAULT 'present',
+        leave_type VARCHAR(20) NOT NULL DEFAULT 'full_day',
+        leave_session VARCHAR(20),
         note TEXT DEFAULT '',
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
         updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
         UNIQUE (teacher_id, attendance_date)
       );
+    `);
+    await client.query(`
+      ALTER TABLE teacher_attendance
+      ADD COLUMN IF NOT EXISTS leave_type VARCHAR(20) NOT NULL DEFAULT 'full_day';
+    `);
+    await client.query(`
+      ALTER TABLE teacher_attendance
+      ADD COLUMN IF NOT EXISTS leave_session VARCHAR(20);
     `);
     await client.query(`
       CREATE INDEX IF NOT EXISTS idx_teacher_att_date
@@ -208,7 +275,8 @@ export async function initDb() {
     await client.query(`
       CREATE TABLE IF NOT EXISTS users (
         id SERIAL PRIMARY KEY,
-        email VARCHAR(500) NOT NULL UNIQUE,
+        email VARCHAR(500) UNIQUE,
+        phone VARCHAR(100) DEFAULT '',
         password_hash TEXT NOT NULL,
         role VARCHAR(20) NOT NULL CHECK (role IN ('manager', 'teacher')),
         name VARCHAR(500) DEFAULT '',
@@ -216,9 +284,24 @@ export async function initDb() {
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       );
     `);
+    await client.query(`ALTER TABLE users ALTER COLUMN email DROP NOT NULL;`);
+    await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS phone VARCHAR(100) DEFAULT '';`);
     await client.query(`
       CREATE UNIQUE INDEX IF NOT EXISTS idx_users_teacher_id_unique
       ON users (teacher_id) WHERE teacher_id IS NOT NULL;
+    `);
+    await client.query(`
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_users_phone_unique
+      ON users (phone) WHERE phone IS NOT NULL AND phone <> '';
+    `);
+    await client.query(`
+      UPDATE users u
+      SET phone = t.phone
+      FROM teachers t
+      WHERE u.teacher_id = t.id
+        AND u.role = 'teacher'
+        AND COALESCE(u.phone, '') = ''
+        AND COALESCE(t.phone, '') <> '';
     `);
 
     await client.query(`
@@ -699,6 +782,20 @@ export function mapStudentRow(row) {
     birthPlace: row.birth_place ?? "",
     fatherBirthYear: row.father_birth_year ?? "",
     motherBirthYear: row.mother_birth_year ?? "",
+    fatherName: row.father_name ?? "",
+    fatherBirthDate: dateToApi(row.father_birth_date),
+    fatherPhone: row.father_phone ?? "",
+    fatherEmail: row.father_email ?? "",
+    fatherLogin: row.father_login ?? "",
+    fatherIdNumber: row.father_id_number ?? "",
+    fatherOccupation: row.father_occupation ?? "",
+    motherName: row.mother_name ?? "",
+    motherBirthDate: dateToApi(row.mother_birth_date),
+    motherPhone: row.mother_phone ?? "",
+    motherEmail: row.mother_email ?? "",
+    motherLogin: row.mother_login ?? "",
+    motherIdNumber: row.mother_id_number ?? "",
+    motherOccupation: row.mother_occupation ?? "",
     idNumber: row.id_number ?? "",
     idIssuedPlace: row.id_issued_place ?? "",
     idIssuedDate: dateToApi(row.id_issued_date),
@@ -713,13 +810,25 @@ export function mapStudentRow(row) {
 }
 
 export function mapClassRow(row) {
+  const teacherIds = Array.isArray(row.teacher_ids)
+    ? row.teacher_ids.filter((v) => v != null).map(Number)
+    : row.teacher_id != null
+      ? [Number(row.teacher_id)]
+      : [];
+  const teacherNames = Array.isArray(row.teacher_names)
+    ? row.teacher_names.filter(Boolean)
+    : row.teacher_name
+      ? [row.teacher_name]
+      : [];
   return {
     id: row.id,
     name: row.name,
     level: row.level ?? "",
     room: row.room ?? "",
-    teacherId: row.teacher_id != null ? row.teacher_id : null,
-    teacherName: row.teacher_name ?? "",
+    teacherId: teacherIds.length ? teacherIds[0] : null,
+    teacherName: teacherNames.join(", "),
+    teacherIds,
+    teacherNames,
   };
 }
 
@@ -729,9 +838,12 @@ export function mapTeacherRow(row) {
     name: row.name,
     email: row.email ?? "",
     phone: row.phone ?? "",
+    roleId: row.role_id != null ? Number(row.role_id) : null,
+    subject: row.subject ?? "",
     address: row.address ?? "",
     status: row.status ?? "active",
     gender: row.gender === "female" ? "female" : "male",
+    hasAccount: row.user_id != null || row.has_account === true,
   };
 }
 
@@ -797,6 +909,8 @@ export function mapTeacherAttendanceRow(row) {
     teacherName: row.teacher_name ?? "",
     attendanceDate: dateToApi(row.attendance_date),
     status: row.status ?? "present",
+    leaveType: row.leave_type ?? "full_day",
+    leaveSession: row.leave_session ?? "",
     note: row.note ?? "",
     createdAt:
       row.created_at instanceof Date

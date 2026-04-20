@@ -3,6 +3,7 @@ import store from '../store'
 import Profile from '../views/Profile.vue'
 import Signup from '../views/Signup.vue'
 import Signin from '../views/Signin.vue'
+import Dashboard from '../views/Dashboard.vue'
 import SchoolPanel from '../views/SchoolPanel.vue'
 import AttendancePanel from '../views/AttendancePanel.vue'
 import TeacherLeaveCalendar from '../views/TeacherLeaveCalendar.vue'
@@ -17,7 +18,13 @@ const routes = [
   {
     path: '/',
     name: '/',
-    redirect: '/school',
+    redirect: '/dashboard',
+  },
+  {
+    path: '/dashboard',
+    name: 'Dashboard',
+    component: Dashboard,
+    meta: { requiresAuth: true },
   },
   {
     path: '/school',
@@ -113,7 +120,7 @@ router.beforeEach((to, _from, next) => {
   if (to.meta.requiresManager) {
     const user = store.state.authUser
     if (!user || user.role !== 'manager') {
-      next({ name: 'School' })
+      next({ name: 'Dashboard' })
       return
     }
   }
@@ -121,13 +128,13 @@ router.beforeEach((to, _from, next) => {
   if (to.meta.requiresTeacher) {
     const user = store.state.authUser
     if (!user || user.role !== 'teacher' || user.teacherId == null) {
-      next({ name: 'School' })
+      next({ name: 'Dashboard' })
       return
     }
   }
 
   if ((to.name === 'Signin' || to.name === 'Signup') && token) {
-    const redir = typeof to.query.redirect === 'string' ? to.query.redirect : '/school'
+    const redir = typeof to.query.redirect === 'string' ? to.query.redirect : '/dashboard'
     next(redir)
     return
   }

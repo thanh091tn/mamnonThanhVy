@@ -66,6 +66,14 @@ function isToday(dateStr) {
   return dateStr === todayStr
 }
 
+function leaveTypeLabel(type, session = '') {
+  if (type === 'half_day') {
+    return session === 'afternoon' ? 'Nửa ngày - chiều' : 'Nửa ngày - sáng'
+  }
+  if (type === 'date_range') return 'Khoảng ngày'
+  return 'Nghỉ 1 ngày'
+}
+
 const selectedLeaves = computed(() => {
   if (!selectedDateStr.value) return []
   return leavesByDate.value[selectedDateStr.value] || []
@@ -212,7 +220,7 @@ onMounted(() => {
                           v-for="(lv, j) in (leavesByDate[cell.dateStr] || []).slice(0, 2)"
                           :key="lv.id + '-' + j"
                           class="leave-cal-chip"
-                          :title="lv.teacherName"
+                          :title="`${lv.teacherName} - ${leaveTypeLabel(lv.leaveType, lv.leaveSession)}`"
                         >
                           {{ lv.teacherName }}
                         </span>
@@ -238,6 +246,7 @@ onMounted(() => {
                           <thead>
                             <tr>
                               <th>Tên giáo viên</th>
+                              <th>Loại nghỉ</th>
                               <th>Ghi chú</th>
                             </tr>
                           </thead>
@@ -245,6 +254,9 @@ onMounted(() => {
                             <tr v-for="lv in selectedLeaves" :key="lv.id">
                               <td>
                                 <span class="leave-detail-name">{{ lv.teacherName }}</span>
+                              </td>
+                              <td>
+                                <span class="leave-detail-type">{{ leaveTypeLabel(lv.leaveType, lv.leaveSession) }}</span>
                               </td>
                               <td>
                                 <span v-if="lv.note" class="leave-detail-note">{{ lv.note }}</span>
@@ -417,6 +429,19 @@ onMounted(() => {
   min-width: 12rem;
   color: #344767;
   font-weight: 600;
+}
+
+.leave-detail-type {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.65rem;
+  padding: 0.25rem 0.55rem;
+  border-radius: 999px;
+  background: #ecfeff;
+  color: #0e7490;
+  font-size: 0.72rem;
+  font-weight: 700;
+  white-space: nowrap;
 }
 
 .leave-detail-note {

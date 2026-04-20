@@ -12,6 +12,7 @@ import uploadRouter from "./routes/upload.js";
 import attendanceRouter from "./routes/attendance.js";
 import authRouter from "./routes/auth.js";
 import feesRouter from "./routes/fees.js";
+import dashboardRouter from "./routes/dashboard.js";
 import { requireAuth } from "./middleware/auth.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -35,6 +36,7 @@ app.get("/api/health", (_req, res) => {
 
 app.use("/api/auth", authRouter);
 app.use("/api/upload", requireAuth, uploadRouter);
+app.use("/api/dashboard", requireAuth, dashboardRouter);
 app.use("/api/students", requireAuth, studentsRouter);
 app.use("/api/teachers", requireAuth, teachersRouter);
 app.use("/api/classes", requireAuth, classesRouter);

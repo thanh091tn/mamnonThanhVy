@@ -45,6 +45,7 @@ export default createStore({
     },
     sidebarMinimize(state) {
       let sidenav_show = document.querySelector("#app");
+      if (!sidenav_show) return;
       if (state.isPinned) {
         sidenav_show.classList.add("g-sidenav-hidden");
         sidenav_show.classList.remove("g-sidenav-pinned");
@@ -54,6 +55,13 @@ export default createStore({
         sidenav_show.classList.remove("g-sidenav-hidden");
         state.isPinned = true;
       }
+    },
+    resetSidebarForDesktop(state) {
+      const sidenavShow = document.querySelector("#app");
+      if (!sidenavShow) return;
+      sidenavShow.classList.remove("g-sidenav-hidden");
+      sidenavShow.classList.remove("g-sidenav-pinned");
+      state.isPinned = false;
     },
     sidebarType(state, payload) {
       state.sidebarType = payload;

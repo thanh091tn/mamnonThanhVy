@@ -1,133 +1,94 @@
 /* Shared data tables: Students, Teachers, Classes panels */
-
 .panel-table-wrap {
-  margin-left: 1.5rem;
-  margin-right: 1.5rem;
-  margin-bottom: 0.75rem;
-  border-radius: 1rem;
-  border: 1px solid #e2e8f0;
-  overflow: hidden;
-  background: #fff;
-  box-shadow:
-    0 1rem 2rem -1.7rem rgba(15, 23, 42, 0.28),
-    0 0.35rem 0.8rem -0.8rem rgba(15, 23, 42, 0.12);
+  @apply tw-mx-6 tw-mb-3 tw-overflow-hidden tw-rounded-2xl tw-border tw-border-slate-200 tw-bg-white tw-shadow-panel-table;
 }
 
 .panel-table-wrap .table-responsive {
-  margin: 0;
-  overflow-x: auto;
+  @apply tw-m-0 tw-overflow-x-auto;
 }
 
 .panel-data-table {
   --panel-table-border: #edf2f7;
-  margin-bottom: 0;
+  @apply tw-mb-0;
 }
 
 .panel-data-table thead th {
-  padding: 0.9rem 1rem;
-  font-size: 0.68rem;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: #64748b;
-  background: linear-gradient(180deg, #fbfcfe 0%, #f6f8fb 100%);
-  border-bottom: 1px solid #e2e8f0;
-  vertical-align: middle;
-  white-space: nowrap;
+  @apply tw-whitespace-nowrap tw-border-b tw-border-slate-200 tw-bg-gradient-to-b tw-from-[#fbfcfe] tw-to-[#f6f8fb] tw-px-4 tw-py-[0.9rem] tw-align-middle tw-text-[0.68rem] tw-font-bold tw-uppercase tw-tracking-[0.06em] tw-text-slate-500;
 }
 
 .panel-data-table thead th:first-child {
-  padding-left: 1.35rem;
+  @apply tw-pl-[1.35rem];
 }
 
 .panel-data-table thead th:last-child {
-  width: 1%;
-  padding-right: 1.35rem;
+  @apply tw-w-[1%] tw-pr-[1.35rem];
 }
 
 .panel-data-table tbody td {
-  padding: 0.95rem 1rem;
-  vertical-align: middle;
-  border-bottom: 1px solid var(--panel-table-border);
-  background: #fff;
+  @apply tw-border-b tw-bg-white tw-px-4 tw-py-[0.95rem] tw-align-middle;
+  border-bottom-color: var(--panel-table-border);
 }
 
 .panel-data-table tbody td:first-child {
-  padding-left: 1.35rem;
+  @apply tw-pl-[1.35rem];
 }
 
 .panel-data-table tbody td:last-child {
-  padding-right: 1.35rem;
+  @apply tw-pr-[1.35rem];
 }
 
 .panel-data-table tbody tr:last-child td {
-  border-bottom: none;
+  @apply tw-border-b-0;
 }
 
 .panel-data-table tbody tr:nth-child(even) td {
-  background: #fcfdff;
+  @apply tw-bg-[#fcfdff];
 }
 
 .panel-data-table tbody tr:not(.panel-table-empty):hover td {
-  background-color: #f5f8ff;
+  @apply tw-bg-[#f5f8ff];
 }
 
 .panel-data-table .panel-table-empty td {
-  text-align: center;
-  color: #67748e;
-  font-size: 0.875rem;
-  background: #fafbfc;
-  padding: 1.6rem 1rem !important;
-  border-bottom: none !important;
+  @apply tw-border-b-0 tw-bg-[#fafbfc] tw-px-4 tw-py-[1.6rem] tw-text-center tw-text-sm tw-text-[#67748e];
 }
 
 .panel-data-table .panel-table-empty:hover td {
-  background: #fafbfc !important;
+  @apply tw-bg-[#fafbfc];
 }
 
 .panel-table-actions a {
-  display: inline-flex;
-  align-items: center;
-  min-height: 2rem;
-  padding: 0.15rem 0;
-  text-decoration: none;
-  transition: color 0.15s ease, opacity 0.15s ease;
+  @apply tw-inline-flex tw-min-h-8 tw-items-center tw-py-[0.15rem] tw-no-underline tw-transition tw-duration-150 tw-ease-in-out;
+  transition-property: color, opacity;
 }
 
 .panel-table-actions a:hover {
-  opacity: 0.85;
+  @apply tw-opacity-85;
 }
 
 .panel-data-table .panel-primary-text {
-  color: #1f2a44;
-  font-weight: 700;
+  @apply tw-font-bold tw-text-[#1f2a44];
 }
 
 .panel-data-table .panel-muted-text {
-  color: #64748b;
+  @apply tw-text-slate-500;
 }
 
 .panel-data-table h6,
 .panel-data-table p {
-  margin-bottom: 0;
+  @apply tw-mb-0;
 }
 
 .panel-data-table .text-xs {
-  line-height: 1.45;
+  @apply tw-leading-[1.45];
 }
 
 .panel-data-table .badge {
-  padding: 0.45rem 0.7rem;
-  border-radius: 999px;
-  font-size: 0.68rem;
-  font-weight: 700;
-  letter-spacing: 0.02em;
+  @apply tw-rounded-full tw-px-[0.7rem] tw-py-[0.45rem] tw-text-[0.68rem] tw-font-bold tw-tracking-[0.02em];
 }
 
 .panel-data-table .d-flex.px-2.py-1 {
-  padding: 0 !important;
-  gap: 0.75rem;
-  align-items: center;
+  @apply tw-items-center tw-gap-3 !tw-p-0;
 }
 
 .panel-data-table .cursor-pointer {
@@ -137,33 +98,30 @@
 @media (max-width: 991.98px) {
   .panel-data-table thead th,
   .panel-data-table tbody td {
-    padding-top: 0.8rem;
-    padding-bottom: 0.8rem;
+    @apply tw-py-3;
   }
 }
 
 @media (max-width: 767.98px) {
   .panel-table-wrap {
-    margin-left: 1rem;
-    margin-right: 1rem;
-    border-radius: 0.85rem;
+    @apply tw-mx-4 tw-rounded-[0.85rem];
   }
 
   .panel-data-table thead th {
-    font-size: 0.64rem;
+    @apply tw-text-[0.64rem];
   }
 
   .panel-data-table tbody td {
-    padding: 0.75rem 0.85rem;
+    @apply tw-px-[0.85rem] tw-py-3;
   }
 
   .panel-data-table thead th:first-child,
   .panel-data-table tbody td:first-child {
-    padding-left: 1rem;
+    @apply tw-pl-4;
   }
 
   .panel-data-table thead th:last-child,
   .panel-data-table tbody td:last-child {
-    padding-right: 1rem;
+    @apply tw-pr-4;
   }
 }

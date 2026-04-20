@@ -7,6 +7,7 @@ import {
   normalizeStudentStatus,
   normalizeStudentGender,
 } from "../db.js";
+import { requireManager } from "../middleware/auth.js";
 
 const router = Router();
 
@@ -28,6 +29,10 @@ const studentSelect = `
          s.avatar, s.join_date, s.status, s.gender,
          s.phone, s.nationality, s.religion, s.province, s.ward, s.hamlet,
          s.birth_place, s.father_birth_year, s.mother_birth_year,
+         s.father_name, s.father_birth_date, s.father_phone, s.father_email,
+         s.father_login, s.father_id_number, s.father_occupation,
+         s.mother_name, s.mother_birth_date, s.mother_phone, s.mother_email,
+         s.mother_login, s.mother_id_number, s.mother_occupation,
          s.id_number, s.id_issued_place, s.id_issued_date, s.area,
          s.disability_type, s.policy_beneficiary, s.eye_disease,
          s.guardian_name, s.guardian_occupation, s.guardian_birth_year,
@@ -47,9 +52,47 @@ async function resolveClassId(raw) {
   return { id };
 }
 
-router.get("/", async (_req, res, next) => {
+async function assertStudentAccess(db, req, rawStudentId) {
+  const studentId = Number(rawStudentId);
+  if (!Number.isInteger(studentId) || studentId < 1) {
+    return { status: 404, error: "Student not found" };
+  }
+
+  const r = await db.query(`SELECT id, class_id FROM students WHERE id = $1`, [studentId]);
+  if (!r.rowCount) {
+    return { status: 404, error: "Student not found" };
+  }
+  if (req.user?.role === "manager") {
+    return { studentId };
+  }
+  if (req.user?.role === "teacher" && req.user.teacherId != null && r.rows[0].class_id != null) {
+    const access = await db.query(
+      `SELECT 1 FROM class_teachers WHERE class_id = $1 AND teacher_id = $2`,
+      [r.rows[0].class_id, req.user.teacherId]
+    );
+    if (access.rowCount) {
+      return { studentId };
+    }
+  }
+  return { status: 403, error: "Student is not assigned to this teacher" };
+}
+
+router.get("/", async (req, res, next) => {
   try {
-    const r = await pool.query(`${studentSelect} ORDER BY s.id`);
+    const params = [];
+    let where = "";
+    if (req.user?.role === "teacher") {
+      if (req.user.teacherId == null) return res.json([]);
+      params.push(req.user.teacherId);
+      where = `
+        WHERE EXISTS (
+          SELECT 1
+          FROM class_teachers ct
+          WHERE ct.class_id = s.class_id AND ct.teacher_id = $1
+        )
+      `;
+    }
+    const r = await pool.query(`${studentSelect} ${where} ORDER BY s.id`, params);
     res.json(r.rows.map(mapStudentRow));
   } catch (e) {
     next(e);
@@ -66,12 +109,9 @@ const historySelect = `
 
 router.get("/:id/class-history", async (req, res, next) => {
   try {
-    const id = Number(req.params.id);
-    if (!Number.isInteger(id) || id < 1) {
-      return res.status(404).json({ error: "Student not found" });
-    }
-    const exists = await pool.query(`SELECT 1 FROM students WHERE id = $1`, [id]);
-    if (!exists.rowCount) return res.status(404).json({ error: "Student not found" });
+    const access = await assertStudentAccess(pool, req, req.params.id);
+    if (access.error) return res.status(access.status).json({ error: access.error });
+    const id = access.studentId;
     const r = await pool.query(
       `${historySelect} WHERE h.student_id = $1 ORDER BY h.effective_date DESC, h.id DESC`,
       [id]
@@ -84,7 +124,9 @@ router.get("/:id/class-history", async (req, res, next) => {
 
 router.get("/:id", async (req, res, next) => {
   try {
-    const id = Number(req.params.id);
+    const access = await assertStudentAccess(pool, req, req.params.id);
+    if (access.error) return res.status(access.status).json({ error: access.error });
+    const id = access.studentId;
     const r = await pool.query(`${studentSelect} WHERE s.id = $1`, [id]);
     if (!r.rowCount) return res.status(404).json({ error: "Student not found" });
     res.json(mapStudentRow(r.rows[0]));
@@ -97,7 +139,7 @@ function str(v) {
   return v != null ? String(v).trim() : "";
 }
 
-router.post("/", async (req, res, next) => {
+router.post("/", requireManager, async (req, res, next) => {
   try {
     const b = req.body || {};
     const { name, grade, email, dateOfBirth, classId, avatar, joinDate, status, gender } = b;
@@ -126,11 +168,15 @@ router.post("/", async (req, res, next) => {
            name, grade, email, date_of_birth, class_id, avatar, join_date, status, gender,
            phone, nationality, religion, province, ward, hamlet,
            birth_place, father_birth_year, mother_birth_year,
+           father_name, father_birth_date, father_phone, father_email,
+           father_login, father_id_number, father_occupation,
+           mother_name, mother_birth_date, mother_phone, mother_email,
+           mother_login, mother_id_number, mother_occupation,
            id_number, id_issued_place, id_issued_date, area,
            disability_type, policy_beneficiary, eye_disease,
            guardian_name, guardian_occupation, guardian_birth_year
-         ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28)
-         RETURNING id`,
+         ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$35,$36,$37,$38,$39,$40,$41,$42)
+          RETURNING id`,
         [
           name.trim(),
           str(grade),
@@ -144,6 +190,10 @@ router.post("/", async (req, res, next) => {
           str(b.phone), str(b.nationality), str(b.religion),
           str(b.province), str(b.ward), str(b.hamlet),
           str(b.birthPlace), str(b.fatherBirthYear), str(b.motherBirthYear),
+          str(b.fatherName), normalizeDateInput(b.fatherBirthDate), str(b.fatherPhone), str(b.fatherEmail),
+          str(b.fatherLogin), str(b.fatherIdNumber), str(b.fatherOccupation),
+          str(b.motherName), normalizeDateInput(b.motherBirthDate), str(b.motherPhone), str(b.motherEmail),
+          str(b.motherLogin), str(b.motherIdNumber), str(b.motherOccupation),
           str(b.idNumber), str(b.idIssuedPlace), normalizeDateInput(b.idIssuedDate), str(b.area),
           str(b.disabilityType), str(b.policyBeneficiary), str(b.eyeDisease),
           str(b.guardianName), str(b.guardianOccupation), str(b.guardianBirthYear),
@@ -172,7 +222,7 @@ router.post("/", async (req, res, next) => {
   }
 });
 
-router.put("/:id", async (req, res, next) => {
+router.put("/:id", requireManager, async (req, res, next) => {
   try {
     const id = Number(req.params.id);
     const b = req.body || {};
@@ -281,10 +331,14 @@ router.put("/:id", async (req, res, next) => {
            avatar=$6, join_date=$7, status=$8, gender=$9,
            phone=$10, nationality=$11, religion=$12, province=$13, ward=$14, hamlet=$15,
            birth_place=$16, father_birth_year=$17, mother_birth_year=$18,
-           id_number=$19, id_issued_place=$20, id_issued_date=$21, area=$22,
-           disability_type=$23, policy_beneficiary=$24, eye_disease=$25,
-           guardian_name=$26, guardian_occupation=$27, guardian_birth_year=$28
-         WHERE id = $29`,
+           father_name=$19, father_birth_date=$20, father_phone=$21, father_email=$22,
+           father_login=$23, father_id_number=$24, father_occupation=$25,
+           mother_name=$26, mother_birth_date=$27, mother_phone=$28, mother_email=$29,
+           mother_login=$30, mother_id_number=$31, mother_occupation=$32,
+           id_number=$33, id_issued_place=$34, id_issued_date=$35, area=$36,
+           disability_type=$37, policy_beneficiary=$38, eye_disease=$39,
+           guardian_name=$40, guardian_occupation=$41, guardian_birth_year=$42
+         WHERE id = $43`,
         [
           nextName, nextGrade, nextEmail, nextDob, nextClassId,
           nextAvatar, nextJoin, nextStatus, nextGender,
@@ -293,6 +347,20 @@ router.put("/:id", async (req, res, next) => {
           updSnake("birthPlace", "birth_place"),
           updSnake("fatherBirthYear", "father_birth_year"),
           updSnake("motherBirthYear", "mother_birth_year"),
+          updSnake("fatherName", "father_name"),
+          b.fatherBirthDate !== undefined ? normalizeDateInput(b.fatherBirthDate) : cur.father_birth_date,
+          updSnake("fatherPhone", "father_phone"),
+          updSnake("fatherEmail", "father_email"),
+          updSnake("fatherLogin", "father_login"),
+          updSnake("fatherIdNumber", "father_id_number"),
+          updSnake("fatherOccupation", "father_occupation"),
+          updSnake("motherName", "mother_name"),
+          b.motherBirthDate !== undefined ? normalizeDateInput(b.motherBirthDate) : cur.mother_birth_date,
+          updSnake("motherPhone", "mother_phone"),
+          updSnake("motherEmail", "mother_email"),
+          updSnake("motherLogin", "mother_login"),
+          updSnake("motherIdNumber", "mother_id_number"),
+          updSnake("motherOccupation", "mother_occupation"),
           updSnake("idNumber", "id_number"),
           updSnake("idIssuedPlace", "id_issued_place"),
           b.idIssuedDate !== undefined ? normalizeDateInput(b.idIssuedDate) : cur.id_issued_date,
@@ -321,7 +389,7 @@ router.put("/:id", async (req, res, next) => {
   }
 });
 
-router.delete("/:id", async (req, res, next) => {
+router.delete("/:id", requireManager, async (req, res, next) => {
   try {
     const id = Number(req.params.id);
     const r = await pool.query(

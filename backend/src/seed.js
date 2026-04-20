@@ -179,8 +179,8 @@ async function seed() {
 
     const mgrHash = bcrypt.hashSync("admin123", 10);
     await client.query(
-      `INSERT INTO users (email, password_hash, role, name, teacher_id)
-       VALUES ('admin@mamnon.local', $1, 'manager', 'Quản trị viên', NULL)
+      `INSERT INTO users (email, phone, password_hash, role, name, teacher_id)
+       VALUES ('admin@mamnon.local', '', $1, 'manager', 'Quản trị viên', NULL)
        ON CONFLICT (email) DO NOTHING`,
       [mgrHash]
     );
@@ -188,12 +188,12 @@ async function seed() {
 
     const tHash = bcrypt.hashSync("teacher123", 10);
     await client.query(
-      `INSERT INTO users (email, password_hash, role, name, teacher_id)
-       VALUES ('teacher@mamnon.local', $1, 'teacher', $2, $3)
+      `INSERT INTO users (email, phone, password_hash, role, name, teacher_id)
+       VALUES ('teacher@mamnon.local', $1, $2, 'teacher', $3, $4)
        ON CONFLICT (email) DO NOTHING`,
-      [tHash, teacherRows[0][0], teacherIds[0]]
+      [teacherRows[0][2], tHash, teacherRows[0][0], teacherIds[0]]
     );
-    console.log("Demo teacher (ON CONFLICT skip if exists): teacher@mamnon.local / teacher123");
+    console.log(`Demo teacher (ON CONFLICT skip if exists): ${teacherRows[0][2]} / teacher123`);
 
     await client.query("COMMIT");
     console.log("\nSeed complete!");

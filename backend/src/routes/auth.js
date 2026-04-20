@@ -13,10 +13,16 @@ function normalizeEmail(v) {
   return v.trim().toLowerCase();
 }
 
+function normalizePhone(v) {
+  if (v == null || typeof v !== "string") return "";
+  return v.trim().replace(/[\s().-]/g, "");
+}
+
 function publicUser(row) {
   return {
     id: row.id,
-    email: row.email,
+    email: row.email ?? "",
+    phone: row.phone ?? "",
     name: row.name ?? "",
     role: row.role,
     teacherId: row.teacher_id != null ? row.teacher_id : null,
@@ -98,9 +104,9 @@ router.post("/register", async (req, res, next) => {
       }
 
       const insU = await client.query(
-        `INSERT INTO users (email, password_hash, role, name, teacher_id)
-         VALUES ($1, $2, $3, $4, $5)
-         RETURNING id, email, name, role, teacher_id`,
+        `INSERT INTO users (email, phone, password_hash, role, name, teacher_id)
+         VALUES ($1, '', $2, $3, $4, $5)
+         RETURNING id, email, phone, name, role, teacher_id`,
         [email, password_hash, role, name, teacher_id]
       );
 
@@ -126,22 +132,46 @@ router.post("/register", async (req, res, next) => {
 
 router.post("/login", async (req, res, next) => {
   try {
-    const { email: rawEmail, password } = req.body || {};
+    const { email: rawEmail, phone: rawPhone, password } = req.body || {};
     const email = normalizeEmail(rawEmail);
-    if (!email || !password) {
-      return res.status(400).json({ error: "Email and password are required" });
+    const phone = normalizePhone(rawPhone);
+    if ((!email && !phone) || !password) {
+      return res.status(400).json({ error: "Phone/email and password are required" });
     }
-    const r = await pool.query(
-      `SELECT id, email, name, role, teacher_id, password_hash FROM users WHERE email = $1`,
-      [email]
-    );
+    const r = phone
+      ? await pool.query(
+          `SELECT id, email, phone, name, role, teacher_id, password_hash
+           FROM users
+           WHERE phone = $1`,
+          [phone]
+        )
+      : await pool.query(
+          `SELECT id, email, phone, name, role, teacher_id, password_hash
+           FROM users
+           WHERE email = $1`,
+          [email]
+        );
     if (!r.rowCount) {
-      return res.status(401).json({ error: "Invalid email or password" });
+      return res.status(401).json({ error: "Invalid phone/email or password" });
     }
     const row = r.rows[0];
     const ok = await bcrypt.compare(password, row.password_hash);
     if (!ok) {
-      return res.status(401).json({ error: "Invalid email or password" });
+      return res.status(401).json({ error: "Invalid phone/email or password" });
+    }
+    if (row.role === "teacher") {
+      if (row.teacher_id == null) {
+        return res.status(403).json({ error: "Teacher account is not linked to a profile" });
+      }
+      const tr = await pool.query(`SELECT status FROM teachers WHERE id = $1`, [
+        row.teacher_id,
+      ]);
+      if (!tr.rowCount) {
+        return res.status(403).json({ error: "Teacher profile was not found" });
+      }
+      if (tr.rows[0].status === "inactive") {
+        return res.status(403).json({ error: "Teacher account is inactive" });
+      }
     }
     const user = publicUser(row);
     const token = signToken({
@@ -158,7 +188,7 @@ router.post("/login", async (req, res, next) => {
 router.get("/me", requireAuth, async (req, res, next) => {
   try {
     const r = await pool.query(
-      `SELECT id, email, name, role, teacher_id FROM users WHERE id = $1`,
+      `SELECT id, email, phone, name, role, teacher_id FROM users WHERE id = $1`,
       [req.user.id]
     );
     if (!r.rowCount) {
