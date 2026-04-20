@@ -40,6 +40,17 @@ const filteredItems = computed(() => {
 const PAGE_SIZE = 10
 const currentPage = ref(1)
 const totalPages = computed(() => Math.max(1, Math.ceil(filteredItems.value.length / PAGE_SIZE)))
+const paginationBarClass = 'tw-flex tw-flex-wrap tw-items-center tw-justify-between tw-gap-2 tw-border-t tw-border-[#f1f3f5] tw-px-4 tw-py-3'
+const paginationInfoClass = 'tw-text-[0.78rem] tw-text-[#8392ab]'
+const paginationControlsClass = 'tw-flex tw-items-center tw-gap-1'
+const pageBtnClass = 'tw-inline-flex tw-h-8 tw-min-w-8 tw-cursor-pointer tw-items-center tw-justify-center tw-rounded-md tw-border tw-border-[#e9ecef] tw-bg-white tw-px-[0.4rem] tw-text-[0.8rem] tw-font-medium tw-leading-none tw-text-[#344767] tw-transition-all tw-duration-150 enabled:hover:tw-border-[#d2d6da] enabled:hover:tw-bg-[#f0f2f5] disabled:tw-cursor-default disabled:tw-opacity-[0.38]'
+const activePageBtnClass = 'tw-border-transparent tw-bg-[linear-gradient(310deg,#5e72e4,#825ee4)] tw-font-semibold tw-text-white'
+const pageEllipsisClass = 'tw-inline-flex tw-h-8 tw-min-w-6 tw-items-center tw-justify-center tw-text-[0.85rem] tw-text-[#8392ab]'
+const studentsLayoutClass = 'tw-flex tw-min-h-0 tw-flex-1 tw-gap-4 max-[900px]:tw-flex-col'
+const filterSidebarClass = 'tw-flex tw-w-[200px] tw-shrink-0 tw-flex-col tw-gap-4 tw-overflow-y-auto tw-rounded-xl tw-bg-white tw-p-4 tw-shadow-[0_1px_4px_rgba(0,0,0,0.06)] max-[900px]:tw-w-full max-[900px]:tw-flex-row max-[900px]:tw-flex-wrap'
+const filterSectionClass = 'tw-flex tw-flex-col tw-gap-[0.35rem] max-[900px]:tw-min-w-[140px] max-[900px]:tw-flex-1'
+const filterClassItemClass = 'tw-cursor-pointer tw-rounded-[0.4rem] tw-px-[0.6rem] tw-py-[0.4rem] tw-text-[0.8rem] tw-font-medium tw-text-[#344767] tw-transition-all tw-duration-150 hover:tw-bg-[#f0f2f5]'
+const activeFilterClassItemClass = 'tw-bg-[linear-gradient(310deg,#5e72e4,#825ee4)] tw-font-semibold tw-text-white hover:tw-bg-[linear-gradient(310deg,#5e72e4,#825ee4)]'
 const pagedItems = computed(() => {
   const start = (currentPage.value - 1) * PAGE_SIZE
   return filteredItems.value.slice(start, start + PAGE_SIZE)
@@ -88,6 +99,20 @@ const form = ref({
   birthPlace: '',
   fatherBirthYear: '',
   motherBirthYear: '',
+  fatherName: '',
+  fatherBirthDate: '',
+  fatherPhone: '',
+  fatherEmail: '',
+  fatherLogin: '',
+  fatherIdNumber: '',
+  fatherOccupation: '',
+  motherName: '',
+  motherBirthDate: '',
+  motherPhone: '',
+  motherEmail: '',
+  motherLogin: '',
+  motherIdNumber: '',
+  motherOccupation: '',
   idNumber: '',
   idIssuedPlace: '',
   idIssuedDate: '',
@@ -135,6 +160,10 @@ function resetAll() {
 const EXTRA_FIELDS_DEFAULTS = {
   phone: '', nationality: '', religion: '', province: '', ward: '', hamlet: '',
   birthPlace: '', fatherBirthYear: '', motherBirthYear: '',
+  fatherName: '', fatherBirthDate: '', fatherPhone: '', fatherEmail: '',
+  fatherLogin: '', fatherIdNumber: '', fatherOccupation: '',
+  motherName: '', motherBirthDate: '', motherPhone: '', motherEmail: '',
+  motherLogin: '', motherIdNumber: '', motherOccupation: '',
   idNumber: '', idIssuedPlace: '', idIssuedDate: '', area: '',
   disabilityType: '', policyBeneficiary: '', eyeDisease: '',
   guardianName: '', guardianOccupation: '', guardianBirthYear: '',
@@ -178,6 +207,20 @@ function openStudentDetail(row) {
     birthPlace: row.birthPlace || '',
     fatherBirthYear: row.fatherBirthYear || '',
     motherBirthYear: row.motherBirthYear || '',
+    fatherName: row.fatherName || '',
+    fatherBirthDate: row.fatherBirthDate || '',
+    fatherPhone: row.fatherPhone || '',
+    fatherEmail: row.fatherEmail || '',
+    fatherLogin: row.fatherLogin || '',
+    fatherIdNumber: row.fatherIdNumber || '',
+    fatherOccupation: row.fatherOccupation || '',
+    motherName: row.motherName || '',
+    motherBirthDate: row.motherBirthDate || '',
+    motherPhone: row.motherPhone || '',
+    motherEmail: row.motherEmail || '',
+    motherLogin: row.motherLogin || '',
+    motherIdNumber: row.motherIdNumber || '',
+    motherOccupation: row.motherOccupation || '',
     idNumber: row.idNumber || '',
     idIssuedPlace: row.idIssuedPlace || '',
     idIssuedDate: row.idIssuedDate || '',
@@ -345,6 +388,20 @@ async function save() {
       birthPlace: form.value.birthPlace,
       fatherBirthYear: form.value.fatherBirthYear,
       motherBirthYear: form.value.motherBirthYear,
+      fatherName: form.value.fatherName,
+      fatherBirthDate: form.value.fatherBirthDate,
+      fatherPhone: form.value.fatherPhone,
+      fatherEmail: form.value.fatherEmail,
+      fatherLogin: form.value.fatherLogin,
+      fatherIdNumber: form.value.fatherIdNumber,
+      fatherOccupation: form.value.fatherOccupation,
+      motherName: form.value.motherName,
+      motherBirthDate: form.value.motherBirthDate,
+      motherPhone: form.value.motherPhone,
+      motherEmail: form.value.motherEmail,
+      motherLogin: form.value.motherLogin,
+      motherIdNumber: form.value.motherIdNumber,
+      motherOccupation: form.value.motherOccupation,
       idNumber: form.value.idNumber,
       idIssuedPlace: form.value.idIssuedPlace,
       idIssuedDate: form.value.idIssuedDate,
@@ -530,17 +587,17 @@ defineExpose({ load })
 
 <template>
   <div class="py-4 container-fluid page-fill">
-    <div class="students-layout">
+    <div :class="studentsLayoutClass">
       <!-- LEFT FILTER SIDEBAR -->
-      <div class="students-filter-sidebar">
-        <h6 class="filter-heading">Bộ lọc</h6>
+      <div :class="filterSidebarClass">
+        <h6 class="tw-m-0 tw-text-[0.85rem] tw-font-bold tw-text-[#344767]">Bộ lọc</h6>
 
-        <div class="filter-section">
-          <span class="filter-section-label">Trạng thái</span>
+        <div :class="filterSectionClass">
+          <span class="tw-mb-[0.15rem] tw-text-[0.7rem] tw-font-bold tw-uppercase tw-tracking-[0.04em] tw-text-[#8392ab]">Trạng thái</span>
           <label
             v-for="opt in STATUS_OPTIONS"
             :key="opt.value"
-            class="filter-checkbox"
+            class="tw-flex tw-cursor-pointer tw-items-center tw-gap-[0.4rem] tw-py-[0.2rem] tw-text-[0.8rem] tw-text-[#344767] [&_input]:tw-h-[14px] [&_input]:tw-w-[14px] [&_input]:tw-cursor-pointer [&_input]:tw-accent-[#5e72e4]"
           >
             <input
               type="checkbox"
@@ -553,11 +610,10 @@ defineExpose({ load })
           </label>
         </div>
 
-        <div class="filter-section">
-          <span class="filter-section-label">Lớp</span>
+        <div :class="filterSectionClass">
+          <span class="tw-mb-[0.15rem] tw-text-[0.7rem] tw-font-bold tw-uppercase tw-tracking-[0.04em] tw-text-[#8392ab]">Lớp</span>
           <div
-            class="filter-class-item"
-            :class="{ active: filterClassId == null }"
+            :class="[filterClassItemClass, filterClassId == null ? activeFilterClassItemClass : '']"
             @click="filterClassId = null"
           >
             <i class="ni ni-books me-1"></i> Tất cả
@@ -565,8 +621,7 @@ defineExpose({ load })
           <div
             v-for="c in classOptions"
             :key="c.id"
-            class="filter-class-item"
-            :class="{ active: filterClassId === c.id }"
+            :class="[filterClassItemClass, filterClassId === c.id ? activeFilterClassItemClass : '']"
             @click="filterClassId = c.id"
           >
             {{ c.name }}
@@ -575,7 +630,7 @@ defineExpose({ load })
       </div>
 
       <!-- STUDENT TABLE CARD -->
-      <div class="card students-card">
+      <div class="card tw-min-w-0 tw-flex-1">
         <div class="card-header d-flex flex-wrap align-items-center gap-2 pb-0">
           <div class="flex-grow-1">
             <h6>Danh sách học sinh</h6>
@@ -653,19 +708,19 @@ defineExpose({ load })
               </table>
             </div>
             <!-- Pagination -->
-            <div v-if="filteredItems.length > PAGE_SIZE" class="pagination-bar">
-              <span class="pagination-info">
+            <div v-if="filteredItems.length > PAGE_SIZE" :class="paginationBarClass">
+              <span :class="paginationInfoClass">
                 {{ (currentPage - 1) * PAGE_SIZE + 1 }}–{{ Math.min(currentPage * PAGE_SIZE, filteredItems.length) }} / {{ filteredItems.length }}
               </span>
-              <div class="pagination-controls">
+              <div :class="paginationControlsClass">
                 <button
-                  class="page-btn"
+                  :class="pageBtnClass"
                   :disabled="currentPage === 1"
                   @click="goToPage(1)"
                   title="Trang đầu"
                 ><i class="ni ni-bold-left"></i><i class="ni ni-bold-left"></i></button>
                 <button
-                  class="page-btn"
+                  :class="pageBtnClass"
                   :disabled="currentPage === 1"
                   @click="goToPage(currentPage - 1)"
                   title="Trang trước"
@@ -673,23 +728,22 @@ defineExpose({ load })
                 <template v-for="p in totalPages" :key="p">
                   <button
                     v-if="p === 1 || p === totalPages || (p >= currentPage - 2 && p <= currentPage + 2)"
-                    class="page-btn"
-                    :class="{ active: p === currentPage }"
+                    :class="[pageBtnClass, p === currentPage ? activePageBtnClass : '']"
                     @click="goToPage(p)"
                   >{{ p }}</button>
                   <span
                     v-else-if="p === currentPage - 3 || p === currentPage + 3"
-                    class="page-ellipsis"
+                    :class="pageEllipsisClass"
                   >…</span>
                 </template>
                 <button
-                  class="page-btn"
+                  :class="pageBtnClass"
                   :disabled="currentPage === totalPages"
                   @click="goToPage(currentPage + 1)"
                   title="Trang sau"
                 ><i class="ni ni-bold-right"></i></button>
                 <button
-                  class="page-btn"
+                  :class="pageBtnClass"
                   :disabled="currentPage === totalPages"
                   @click="goToPage(totalPages)"
                   title="Trang cuối"
@@ -924,6 +978,62 @@ defineExpose({ load })
                 <label for="student-mother-by" class="form-control-label">Năm sinh mẹ</label>
                 <argon-input id="student-mother-by" v-model="form.motherBirthYear" placeholder="VD: 1987" name="motherBirthYear" />
               </div>
+              <div class="col-12">
+                <label for="student-mother-name" class="form-control-label">Họ tên mẹ</label>
+                <argon-input id="student-mother-name" v-model="form.motherName" placeholder="Họ tên mẹ" name="motherName" />
+              </div>
+              <div class="col-6">
+                <label for="student-mother-birthdate" class="form-control-label">Ngày sinh mẹ</label>
+                <app-date-field id="student-mother-birthdate" v-model="form.motherBirthDate" name="motherBirthDate" />
+              </div>
+              <div class="col-6">
+                <label for="student-mother-phone" class="form-control-label">Số điện thoại mẹ</label>
+                <argon-input id="student-mother-phone" v-model="form.motherPhone" type="tel" placeholder="Số điện thoại mẹ" name="motherPhone" />
+              </div>
+              <div class="col-6">
+                <label for="student-mother-login" class="form-control-label">Thông tin đăng nhập mẹ</label>
+                <argon-input id="student-mother-login" v-model="form.motherLogin" placeholder="Thông tin đăng nhập mẹ" name="motherLogin" />
+              </div>
+              <div class="col-6">
+                <label for="student-mother-email" class="form-control-label">Email mẹ</label>
+                <argon-input id="student-mother-email" v-model="form.motherEmail" type="email" placeholder="Email mẹ" name="motherEmail" />
+              </div>
+              <div class="col-6">
+                <label for="student-mother-id" class="form-control-label">CCCD mẹ</label>
+                <argon-input id="student-mother-id" v-model="form.motherIdNumber" placeholder="CCCD mẹ" name="motherIdNumber" />
+              </div>
+              <div class="col-6">
+                <label for="student-mother-occ" class="form-control-label">Nghề nghiệp mẹ</label>
+                <argon-input id="student-mother-occ" v-model="form.motherOccupation" placeholder="Nghề nghiệp mẹ" name="motherOccupation" />
+              </div>
+              <div class="col-12">
+                <label for="student-father-name" class="form-control-label">Họ tên bố</label>
+                <argon-input id="student-father-name" v-model="form.fatherName" placeholder="Họ tên bố" name="fatherName" />
+              </div>
+              <div class="col-6">
+                <label for="student-father-birthdate" class="form-control-label">Ngày sinh bố</label>
+                <app-date-field id="student-father-birthdate" v-model="form.fatherBirthDate" name="fatherBirthDate" />
+              </div>
+              <div class="col-6">
+                <label for="student-father-phone" class="form-control-label">Số điện thoại bố</label>
+                <argon-input id="student-father-phone" v-model="form.fatherPhone" type="tel" placeholder="Số điện thoại bố" name="fatherPhone" />
+              </div>
+              <div class="col-6">
+                <label for="student-father-login" class="form-control-label">Thông tin đăng nhập bố</label>
+                <argon-input id="student-father-login" v-model="form.fatherLogin" placeholder="Thông tin đăng nhập bố" name="fatherLogin" />
+              </div>
+              <div class="col-6">
+                <label for="student-father-email" class="form-control-label">Email bố</label>
+                <argon-input id="student-father-email" v-model="form.fatherEmail" type="email" placeholder="Email bố" name="fatherEmail" />
+              </div>
+              <div class="col-6">
+                <label for="student-father-id" class="form-control-label">CCCD bố</label>
+                <argon-input id="student-father-id" v-model="form.fatherIdNumber" placeholder="CCCD bố" name="fatherIdNumber" />
+              </div>
+              <div class="col-6">
+                <label for="student-father-occ" class="form-control-label">Nghề nghiệp bố</label>
+                <argon-input id="student-father-occ" v-model="form.fatherOccupation" placeholder="Nghề nghiệp bố" name="fatherOccupation" />
+              </div>
               <div class="col-6">
                 <label for="student-idnumber" class="form-control-label">Số CMND/TCC</label>
                 <argon-input id="student-idnumber" v-model="form.idNumber" placeholder="Số CMND/TCC" name="idNumber" />
@@ -1080,110 +1190,6 @@ defineExpose({ load })
 </template>
 
 <style scoped>
-/* ===== Filter sidebar layout ===== */
-.students-layout {
-  display: flex;
-  gap: 1rem;
-  flex: 1;
-  min-height: 0;
-}
-
-.students-filter-sidebar {
-  width: 200px;
-  flex-shrink: 0;
-  background: #fff;
-  border-radius: 0.75rem;
-  padding: 1rem;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
-  overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-}
-
-.students-card {
-  flex: 1;
-  min-width: 0;
-}
-
-.filter-heading {
-  font-size: 0.85rem;
-  font-weight: 700;
-  color: #344767;
-  margin: 0;
-}
-
-.filter-section {
-  display: flex;
-  flex-direction: column;
-  gap: 0.35rem;
-}
-
-.filter-section-label {
-  font-size: 0.7rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: #8392ab;
-  margin-bottom: 0.15rem;
-}
-
-.filter-checkbox {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  cursor: pointer;
-  padding: 0.2rem 0;
-  font-size: 0.8rem;
-  color: #344767;
-}
-
-.filter-checkbox input[type="checkbox"] {
-  accent-color: #5e72e4;
-  width: 14px;
-  height: 14px;
-  cursor: pointer;
-}
-
-.filter-class-item {
-  padding: 0.4rem 0.6rem;
-  border-radius: 0.4rem;
-  font-size: 0.8rem;
-  font-weight: 500;
-  color: #344767;
-  cursor: pointer;
-  transition: all 0.15s;
-}
-
-.filter-class-item:hover:not(.active) {
-  background: #f0f2f5;
-  color: #344767;
-}
-
-.filter-class-item.active {
-  background: linear-gradient(310deg, #5e72e4, #825ee4);
-  color: #fff;
-  font-weight: 600;
-}
-
-@media (max-width: 900px) {
-  .students-layout {
-    flex-direction: column;
-  }
-
-  .students-filter-sidebar {
-    width: 100%;
-    flex-direction: row;
-    flex-wrap: wrap;
-    gap: 1rem;
-  }
-
-  .filter-section {
-    flex: 1;
-    min-width: 140px;
-  }
-}
-
 .object-fit-cover {
   object-fit: cover;
 }
@@ -1643,70 +1649,4 @@ defineExpose({ load })
   }
 }
 
-/* ===== Pagination ===== */
-.pagination-bar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  padding: 0.75rem 1rem;
-  border-top: 1px solid #f1f3f5;
-}
-
-.pagination-info {
-  font-size: 0.78rem;
-  color: #8392ab;
-}
-
-.pagination-controls {
-  display: flex;
-  align-items: center;
-  gap: 0.25rem;
-}
-
-.page-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 2rem;
-  height: 2rem;
-  padding: 0 0.4rem;
-  border: 1px solid #e9ecef;
-  border-radius: 0.375rem;
-  background: #fff;
-  color: #344767;
-  font-size: 0.8rem;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.15s;
-  line-height: 1;
-}
-
-.page-btn:hover:not(:disabled):not(.active) {
-  background: #f0f2f5;
-  border-color: #d2d6da;
-}
-
-.page-btn.active {
-  background: linear-gradient(310deg, #5e72e4, #825ee4);
-  border-color: transparent;
-  color: #fff;
-  font-weight: 600;
-}
-
-.page-btn:disabled {
-  opacity: 0.38;
-  cursor: default;
-}
-
-.page-ellipsis {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 1.5rem;
-  height: 2rem;
-  font-size: 0.85rem;
-  color: #8392ab;
-}
 </style>

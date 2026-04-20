@@ -1,196 +1,156 @@
 @import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800&display=swap');
 
-/* 1.2× global type scale (Bootstrap / Argon use rem from this root) */
-html {
-  font-size: 120%;
-  scroll-behavior: smooth;
-}
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
-:root {
-  font-family: "Nunito", "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
-  line-height: 1.5;
-  font-weight: 400;
-  color-scheme: light dark;
-  --bg: #faf6f1;
-  --card: #fff;
-  --text: #1a1d26;
-  --muted: #5c6478;
-  --border: #e2e6ef;
-  --accent: #2563eb;
-  --accent-hover: #1d4ed8;
-}
+@layer base {
+  /* 1.2x global type scale (Bootstrap / Argon use rem from this root) */
+  html {
+    @apply tw-scroll-smooth tw-text-[120%];
+  }
 
-@media (prefers-color-scheme: dark) {
   :root {
-    --bg: #0f1218;
-    --card: #181c26;
-    --text: #eef1f7;
-    --muted: #9aa3b5;
-    --border: #2a3142;
-    --accent: #60a5fa;
-    --accent-hover: #93c5fd;
+    font-family: "Nunito", "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+    --bs-font-sans-serif: "Nunito", "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+    --bs-body-font-family: "Nunito", "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+    line-height: 1.5;
+    font-weight: 400;
+    color-scheme: light dark;
+    --bg: #faf6f1;
+    --card: #fff;
+    --text: #1a1d26;
+    --muted: #5c6478;
+    --border: #e2e6ef;
+    --accent: #2563eb;
+    --accent-hover: #1d4ed8;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0f1218;
+      --card: #181c26;
+      --text: #eef1f7;
+      --muted: #9aa3b5;
+      --border: #2a3142;
+      --accent: #60a5fa;
+      --accent-hover: #93c5fd;
+    }
+  }
+
+  *,
+  *::before,
+  *::after {
+    @apply tw-box-border;
+  }
+
+  body {
+    @apply tw-m-0 tw-min-h-screen tw-bg-app-bg tw-font-sans tw-text-app-text;
+    font-family: "Nunito", "Segoe UI", Tahoma, Geneva, Verdana, sans-serif !important;
+  }
+
+  button,
+  input,
+  select,
+  textarea {
+    font-family: "Nunito", "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+  }
+
+  #app {
+    @apply tw-min-h-screen;
   }
 }
 
-*,
-*::before,
-*::after {
-  box-sizing: border-box;
-}
+@layer components {
+  /* Make main content fill viewport height so panels stretch */
+  main.main-content {
+    @apply tw-flex !tw-h-auto !tw-max-h-none !tw-min-h-screen tw-flex-col;
+  }
 
-body {
-  margin: 0;
-  min-height: 100vh;
-  background: var(--bg);
-  color: var(--text);
-  font-family: "Nunito", "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
-}
+  main.main-content > .navbar,
+  main.main-content > .footer {
+    @apply tw-shrink-0;
+  }
 
-#app {
-  min-height: 100vh;
-}
+  /* Panel pages fill remaining space */
+  .page-fill {
+    @apply tw-flex tw-flex-1 tw-flex-col;
+  }
 
-/* Make main content fill viewport height so panels stretch */
-main.main-content {
-  display: flex;
-  flex-direction: column;
-  min-height: 100vh !important;
-  max-height: none !important;
-  height: auto !important;
-}
+  .page-fill > .container-fluid {
+    @apply tw-flex tw-flex-1 tw-flex-col;
+  }
 
-main.main-content > .navbar {
-  flex-shrink: 0;
-}
+  .page-fill > .container-fluid > .row {
+    @apply tw-flex-1;
+  }
 
-main.main-content > .footer {
-  flex-shrink: 0;
-}
+  .page-fill > .container-fluid > .row > .col-12 {
+    @apply tw-flex tw-flex-col;
+  }
 
-/* Panel pages fill remaining space */
-.page-fill {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-}
+  .page-fill > .container-fluid > .row > .col-12 > .card {
+    @apply tw-flex-1;
+  }
 
-.page-fill > .container-fluid {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-}
+  /* When page-fill IS the container-fluid (same element) */
+  .page-fill.container-fluid > .row {
+    @apply tw-flex-1;
+  }
 
-.page-fill > .container-fluid > .row {
-  flex: 1;
-}
+  .page-fill.container-fluid > .row > .col-12 {
+    @apply tw-flex tw-flex-col;
+  }
 
-.page-fill > .container-fluid > .row > .col-12 {
-  display: flex;
-  flex-direction: column;
-}
+  .page-fill.container-fluid > .row > .col-12 > .card {
+    @apply tw-flex tw-flex-1 tw-flex-col;
+  }
 
-.page-fill > .container-fluid > .row > .col-12 > .card {
-  flex: 1;
-}
+  .page-fill.container-fluid > .row > .col-12 > .card > .card-body {
+    @apply tw-flex-1;
+  }
 
-/* When page-fill IS the container-fluid (same element) */
-.page-fill.container-fluid > .row {
-  flex: 1;
-}
+  /* Nested page-fill panels inside SchoolPanel grow to fill parent */
+  .page-fill > .page-fill {
+    @apply tw-flex-1;
+  }
 
-.page-fill.container-fluid > .row > .col-12 {
-  display: flex;
-  flex-direction: column;
-}
+  /* Card polish */
+  .card {
+    @apply tw-rounded-2xl tw-transition-shadow tw-duration-200 tw-ease-in-out;
+  }
 
-.page-fill.container-fluid > .row > .col-12 > .card {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-}
+  .card:hover {
+    @apply tw-shadow-card-hover;
+  }
 
-.page-fill.container-fluid > .row > .col-12 > .card > .card-body {
-  flex: 1;
-}
+  button.primary {
+    @apply tw-cursor-pointer tw-rounded-lg tw-border-0 tw-bg-app-accent tw-px-4 tw-py-2 tw-font-sans tw-font-semibold tw-text-white;
+  }
 
-/* Nested page-fill panels inside SchoolPanel grow to fill parent */
-.page-fill > .page-fill {
-  flex: 1;
-}
+  button.primary:hover {
+    @apply tw-bg-app-accent-hover;
+  }
 
-/* Card polish */
-.card {
-  border-radius: 1rem;
-  transition: box-shadow 0.2s ease;
-}
+  button.ghost {
+    @apply tw-cursor-pointer tw-rounded-lg tw-border tw-border-app-border tw-bg-transparent tw-px-4 tw-py-2 tw-font-sans tw-text-app-text;
+  }
 
-.card:hover {
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
-}
-
-/* Table polish */
-.panel-data-table thead th {
-  color: #67748e;
-  font-weight: 700;
-  font-size: 0.65rem;
-  letter-spacing: 0.04em;
-}
-
-.panel-data-table tbody tr {
-  transition: background 0.15s ease;
-}
-
-.panel-data-table tbody tr:nth-child(even) {
-  background: #fafbfc;
-}
-
-.panel-data-table tbody tr:hover {
-  background: rgba(94, 114, 228, 0.05) !important;
-}
-
-button.primary {
-  background: var(--accent);
-  color: #fff;
-  border: none;
-  padding: 0.5rem 1rem;
-  border-radius: 8px;
-  font: inherit;
-  font-weight: 600;
-  cursor: pointer;
-}
-button.primary:hover {
-  background: var(--accent-hover);
-}
-
-button.ghost {
-  background: transparent;
-  border: 1px solid var(--border);
-  color: var(--text);
-  padding: 0.5rem 1rem;
-  border-radius: 8px;
-  font: inherit;
-  cursor: pointer;
-}
-button.ghost:hover {
-  background: rgba(0, 0, 0, 0.04);
-}
-
-@media (prefers-color-scheme: dark) {
   button.ghost:hover {
-    background: rgba(255, 255, 255, 0.06);
+    @apply tw-bg-black/5;
   }
-}
 
-button.link {
-  background: none;
-  border: none;
-  color: var(--accent);
-  font: inherit;
-  cursor: pointer;
-  padding: 0 0.35rem;
-  text-decoration: underline;
-  text-underline-offset: 2px;
-}
-button.link.danger {
-  color: #c62828;
+  @media (prefers-color-scheme: dark) {
+    button.ghost:hover {
+      @apply tw-bg-white/10;
+    }
+  }
+
+  button.link {
+    @apply tw-cursor-pointer tw-border-0 tw-bg-transparent tw-px-[0.35rem] tw-py-0 tw-font-sans tw-text-app-accent tw-underline tw-underline-offset-2;
+  }
+
+  button.link.danger {
+    @apply tw-text-[#c62828];
+  }
 }

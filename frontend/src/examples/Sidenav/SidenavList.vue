@@ -41,10 +41,22 @@ const getRoute = () => route.path.split("/")[1];
     id="sidenav-collapse-main"
   >
     <div v-if="isAuthed" class="sidenav-user-card">
-      <strong class="sidenav-user-name">{{ authUser?.name || authUser?.email }}</strong>
+      <strong class="sidenav-user-name">{{ authUser?.name || authUser?.phone || authUser?.email }}</strong>
     </div>
 
     <ul class="navbar-nav sidenav-nav-list">
+      <li class="nav-item">
+        <sidenav-item
+          to="/dashboard"
+          :class="getRoute() === 'dashboard' ? 'active' : ''"
+          :navText="isRTL ? 'Dashboard' : 'Tổng quan'"
+        >
+          <template #icon>
+            <i class="ni ni-chart-bar-32 text-success text-sm"></i>
+          </template>
+        </sidenav-item>
+      </li>
+
       <li class="nav-item sidenav-section-title">
         <h6
           class="text-xs text-uppercase font-weight-bolder mb-0"
@@ -240,47 +252,51 @@ const getRoute = () => route.path.split("/")[1];
 
 <style scoped>
 .sidenav-list-wrap {
-  padding: 0 0.8rem 1rem;
+  padding: 0 0.65rem 0.85rem;
 }
 
 .sidenav-user-card {
   display: flex;
   flex-direction: column;
   gap: 0.15rem;
-  margin: 0.15rem 0 0.85rem;
-  padding: 0.85rem 0.95rem;
+  margin: 0.05rem 0 0.65rem;
+  padding: 0.7rem 0.8rem;
   border: 1px solid #d9e2ee;
-  border-radius: 0.95rem;
+  border-radius: 0.75rem;
   background: linear-gradient(180deg, #ffffff, #f3f6fb);
 }
 
 .sidenav-user-name {
   color: #1f2a44;
-  font-size: 0.88rem;
+  font-size: 0.82rem;
   font-weight: 700;
-  line-height: 1.35;
+  line-height: 1.3;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .sidenav-nav-list {
-  gap: 0.25rem;
+  gap: 0.15rem;
 }
 
 .sidenav-section-title {
-  margin-top: 0.4rem;
-  padding: 0.45rem 0.55rem 0.2rem;
+  margin-top: 0.3rem;
+  padding: 0.4rem 0.45rem 0.15rem;
 }
 
 .sidenav-section-title h6 {
   color: #64748b;
-  letter-spacing: 0.08em;
+  font-size: 0.64rem;
+  letter-spacing: 0.07em;
 }
 
 .sidenav-logout-link {
   display: flex;
   align-items: center;
-  min-height: 44px;
-  padding: 0.7rem 0.8rem;
-  border-radius: 0.85rem;
+  min-height: 40px;
+  padding: 0.58rem 0.65rem;
+  border-radius: 0.72rem;
   color: #b42318;
   border: 1px solid #f3d0cc;
   background: #fff8f7;
@@ -294,7 +310,7 @@ const getRoute = () => route.path.split("/")[1];
 }
 
 .sidenav-logout-icon {
-  width: 2rem;
+  width: 1.8rem;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -303,5 +319,26 @@ const getRoute = () => route.path.split("/")[1];
 
 .sidenav-attendance-icon {
   color: #d97706;
+}
+
+@media (max-width: 575.98px) {
+  .sidenav-list-wrap {
+    padding: 0 0.55rem 0.75rem;
+  }
+
+  .sidenav-user-card {
+    margin-bottom: 0.55rem;
+    padding: 0.6rem 0.7rem;
+  }
+
+  .sidenav-section-title {
+    margin-top: 0.2rem;
+    padding-top: 0.32rem;
+  }
+
+  .sidenav-logout-link {
+    min-height: 38px;
+    padding: 0.52rem 0.6rem;
+  }
 }
 </style>

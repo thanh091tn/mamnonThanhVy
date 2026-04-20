@@ -12,6 +12,12 @@ const loadErr = ref('')
 const PAGE_SIZE = 10
 const currentPage = ref(1)
 const totalPages = computed(() => Math.max(1, Math.ceil(items.value.length / PAGE_SIZE)))
+const paginationBarClass = 'tw-flex tw-flex-wrap tw-items-center tw-justify-between tw-gap-2 tw-border-t tw-border-[#f1f3f5] tw-px-4 tw-py-3'
+const paginationInfoClass = 'tw-text-[0.78rem] tw-text-[#8392ab]'
+const paginationControlsClass = 'tw-flex tw-items-center tw-gap-1'
+const pageBtnClass = 'tw-inline-flex tw-h-8 tw-min-w-8 tw-cursor-pointer tw-items-center tw-justify-center tw-rounded-md tw-border tw-border-[#e9ecef] tw-bg-white tw-px-[0.4rem] tw-text-[0.8rem] tw-font-medium tw-leading-none tw-text-[#344767] tw-transition-all tw-duration-150 enabled:hover:tw-border-[#d2d6da] enabled:hover:tw-bg-[#f0f2f5] disabled:tw-cursor-default disabled:tw-opacity-[0.38]'
+const activePageBtnClass = 'tw-border-transparent tw-bg-[linear-gradient(310deg,#5e72e4,#825ee4)] tw-font-semibold tw-text-white'
+const pageEllipsisClass = 'tw-inline-flex tw-h-8 tw-min-w-6 tw-items-center tw-justify-center tw-text-[0.85rem] tw-text-[#8392ab]'
 const pagedItems = computed(() => {
   const start = (currentPage.value - 1) * PAGE_SIZE
   return items.value.slice(start, start + PAGE_SIZE)
@@ -24,6 +30,9 @@ const formErr = ref('')
 const editingId = ref(null)
 const saving = ref(false)
 const drawerOpen = ref(false)
+const roleOptions = ref([])
+const newRoleName = ref('')
+const roleSaving = ref(false)
 
 const STATUS_OPTIONS = [
   { value: 'active', label: 'Đang dạy' },
@@ -40,6 +49,9 @@ const form = ref({
   name: '',
   email: '',
   phone: '',
+  password: '',
+  roleId: '',
+  subject: '',
   address: '',
   status: 'active',
   gender: 'male',
@@ -47,7 +59,8 @@ const form = ref({
 
 function resetForm() {
   editingId.value = null
-  form.value = { name: '', email: '', phone: '', address: '', status: 'active', gender: 'male' }
+  form.value = { name: '', email: '', phone: '', password: '', roleId: '', subject: '', address: '', status: 'active', gender: 'male' }
+  newRoleName.value = ''
 }
 
 function statusLabel(val) {
@@ -81,6 +94,9 @@ function openEdit(row) {
     name: row.name,
     email: row.email || '',
     phone: row.phone || '',
+    password: '',
+    roleId: row.roleId || '',
+    subject: row.subject || '',
     address: row.address || '',
     status: row.status || 'active',
     gender: row.gender || 'male',
@@ -102,10 +118,56 @@ async function load() {
   }
 }
 
+async function loadRoles() {
+  try {
+    const { data } = await api.get('/teachers/roles')
+    roleOptions.value = Array.isArray(data) ? data : []
+  } catch (e) {
+    loadErr.value = e.response?.data?.error || e.message || 'Failed to load teacher roles'
+  }
+}
+
+function selectedRoleName() {
+  const id = Number(form.value.roleId)
+  return roleOptions.value.find(r => Number(r.id) === id)?.name || ''
+}
+
+async function createRole() {
+  const name = newRoleName.value.trim()
+  if (!name) return
+  roleSaving.value = true
+  formErr.value = ''
+  try {
+    const { data } = await api.post('/teachers/roles', { name })
+    const exists = roleOptions.value.some(r => Number(r.id) === Number(data.id))
+    if (!exists) roleOptions.value.push(data)
+    roleOptions.value = [...roleOptions.value].sort((a, b) => a.name.localeCompare(b.name, 'vi'))
+    form.value.roleId = data.id
+    form.value.subject = data.name
+    newRoleName.value = ''
+  } catch (e) {
+    formErr.value = e.response?.data?.error || e.message || 'Create role failed'
+  } finally {
+    roleSaving.value = false
+  }
+}
+
 async function save() {
   formErr.value = ''
   if (!form.value.name?.trim()) {
     formErr.value = 'Vui lòng nhập họ tên'
+    return
+  }
+  if (!form.value.phone?.trim()) {
+    formErr.value = 'Vui lòng nhập số điện thoại đăng nhập'
+    return
+  }
+  if (!editingId.value && (!form.value.password || form.value.password.length < 8)) {
+    formErr.value = 'Mật khẩu giáo viên phải có ít nhất 8 ký tự'
+    return
+  }
+  if (editingId.value && form.value.password && form.value.password.length < 8) {
+    formErr.value = 'Mật khẩu mới phải có ít nhất 8 ký tự'
     return
   }
   saving.value = true
@@ -114,10 +176,13 @@ async function save() {
       name: form.value.name.trim(),
       email: form.value.email,
       phone: form.value.phone,
+      roleId: form.value.roleId || null,
+      subject: selectedRoleName() || form.value.subject,
       address: form.value.address,
       status: form.value.status,
       gender: form.value.gender,
     }
+    if (form.value.password) payload.password = form.value.password
     if (editingId.value) {
       await api.put(`/teachers/${editingId.value}`, payload)
     } else {
@@ -150,6 +215,7 @@ function onKeydown(e) {
 }
 
 onMounted(() => {
+  loadRoles()
   load()
   document.addEventListener('keydown', onKeydown)
 })
@@ -190,6 +256,7 @@ defineExpose({ load })
                       <th scope="col">Họ tên</th>
                       <th scope="col">Giới tính</th>
                       <th scope="col">Điện thoại</th>
+                      <th scope="col">Vai trò sử dụng</th>
                       <th scope="col">Địa chỉ</th>
                       <th scope="col">Trạng thái</th>
                     </tr>
@@ -211,6 +278,9 @@ defineExpose({ load })
                         <p class="mb-0 text-xs text-secondary">{{ t.phone || '—' }}</p>
                       </td>
                       <td>
+                        <p class="mb-0 text-xs font-weight-bold">{{ t.subject || '—' }}</p>
+                      </td>
+                      <td>
                         <p class="mb-0 text-xs text-secondary">{{ t.address || '—' }}</p>
                       </td>
                       <td>
@@ -220,25 +290,25 @@ defineExpose({ load })
                       </td>
                     </tr>
                     <tr v-if="!items.length" class="panel-table-empty">
-                      <td colspan="5">Chưa có giáo viên nào.</td>
+                      <td colspan="6">Chưa có giáo viên nào.</td>
                     </tr>
                   </tbody>
                 </table>
               </div>
               <!-- Pagination -->
-              <div v-if="items.length > PAGE_SIZE" class="pagination-bar">
-                <span class="pagination-info">
+              <div v-if="items.length > PAGE_SIZE" :class="paginationBarClass">
+                <span :class="paginationInfoClass">
                   {{ (currentPage - 1) * PAGE_SIZE + 1 }}–{{ Math.min(currentPage * PAGE_SIZE, items.length) }} / {{ items.length }}
                 </span>
-                <div class="pagination-controls">
+                <div :class="paginationControlsClass">
                   <button
-                    class="page-btn"
+                    :class="pageBtnClass"
                     :disabled="currentPage === 1"
                     @click="goToPage(1)"
                     title="Trang đầu"
                   ><i class="ni ni-bold-left"></i><i class="ni ni-bold-left"></i></button>
                   <button
-                    class="page-btn"
+                    :class="pageBtnClass"
                     :disabled="currentPage === 1"
                     @click="goToPage(currentPage - 1)"
                     title="Trang trước"
@@ -246,23 +316,22 @@ defineExpose({ load })
                   <template v-for="p in totalPages" :key="p">
                     <button
                       v-if="p === 1 || p === totalPages || (p >= currentPage - 2 && p <= currentPage + 2)"
-                      class="page-btn"
-                      :class="{ active: p === currentPage }"
+                      :class="[pageBtnClass, p === currentPage ? activePageBtnClass : '']"
                       @click="goToPage(p)"
                     >{{ p }}</button>
                     <span
                       v-else-if="p === currentPage - 3 || p === currentPage + 3"
-                      class="page-ellipsis"
+                      :class="pageEllipsisClass"
                     >…</span>
                   </template>
                   <button
-                    class="page-btn"
+                    :class="pageBtnClass"
                     :disabled="currentPage === totalPages"
                     @click="goToPage(currentPage + 1)"
                     title="Trang sau"
                   ><i class="ni ni-bold-right"></i></button>
                   <button
-                    class="page-btn"
+                    :class="pageBtnClass"
                     :disabled="currentPage === totalPages"
                     @click="goToPage(totalPages)"
                     title="Trang cuối"
@@ -338,6 +407,54 @@ defineExpose({ load })
                   name="phone"
                   autocomplete="tel"
                 />
+              </div>
+              <div class="col-12">
+                <label for="teacher-password" class="form-control-label">
+                  {{ editingId ? 'Đặt lại mật khẩu' : 'Mật khẩu đăng nhập *' }}
+                </label>
+                <argon-input
+                  id="teacher-password"
+                  v-model="form.password"
+                  type="password"
+                  :placeholder="editingId ? 'Bỏ trống nếu không đổi mật khẩu' : 'Tối thiểu 8 ký tự'"
+                  name="password"
+                  autocomplete="new-password"
+                />
+                <p class="mt-1 mb-0 text-xs text-secondary">
+                  Tài khoản giáo viên đăng nhập nội bộ bằng số điện thoại và mật khẩu này.
+                </p>
+              </div>
+              <div class="col-12">
+                <label for="teacher-subject" class="form-control-label">Vai trò sử dụng</label>
+                <select
+                  id="teacher-subject"
+                  v-model="form.roleId"
+                  class="form-select form-select-sm mb-2"
+                  name="roleId"
+                >
+                  <option value="">Chọn vai trò</option>
+                  <option v-for="role in roleOptions" :key="role.id" :value="role.id">
+                    {{ role.name }}
+                  </option>
+                </select>
+                <div class="role-create-row">
+                  <argon-input
+                    id="teacher-role-new"
+                    v-model="newRoleName"
+                    placeholder="Thêm vai trò mới"
+                    name="newRoleName"
+                  />
+                  <argon-button
+                    color="secondary"
+                    variant="outline"
+                    size="sm"
+                    type="button"
+                    :disabled="roleSaving || !newRoleName.trim()"
+                    @click="createRole"
+                  >
+                    Thêm
+                  </argon-button>
+                </div>
               </div>
               <div class="col-12">
                 <label for="teacher-address" class="form-control-label">Địa chỉ</label>
@@ -507,6 +624,18 @@ defineExpose({ load })
   box-shadow: 0 0 0 0.22rem rgba(56, 189, 248, 0.16);
 }
 
+.role-create-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.5rem;
+  align-items: start;
+}
+
+.role-create-row :deep(.form-group),
+.role-create-row :deep(.mb-3) {
+  margin-bottom: 0 !important;
+}
+
 /* Slide transition */
 .drawer-slide-enter-active,
 .drawer-slide-leave-active {
@@ -552,70 +681,4 @@ defineExpose({ load })
   }
 }
 
-/* ===== Pagination ===== */
-.pagination-bar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  padding: 0.75rem 1rem;
-  border-top: 1px solid #f1f3f5;
-}
-
-.pagination-info {
-  font-size: 0.78rem;
-  color: #8392ab;
-}
-
-.pagination-controls {
-  display: flex;
-  align-items: center;
-  gap: 0.25rem;
-}
-
-.page-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 2rem;
-  height: 2rem;
-  padding: 0 0.4rem;
-  border: 1px solid #e9ecef;
-  border-radius: 0.375rem;
-  background: #fff;
-  color: #344767;
-  font-size: 0.8rem;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.15s;
-  line-height: 1;
-}
-
-.page-btn:hover:not(:disabled):not(.active) {
-  background: #f0f2f5;
-  border-color: #d2d6da;
-}
-
-.page-btn.active {
-  background: linear-gradient(310deg, #5e72e4, #825ee4);
-  border-color: transparent;
-  color: #fff;
-  font-weight: 600;
-}
-
-.page-btn:disabled {
-  opacity: 0.38;
-  cursor: default;
-}
-
-.page-ellipsis {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 1.5rem;
-  height: 2rem;
-  font-size: 0.85rem;
-  color: #8392ab;
-}
 </style>

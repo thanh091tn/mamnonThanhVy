@@ -9,6 +9,7 @@
     "dev": "node --watch src/index.js",
     "db:create": "node src/create-db.js",
     "db:seed": "node src/seed.js",
+    "db:deploy-reset-seed": "node src/run-sql-file.js ../scripts/deploy-reset-seed.sql",
     "db:demo-teacher": "node src/seed-demo-teacher.js"
   },
   "engines": {

@@ -40,11 +40,11 @@ defineProps({
 .nav-link {
   display: flex;
   align-items: center;
-  gap: 0.7rem;
-  min-height: 46px;
+  gap: 0.6rem;
+  min-height: 40px;
   margin: 0;
-  padding: 0.72rem 0.8rem;
-  border-radius: 0.85rem;
+  padding: 0.58rem 0.65rem;
+  border-radius: 0.72rem;
   color: #334155;
   transition: background 0.18s ease, box-shadow 0.18s ease, color 0.18s ease, border-color 0.18s ease;
   border: 1px solid transparent;
@@ -59,14 +59,14 @@ defineProps({
 .nav-link.active {
   background: linear-gradient(135deg, #0f766e, #14b8a6);
   color: #fff;
-  box-shadow: 0 0.85rem 1.4rem -1rem rgba(15, 118, 110, 0.55);
+  box-shadow: 0 0.65rem 1.15rem -0.9rem rgba(15, 118, 110, 0.55);
 }
 
 .icon {
-  width: 2rem;
-  height: 2rem;
+  width: 1.8rem;
+  height: 1.8rem;
   flex-shrink: 0;
-  border-radius: 0.7rem;
+  border-radius: 0.6rem;
   background: #e3ebff;
 }
 
@@ -84,9 +84,31 @@ defineProps({
 }
 
 .nav-link-text {
-  font-size: 0.84rem;
+  min-width: 0;
+  overflow: hidden;
+  color: inherit;
+  font-size: 0.8rem;
   font-weight: 700;
   line-height: 1.3;
-  color: inherit;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 575.98px) {
+  .nav-link {
+    min-height: 38px;
+    padding: 0.52rem 0.6rem;
+    border-radius: 0.66rem;
+  }
+
+  .icon {
+    width: 1.7rem;
+    height: 1.7rem;
+    border-radius: 0.55rem;
+  }
+
+  .nav-link-text {
+    font-size: 0.78rem;
+  }
 }
 </style>

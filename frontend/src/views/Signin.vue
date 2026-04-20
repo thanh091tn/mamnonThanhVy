@@ -13,7 +13,7 @@ const store = useStore();
 const route = useRoute();
 const router = useRouter();
 
-const email = ref("");
+const login = ref("");
 const password = ref("");
 const err = ref("");
 const loading = ref(false);
@@ -37,13 +37,17 @@ async function submit() {
   err.value = "";
   loading.value = true;
   try {
+    const loginValue = login.value.trim();
+    const credential = loginValue.includes("@")
+      ? { email: loginValue }
+      : { phone: loginValue };
     const { data } = await api.post("/auth/login", {
-      email: email.value,
+      ...credential,
       password: password.value,
     });
     store.commit("setAuth", { token: data.token, user: data.user });
     const redir =
-      typeof route.query.redirect === "string" ? route.query.redirect : "/school";
+      typeof route.query.redirect === "string" ? route.query.redirect : "/dashboard";
     router.replace(redir);
   } catch (e) {
     err.value = e.response?.data?.error || e.message || "Đăng nhập thất bại";
@@ -74,7 +78,7 @@ async function submit() {
               <div class="card card-plain">
                 <div class="pb-0 card-header text-start">
                   <h4 class="font-weight-bolder">Đăng nhập</h4>
-                  <p class="mb-0">Nhập email và mật khẩu</p>
+                  <p class="mb-0">Nhập số điện thoại và mật khẩu</p>
                 </div>
                 <div class="card-body">
                   <argon-alert v-if="err" color="danger" icon="ni ni-fat-remove" class="mb-3">
@@ -83,13 +87,13 @@ async function submit() {
                   <form role="form" @submit.prevent="submit">
                     <div class="mb-3">
                       <argon-input
-                        id="email"
-                        v-model="email"
-                        type="email"
-                        placeholder="Email"
-                        name="email"
+                        id="login"
+                        v-model="login"
+                        type="text"
+                        placeholder="Số điện thoại hoặc email quản lý"
+                        name="login"
                         size="lg"
-                        autocomplete="email"
+                        autocomplete="username"
                       />
                     </div>
                     <div class="mb-3">
@@ -113,20 +117,14 @@ async function submit() {
                         type="submit"
                         :disabled="loading"
                       >
-                        {{ loading ? "Đang đăng nhập…" : "Đăng nhập" }}
+                        {{ loading ? "Đang đăng nhập..." : "Đăng nhập" }}
                       </argon-button>
                     </div>
                   </form>
                 </div>
                 <div class="px-1 pt-0 text-center card-footer px-lg-2">
                   <p class="mx-auto mb-4 text-sm">
-                    Chưa có tài khoản?
-                    <router-link
-                      :to="{ name: 'Signup', query: route.query }"
-                      class="text-success text-gradient font-weight-bold"
-                    >
-                      Đăng ký
-                    </router-link>
+                    Tài khoản giáo viên được tạo bởi quản lý nhà trường.
                   </p>
                 </div>
               </div>

@@ -14,7 +14,7 @@ const isAuthed = computed(() => Boolean(store.state.authToken));
 const authUser = computed(() => store.state.authUser);
 
 const displayName = computed(() => {
-  return authUser.value?.name || authUser.value?.email || "Tài khoản";
+  return authUser.value?.name || authUser.value?.phone || authUser.value?.email || "Tài khoản";
 });
 
 const route = useRoute();
@@ -378,19 +378,105 @@ const closeMenu = () => {
 
 @media (max-width: 767.98px) {
   .app-navbar {
-    margin-top: 0.75rem;
+    margin: 0.55rem 0.65rem 0 !important;
+    border-radius: 0.8rem;
   }
 
   .app-navbar-shell {
-    gap: 0.75rem;
+    flex-direction: row;
+    align-items: center;
+    gap: 0.5rem;
+    min-height: 48px;
+    padding: 0.45rem 0.55rem !important;
+  }
+
+  .app-navbar-left {
+    flex: 1 1 auto;
+    overflow: hidden;
+  }
+
+  .app-navbar-left :deep(nav) {
+    min-width: 0;
+  }
+
+  .app-navbar :deep(.breadcrumb) {
+    display: none;
+  }
+
+  .app-navbar :deep(h6) {
+    max-width: 100%;
+    overflow: hidden;
+    font-size: 0.88rem;
+    line-height: 1.2;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .app-navbar-right {
+    flex: 0 0 auto;
+    width: auto;
   }
 
   .app-navbar-actions {
-    gap: 0.5rem;
+    width: auto;
+    flex-direction: row;
+    gap: 0.35rem;
+    justify-content: flex-end;
   }
 
   .app-navbar-link--button {
-    padding: 0.5rem 0.8rem !important;
+    justify-content: center;
+    width: 2.1rem;
+    height: 2.1rem;
+    padding: 0 !important;
+    border-radius: 0.65rem;
+  }
+
+  .app-navbar-link--button i {
+    margin: 0 !important;
+    font-size: 0.82rem;
+  }
+
+  .app-navbar-link--button span {
+    display: none !important;
+  }
+
+  .app-navbar-icon-link {
+    width: 2.1rem;
+    height: 2.1rem;
+    border-radius: 0.65rem;
+  }
+
+  .app-navbar .dropdown-menu {
+    position: fixed !important;
+    top: 3.4rem !important;
+    right: 0.65rem !important;
+    left: 0.65rem !important;
+    width: auto;
+    max-width: none;
+    margin: 0 !important;
+  }
+}
+
+@media (max-width: 374.98px) {
+  .app-navbar {
+    margin-right: 0.5rem !important;
+    margin-left: 0.5rem !important;
+  }
+
+  .app-navbar-shell {
+    padding-right: 0.45rem !important;
+    padding-left: 0.45rem !important;
+  }
+
+  .app-navbar-actions {
+    gap: 0.25rem;
+  }
+
+  .app-navbar-link--button,
+  .app-navbar-icon-link {
+    width: 2rem;
+    height: 2rem;
   }
 }
 </style>

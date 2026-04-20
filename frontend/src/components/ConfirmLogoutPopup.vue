@@ -34,6 +34,16 @@ const props = defineProps({
 
 const emit = defineEmits(["cancel", "confirm"]);
 
+const overlayClass = "tw-fixed tw-inset-0 tw-z-[2000] tw-flex tw-items-center tw-justify-center tw-bg-slate-900/40 tw-p-4 tw-backdrop-blur-md";
+const cardClass = "tw-w-[min(100%,28rem)] tw-rounded-[1.2rem] tw-border tw-border-slate-200 tw-bg-white tw-px-6 tw-pb-5 tw-pt-6 tw-text-center tw-shadow-[0_1.5rem_3rem_-1.8rem_rgba(15,23,42,0.45)] max-[575.98px]:tw-w-[min(100%,22rem)] max-[575.98px]:tw-px-4 max-[575.98px]:tw-pb-4 max-[575.98px]:tw-pt-5";
+const iconWrapClass = "tw-mb-[0.8rem] tw-inline-flex tw-h-12 tw-w-12 tw-items-center tw-justify-center tw-rounded-full tw-bg-[#fff1f1] tw-text-[1.1rem] tw-text-red-600";
+const messageClass = "tw-mx-auto tw-mb-0 tw-mt-[0.2rem] tw-max-w-[23rem] tw-text-center tw-text-[0.95rem] tw-leading-[1.65] tw-text-slate-500 tw-text-pretty max-[575.98px]:tw-max-w-none";
+const actionsClass = "tw-mt-[1.35rem] tw-flex tw-justify-center tw-gap-3 max-[575.98px]:tw-flex-col";
+const buttonClass = "tw-min-h-[2.65rem] tw-min-w-0 tw-flex-1 tw-whitespace-nowrap tw-rounded-[0.8rem] tw-border tw-border-transparent tw-px-4 tw-py-[0.65rem] tw-text-[0.88rem] tw-font-bold tw-transition-colors tw-duration-[180ms] max-[575.98px]:tw-w-full";
+const ghostButtonClass = "tw-border-[#d7e0ec] tw-bg-white tw-text-slate-700 hover:tw-bg-slate-50";
+const dangerButtonClass = "tw-bg-gradient-to-br tw-from-red-600 tw-to-red-500 tw-text-white hover:tw-from-red-700 hover:tw-to-red-600";
+const primaryButtonClass = "tw-bg-gradient-to-br tw-from-blue-600 tw-to-blue-500 tw-text-white hover:tw-from-blue-700 hover:tw-to-blue-600";
+
 watch(
   () => props.open,
   (isOpen) => {
@@ -49,30 +59,29 @@ onBeforeUnmount(() => {
 
 <template>
   <teleport to="body">
-    <div v-if="open" class="confirm-popup-overlay" @click.self="emit('cancel')">
+    <div v-if="open" :class="overlayClass" @click.self="emit('cancel')">
       <div
-        class="confirm-popup-card"
+        :class="cardClass"
         role="dialog"
         aria-modal="true"
         :aria-label="title"
       >
-        <div class="confirm-popup-icon">
+        <div :class="iconWrapClass">
           <i :class="iconClass"></i>
         </div>
-        <h5 class="confirm-popup-title mb-2">{{ title }}</h5>
-        <p class="confirm-popup-message mb-0">{{ message }}</p>
-        <div class="confirm-popup-actions">
+        <h5 class="mb-2 tw-text-[1.1rem] tw-font-bold tw-leading-[1.35] tw-text-[#1f2a44]">{{ title }}</h5>
+        <p :class="messageClass">{{ message }}</p>
+        <div :class="actionsClass">
           <button
             type="button"
-            class="confirm-popup-btn confirm-popup-btn--ghost"
+            :class="[buttonClass, ghostButtonClass]"
             @click="emit('cancel')"
           >
             {{ cancelText }}
           </button>
           <button
             type="button"
-            class="confirm-popup-btn"
-            :class="danger ? 'confirm-popup-btn--danger' : 'confirm-popup-btn--primary'"
+            :class="[buttonClass, danger ? dangerButtonClass : primaryButtonClass]"
             @click="emit('confirm')"
           >
             {{ confirmText }}
@@ -90,122 +99,4 @@ onBeforeUnmount(() => {
   transition: filter 0.18s ease;
 }
 
-.confirm-popup-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 2000;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 1rem;
-  background: rgba(15, 23, 42, 0.42);
-  backdrop-filter: blur(6px);
-}
-
-.confirm-popup-card {
-  width: min(100%, 28rem);
-  padding: 1.5rem 1.5rem 1.2rem;
-  border: 1px solid #e2e8f0;
-  border-radius: 1.2rem;
-  background: #fff;
-  box-shadow: 0 1.5rem 3rem -1.8rem rgba(15, 23, 42, 0.45);
-  text-align: center;
-}
-
-.confirm-popup-icon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 3rem;
-  height: 3rem;
-  margin-bottom: 0.8rem;
-  border-radius: 999px;
-  background: #fff1f1;
-  color: #dc2626;
-  font-size: 1.1rem;
-}
-
-.confirm-popup-title {
-  color: #1f2a44;
-  font-weight: 700;
-  font-size: 1.1rem;
-  line-height: 1.35;
-}
-
-.confirm-popup-message {
-  max-width: 23rem;
-  margin: 0.2rem auto 0;
-  color: #64748b;
-  font-size: 0.95rem;
-  line-height: 1.65;
-  text-align: center;
-  text-wrap: pretty;
-}
-
-.confirm-popup-actions {
-  display: flex;
-  gap: 0.75rem;
-  justify-content: center;
-  margin-top: 1.35rem;
-}
-
-.confirm-popup-btn {
-  flex: 1 1 0;
-  min-width: 0;
-  min-height: 2.65rem;
-  padding: 0.65rem 1rem;
-  border-radius: 0.8rem;
-  border: 1px solid transparent;
-  font-size: 0.88rem;
-  font-weight: 700;
-  white-space: nowrap;
-  transition: background 0.18s ease, color 0.18s ease, border-color 0.18s ease;
-}
-
-.confirm-popup-btn--ghost {
-  border-color: #d7e0ec;
-  background: #fff;
-  color: #334155;
-}
-
-.confirm-popup-btn--ghost:hover {
-  background: #f8fafc;
-}
-
-.confirm-popup-btn--danger {
-  background: linear-gradient(135deg, #dc2626, #ef4444);
-  color: #fff;
-}
-
-.confirm-popup-btn--danger:hover {
-  background: linear-gradient(135deg, #b91c1c, #dc2626);
-}
-
-.confirm-popup-btn--primary {
-  background: linear-gradient(135deg, #2563eb, #3b82f6);
-  color: #fff;
-}
-
-.confirm-popup-btn--primary:hover {
-  background: linear-gradient(135deg, #1d4ed8, #2563eb);
-}
-
-@media (max-width: 575.98px) {
-  .confirm-popup-card {
-    width: min(100%, 22rem);
-    padding: 1.25rem 1rem 1rem;
-  }
-
-  .confirm-popup-message {
-    max-width: none;
-  }
-
-  .confirm-popup-actions {
-    flex-direction: column;
-  }
-
-  .confirm-popup-btn {
-    width: 100%;
-  }
-}
 </style>

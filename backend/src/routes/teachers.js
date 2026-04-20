@@ -1,18 +1,152 @@
 import { Router } from "express";
+import bcrypt from "bcryptjs";
 import {
   pool,
   mapTeacherRow,
   normalizeTeacherStatus,
   normalizeTeacherGender,
 } from "../db.js";
+import { requireManager } from "../middleware/auth.js";
 
 const router = Router();
 
-const COLS = "id, name, email, phone, address, status, gender";
+const BCRYPT_ROUNDS = 10;
+const MIN_PASSWORD_LEN = 8;
+const COLS = "id, name, email, phone, role_id, subject, address, status, gender";
+const TEACHER_SELECT = `
+  t.id, t.name, t.email, t.phone, t.role_id,
+  COALESCE(tr.name, t.subject, '') AS subject,
+  t.address, t.status, t.gender,
+  u.id AS user_id
+`;
+
+function normalizeEmail(v) {
+  if (v == null || typeof v !== "string") return "";
+  return v.trim().toLowerCase();
+}
+
+function normalizePhone(v) {
+  if (v == null || typeof v !== "string") return "";
+  return v.trim().replace(/[\s().-]/g, "");
+}
+
+function validatePassword(password, { required }) {
+  if (!password && !required) return null;
+  if (!password || typeof password !== "string" || password.length < MIN_PASSWORD_LEN) {
+    return { error: `password must be at least ${MIN_PASSWORD_LEN} characters` };
+  }
+  return null;
+}
+
+function normalizeRoleName(v) {
+  if (v == null || typeof v !== "string") return "";
+  return v.trim();
+}
+
+function normalizePositiveInt(v) {
+  if (v == null || v === "") return null;
+  const n = Number(v);
+  return Number.isInteger(n) && n > 0 ? n : NaN;
+}
+
+async function resolveTeacherRole(client, { roleId, subject, fallbackRoleId = null, fallbackSubject = "" }) {
+  const parsedRoleId = normalizePositiveInt(roleId);
+  const roleName = normalizeRoleName(subject);
+  if (Number.isNaN(parsedRoleId)) {
+    return { error: "roleId must be a positive integer" };
+  }
+  if (parsedRoleId != null) {
+    const role = await client.query(`SELECT id, name FROM teacher_roles WHERE id = $1`, [parsedRoleId]);
+    if (!role.rowCount) return { error: "Teacher role not found" };
+    return { roleId: role.rows[0].id, subject: role.rows[0].name };
+  }
+  if (roleName) {
+    const role = await client.query(
+      `INSERT INTO teacher_roles (name)
+       VALUES ($1)
+       ON CONFLICT (name) DO UPDATE SET name = EXCLUDED.name
+       RETURNING id, name`,
+      [roleName]
+    );
+    return { roleId: role.rows[0].id, subject: role.rows[0].name };
+  }
+  return { roleId: fallbackRoleId, subject: fallbackSubject || "" };
+}
+
+router.get("/roles", async (_req, res, next) => {
+  try {
+    const r = await pool.query(`
+      SELECT id, name
+      FROM teacher_roles
+      ORDER BY LOWER(name), id
+    `);
+    res.json(r.rows);
+  } catch (e) {
+    next(e);
+  }
+});
+
+router.post("/roles", requireManager, async (req, res, next) => {
+  try {
+    const name = normalizeRoleName(req.body?.name);
+    if (!name) return res.status(400).json({ error: "name is required" });
+    const r = await pool.query(
+      `INSERT INTO teacher_roles (name)
+       VALUES ($1)
+       ON CONFLICT (name) DO UPDATE SET name = EXCLUDED.name
+       RETURNING id, name`,
+      [name]
+    );
+    res.status(201).json(r.rows[0]);
+  } catch (e) {
+    next(e);
+  }
+});
+
+router.put("/roles/:id", requireManager, async (req, res, next) => {
+  try {
+    const id = Number(req.params.id);
+    const name = normalizeRoleName(req.body?.name);
+    if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ error: "Invalid role id" });
+    if (!name) return res.status(400).json({ error: "name is required" });
+    const r = await pool.query(
+      `UPDATE teacher_roles SET name = $1 WHERE id = $2 RETURNING id, name`,
+      [name, id]
+    );
+    if (!r.rowCount) return res.status(404).json({ error: "Teacher role not found" });
+    await pool.query(`UPDATE teachers SET subject = $1 WHERE role_id = $2`, [name, id]);
+    res.json(r.rows[0]);
+  } catch (e) {
+    if (e?.code === "23505") return res.status(409).json({ error: "Teacher role already exists" });
+    next(e);
+  }
+});
+
+router.delete("/roles/:id", requireManager, async (req, res, next) => {
+  try {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ error: "Invalid role id" });
+    const used = await pool.query(`SELECT COUNT(*)::int AS n FROM teachers WHERE role_id = $1`, [id]);
+    if (used.rows[0].n > 0) {
+      return res.status(409).json({ error: "Teacher role is being used" });
+    }
+    const r = await pool.query(`DELETE FROM teacher_roles WHERE id = $1 RETURNING id, name`, [id]);
+    if (!r.rowCount) return res.status(404).json({ error: "Teacher role not found" });
+    res.json(r.rows[0]);
+  } catch (e) {
+    next(e);
+  }
+});
 
 router.get("/", async (_req, res, next) => {
   try {
-    const r = await pool.query(`SELECT ${COLS} FROM teachers ORDER BY id`);
+    const r = await pool.query(`
+      SELECT ${TEACHER_SELECT}
+      FROM teachers t
+      LEFT JOIN teacher_roles tr ON tr.id = t.role_id
+      LEFT JOIN users u ON u.teacher_id = t.id
+      ORDER BY t.id
+    `);
     res.json(r.rows.map(mapTeacherRow));
   } catch (e) {
     next(e);
@@ -23,7 +157,11 @@ router.get("/:id", async (req, res, next) => {
   try {
     const id = Number(req.params.id);
     const r = await pool.query(
-      `SELECT ${COLS} FROM teachers WHERE id = $1`,
+      `SELECT ${TEACHER_SELECT}
+       FROM teachers t
+       LEFT JOIN teacher_roles tr ON tr.id = t.role_id
+       LEFT JOIN users u ON u.teacher_id = t.id
+       WHERE t.id = $1`,
       [id]
     );
     if (!r.rowCount) return res.status(404).json({ error: "Teacher not found" });
@@ -33,37 +171,97 @@ router.get("/:id", async (req, res, next) => {
   }
 });
 
-router.post("/", async (req, res, next) => {
+router.post("/", requireManager, async (req, res, next) => {
   try {
-    const { name, email, phone, address, status, gender } = req.body || {};
+    const { name, email, phone, roleId, subject, address, status, gender, password } = req.body || {};
     if (!name || typeof name !== "string" || !name.trim()) {
       return res.status(400).json({ error: "name is required" });
     }
+    const cleanPhone = normalizePhone(phone);
+    if (!cleanPhone) {
+      return res.status(400).json({ error: "phone is required for teacher login" });
+    }
+    const passwordErr = validatePassword(password, { required: true });
+    if (passwordErr) return res.status(400).json(passwordErr);
     const normStatus = normalizeTeacherStatus(status);
     if (normStatus?.error) return res.status(400).json(normStatus);
     const normGender = normalizeTeacherGender(gender);
     if (normGender?.error) return res.status(400).json(normGender);
+    const cleanEmail = normalizeEmail(email);
+    const passwordHash = await bcrypt.hash(password, BCRYPT_ROUNDS);
 
-    const r = await pool.query(
-      `INSERT INTO teachers (name, email, phone, address, status, gender)
-       VALUES ($1, $2, $3, $4, $5, $6)
-       RETURNING ${COLS}`,
-      [
-        name.trim(),
-        email != null ? String(email).trim() : "",
-        phone != null ? String(phone).trim() : "",
-        address != null ? String(address).trim() : "",
-        normStatus,
-        normGender,
-      ]
-    );
-    res.status(201).json(mapTeacherRow(r.rows[0]));
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+
+      const dupPhone = await client.query(
+        `SELECT id FROM users WHERE phone = $1`,
+        [cleanPhone]
+      );
+      if (dupPhone.rowCount) {
+        await client.query("ROLLBACK");
+        return res.status(409).json({ error: "Phone is already used by another account" });
+      }
+      if (cleanEmail) {
+        const dupEmail = await client.query(
+          `SELECT id FROM users WHERE email = $1`,
+          [cleanEmail]
+        );
+        if (dupEmail.rowCount) {
+          await client.query("ROLLBACK");
+          return res.status(409).json({ error: "Email is already used by another account" });
+        }
+      }
+      const role = await resolveTeacherRole(client, { roleId, subject });
+      if (role.error) {
+        await client.query("ROLLBACK");
+        return res.status(400).json({ error: role.error });
+      }
+
+      const t = await client.query(
+        `INSERT INTO teachers (name, email, phone, role_id, subject, address, status, gender)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+         RETURNING ${COLS}`,
+        [
+          name.trim(),
+          cleanEmail,
+          cleanPhone,
+          role.roleId,
+          role.subject,
+          address != null ? String(address).trim() : "",
+          normStatus,
+          normGender,
+        ]
+      );
+      const teacher = t.rows[0];
+      await client.query(
+        `INSERT INTO users (email, phone, password_hash, role, name, teacher_id)
+         VALUES ($1, $2, $3, 'teacher', $4, $5)`,
+        [cleanEmail || null, cleanPhone, passwordHash, teacher.name, teacher.id]
+      );
+
+      const row = await client.query(
+        `SELECT ${TEACHER_SELECT}
+         FROM teachers t
+         LEFT JOIN teacher_roles tr ON tr.id = t.role_id
+         LEFT JOIN users u ON u.teacher_id = t.id
+         WHERE t.id = $1`,
+        [teacher.id]
+      );
+      await client.query("COMMIT");
+      res.status(201).json(mapTeacherRow(row.rows[0]));
+    } catch (e) {
+      await client.query("ROLLBACK");
+      throw e;
+    } finally {
+      client.release();
+    }
   } catch (e) {
     next(e);
   }
 });
 
-router.put("/:id", async (req, res, next) => {
+router.put("/:id", requireManager, async (req, res, next) => {
   try {
     const id = Number(req.params.id);
     const sel = await pool.query(
@@ -72,7 +270,9 @@ router.put("/:id", async (req, res, next) => {
     );
     if (!sel.rowCount) return res.status(404).json({ error: "Teacher not found" });
     const cur = sel.rows[0];
-    const { name, email, phone, address, status, gender } = req.body || {};
+    const { name, email, phone, roleId, subject, address, status, gender, password } = req.body || {};
+    const passwordErr = validatePassword(password, { required: false });
+    if (passwordErr) return res.status(400).json(passwordErr);
 
     let nextName = cur.name;
     if (name != null) {
@@ -81,8 +281,11 @@ router.put("/:id", async (req, res, next) => {
       }
       nextName = name.trim();
     }
-    const nextEmail = email != null ? String(email).trim() : cur.email;
-    const nextPhone = phone != null ? String(phone).trim() : cur.phone;
+    const nextEmail = email != null ? normalizeEmail(email) : cur.email;
+    const nextPhone = phone != null ? normalizePhone(phone) : cur.phone;
+    if (!nextPhone) {
+      return res.status(400).json({ error: "phone is required for teacher login" });
+    }
     const nextAddress = address != null ? String(address).trim() : cur.address;
 
     let nextStatus = cur.status;
@@ -98,27 +301,119 @@ router.put("/:id", async (req, res, next) => {
       nextGender = ng;
     }
 
-    const r = await pool.query(
-      `UPDATE teachers SET name=$1, email=$2, phone=$3, address=$4, status=$5, gender=$6
-       WHERE id = $7
-       RETURNING ${COLS}`,
-      [nextName, nextEmail, nextPhone, nextAddress, nextStatus, nextGender, id]
-    );
-    res.json(mapTeacherRow(r.rows[0]));
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+
+      const user = await client.query(
+        `SELECT id FROM users WHERE teacher_id = $1`,
+        [id]
+      );
+      const phoneTaken = await client.query(
+        `SELECT id FROM users WHERE phone = $1 AND teacher_id IS DISTINCT FROM $2`,
+        [nextPhone, id]
+      );
+      if (phoneTaken.rowCount) {
+        await client.query("ROLLBACK");
+        return res.status(409).json({ error: "Phone is already used by another account" });
+      }
+      if (nextEmail) {
+        const emailTaken = await client.query(
+          `SELECT id FROM users WHERE email = $1 AND teacher_id IS DISTINCT FROM $2`,
+          [nextEmail, id]
+        );
+        if (emailTaken.rowCount) {
+          await client.query("ROLLBACK");
+          return res.status(409).json({ error: "Email is already used by another account" });
+        }
+      }
+      const role = await resolveTeacherRole(client, {
+        roleId,
+        subject,
+        fallbackRoleId: cur.role_id,
+        fallbackSubject: cur.subject,
+      });
+      if (role.error) {
+        await client.query("ROLLBACK");
+        return res.status(400).json({ error: role.error });
+      }
+
+      await client.query(
+        `UPDATE teachers SET name=$1, email=$2, phone=$3, role_id=$4, subject=$5, address=$6, status=$7, gender=$8
+         WHERE id = $9`,
+        [nextName, nextEmail, nextPhone, role.roleId, role.subject, nextAddress, nextStatus, nextGender, id]
+      );
+
+      if (user.rowCount) {
+        if (password) {
+          const passwordHash = await bcrypt.hash(password, BCRYPT_ROUNDS);
+          await client.query(
+            `UPDATE users
+             SET name = $1, email = $2, phone = $3, password_hash = $4
+             WHERE teacher_id = $5`,
+            [nextName, nextEmail || null, nextPhone, passwordHash, id]
+          );
+        } else {
+          await client.query(
+            `UPDATE users
+             SET name = $1, email = $2, phone = $3
+             WHERE teacher_id = $4`,
+            [nextName, nextEmail || null, nextPhone, id]
+          );
+        }
+      } else if (password) {
+        const passwordHash = await bcrypt.hash(password, BCRYPT_ROUNDS);
+        await client.query(
+          `INSERT INTO users (email, phone, password_hash, role, name, teacher_id)
+           VALUES ($1, $2, $3, 'teacher', $4, $5)`,
+          [nextEmail || null, nextPhone, passwordHash, nextName, id]
+        );
+      }
+
+      const r = await client.query(
+        `SELECT ${TEACHER_SELECT}
+         FROM teachers t
+         LEFT JOIN teacher_roles tr ON tr.id = t.role_id
+         LEFT JOIN users u ON u.teacher_id = t.id
+         WHERE t.id = $1`,
+        [id]
+      );
+      await client.query("COMMIT");
+      res.json(mapTeacherRow(r.rows[0]));
+    } catch (e) {
+      await client.query("ROLLBACK");
+      throw e;
+    } finally {
+      client.release();
+    }
   } catch (e) {
     next(e);
   }
 });
 
-router.delete("/:id", async (req, res, next) => {
+router.delete("/:id", requireManager, async (req, res, next) => {
   try {
     const id = Number(req.params.id);
-    const r = await pool.query(
-      `DELETE FROM teachers WHERE id = $1 RETURNING ${COLS}`,
-      [id]
-    );
-    if (!r.rowCount) return res.status(404).json({ error: "Teacher not found" });
-    res.json(mapTeacherRow(r.rows[0]));
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      await client.query(`DELETE FROM users WHERE teacher_id = $1`, [id]);
+      const r = await client.query(
+        `DELETE FROM teachers WHERE id = $1 RETURNING ${COLS}`,
+        [id]
+      );
+      if (!r.rowCount) {
+        await client.query("ROLLBACK");
+        return res.status(404).json({ error: "Teacher not found" });
+      }
+      await client.query("COMMIT");
+      res.json(mapTeacherRow(r.rows[0]));
+    } catch (e) {
+      await client.query("ROLLBACK");
+      throw e;
+    } finally {
+      client.release();
+    }
   } catch (e) {
     next(e);
   }

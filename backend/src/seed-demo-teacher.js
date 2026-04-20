@@ -12,7 +12,7 @@ import { pool, initDb } from "./db.js";
 async function main() {
   await initDb();
   const t = await pool.query(
-    `SELECT id, name FROM teachers ORDER BY id ASC LIMIT 1`
+    `SELECT id, name, phone FROM teachers ORDER BY id ASC LIMIT 1`
   );
   if (!t.rowCount) {
     console.error("Chưa có giáo viên nào. Chạy trước: npm run db:seed");
@@ -21,19 +21,26 @@ async function main() {
   const row = t.rows[0];
   const teacherId = row.id;
   const teacherName = row.name ?? "";
+  const teacherPhone = row.phone ?? "";
+  if (!teacherPhone) {
+    console.error("Demo teacher does not have a phone number.");
+    process.exit(1);
+  }
   const hash = bcrypt.hashSync("teacher123", 10);
   await pool.query(
-    `INSERT INTO users (email, password_hash, role, name, teacher_id)
-     VALUES ('teacher@mamnon.local', $1, 'teacher', $2, $3)
+    `INSERT INTO users (email, phone, password_hash, role, name, teacher_id)
+     VALUES ('teacher@mamnon.local', $1, $2, 'teacher', $3, $4)
      ON CONFLICT (email) DO UPDATE SET
        password_hash = EXCLUDED.password_hash,
+       phone = EXCLUDED.phone,
        teacher_id = EXCLUDED.teacher_id,
        name = EXCLUDED.name,
        role = 'teacher'`,
-    [hash, teacherName, teacherId]
+    [teacherPhone, hash, teacherName, teacherId]
   );
   console.log("OK — Đăng nhập giáo viên demo:");
-  console.log("  Email:    teacher@mamnon.local");
+  console.log(`  So dien thoai: ${teacherPhone}`);
+  console.log("  Email cu: teacher@mamnon.local");
   console.log("  Mật khẩu: teacher123");
   console.log(`  Liên kết: ${teacherName} (teacher id ${teacherId})`);
   await pool.end();

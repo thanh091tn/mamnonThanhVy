@@ -18,6 +18,12 @@ const modalEl = ref(null)
 const PAGE_SIZE = 10
 const currentPage = ref(1)
 const totalPages = computed(() => Math.max(1, Math.ceil(items.value.length / PAGE_SIZE)))
+const paginationBarClass = 'tw-flex tw-flex-wrap tw-items-center tw-justify-between tw-gap-3 tw-px-5 tw-pb-1 tw-pt-[0.9rem]'
+const paginationInfoClass = 'tw-text-[0.78rem] tw-font-semibold tw-text-slate-500'
+const paginationControlsClass = 'tw-flex tw-flex-wrap tw-items-center tw-gap-[0.35rem]'
+const pageBtnClass = 'tw-h-8 tw-min-w-8 tw-rounded-[0.65rem] tw-border tw-border-[#d9e2ee] tw-bg-white tw-px-[0.55rem] tw-text-[0.78rem] tw-font-bold tw-text-slate-600 tw-transition-all tw-duration-[180ms] enabled:hover:tw-border-[#bfd0ea] enabled:hover:tw-bg-[#f8fbff] enabled:hover:tw-text-[#1f2a44] disabled:tw-cursor-not-allowed disabled:tw-opacity-[0.45]'
+const activePageBtnClass = 'tw-border-transparent tw-bg-gradient-to-br tw-from-[#3559d8] tw-to-[#5b77e6] tw-text-white tw-shadow-[0_0.75rem_1.25rem_-1rem_rgba(53,89,216,0.6)]'
+const pageEllipsisClass = 'tw-px-[0.2rem] tw-font-bold tw-text-slate-400'
 const pagedItems = computed(() => {
   const start = (currentPage.value - 1) * PAGE_SIZE
   return items.value.slice(start, start + PAGE_SIZE)
@@ -31,7 +37,7 @@ const form = ref({
   name: '',
   level: '',
   room: '',
-  teacherId: '',
+  teacherIds: [],
 })
 
 function getModal() {
@@ -41,7 +47,7 @@ function getModal() {
 
 function resetForm() {
   editingId.value = null
-  form.value = { name: '', level: '', room: '', teacherId: '' }
+  form.value = { name: '', level: '', room: '', teacherIds: [] }
 }
 
 function onModalHidden() {
@@ -62,7 +68,11 @@ function openEdit(row) {
     name: row.name,
     level: row.level || '',
     room: row.room || '',
-    teacherId: row.teacherId != null ? String(row.teacherId) : '',
+    teacherIds: Array.isArray(row.teacherIds)
+      ? row.teacherIds.map((id) => String(id))
+      : row.teacherId != null
+        ? [String(row.teacherId)]
+        : [],
   }
   formErr.value = ''
   getModal()?.show()
@@ -73,7 +83,7 @@ function buildPayload() {
     name: form.value.name.trim(),
     level: form.value.level,
     room: form.value.room,
-    teacherId: form.value.teacherId === '' ? null : Number(form.value.teacherId),
+    teacherIds: form.value.teacherIds.map((id) => Number(id)),
   }
 }
 
@@ -184,7 +194,7 @@ defineExpose({ load })
                       <th scope="col">Tên lớp</th>
                       <th scope="col">Cấp</th>
                       <th scope="col">Phòng</th>
-                      <th scope="col">Giáo viên chủ nhiệm</th>
+                      <th scope="col">Giáo viên phụ trách</th>
                       <th scope="col" class="text-end">
                         <span class="visually-hidden">Actions</span>
                       </th>
@@ -229,19 +239,19 @@ defineExpose({ load })
                 </tbody>
               </table>
               </div>
-              <div v-if="items.length > PAGE_SIZE" class="pagination-bar">
-                <span class="pagination-info">
+              <div v-if="items.length > PAGE_SIZE" :class="paginationBarClass">
+                <span :class="paginationInfoClass">
                   {{ (currentPage - 1) * PAGE_SIZE + 1 }}–{{ Math.min(currentPage * PAGE_SIZE, items.length) }} / {{ items.length }}
                 </span>
-                <div class="pagination-controls">
+                <div :class="paginationControlsClass">
                   <button
-                    class="page-btn"
+                    :class="pageBtnClass"
                     :disabled="currentPage === 1"
                     @click="goToPage(1)"
                     title="Trang đầu"
                   ><i class="ni ni-bold-left"></i><i class="ni ni-bold-left"></i></button>
                   <button
-                    class="page-btn"
+                    :class="pageBtnClass"
                     :disabled="currentPage === 1"
                     @click="goToPage(currentPage - 1)"
                     title="Trang trước"
@@ -249,23 +259,22 @@ defineExpose({ load })
                   <template v-for="p in totalPages" :key="p">
                     <button
                       v-if="p === 1 || p === totalPages || (p >= currentPage - 2 && p <= currentPage + 2)"
-                      class="page-btn"
-                      :class="{ active: p === currentPage }"
+                      :class="[pageBtnClass, p === currentPage ? activePageBtnClass : '']"
                       @click="goToPage(p)"
                     >{{ p }}</button>
                     <span
                       v-else-if="p === currentPage - 3 || p === currentPage + 3"
-                      class="page-ellipsis"
+                      :class="pageEllipsisClass"
                     >…</span>
                   </template>
                   <button
-                    class="page-btn"
+                    :class="pageBtnClass"
                     :disabled="currentPage === totalPages"
                     @click="goToPage(currentPage + 1)"
                     title="Trang sau"
                   ><i class="ni ni-bold-right"></i></button>
                   <button
-                    class="page-btn"
+                    :class="pageBtnClass"
                     :disabled="currentPage === totalPages"
                     @click="goToPage(totalPages)"
                     title="Trang cuối"
@@ -330,13 +339,24 @@ defineExpose({ load })
                   <argon-input id="class-room" v-model="form.room" placeholder="VD: A12" name="room" />
                 </div>
                 <div class="col-md-6">
-                  <label for="class-teacher" class="form-control-label">Giáo viên chủ nhiệm</label>
-                  <select id="class-teacher" v-model="form.teacherId" class="form-control">
-                    <option value="">— Chưa chọn —</option>
-                    <option v-for="t in teachers" :key="t.id" :value="String(t.id)">
-                      {{ t.name }}{{ t.subject ? ` (${t.subject})` : '' }}
-                    </option>
-                  </select>
+                  <label class="form-control-label">Giáo viên phụ trách</label>
+                  <div class="class-teacher-checklist">
+                    <label
+                      v-for="t in teachers"
+                      :key="t.id"
+                      class="class-teacher-option"
+                    >
+                      <input
+                        v-model="form.teacherIds"
+                        type="checkbox"
+                        :value="String(t.id)"
+                      />
+                      <span>{{ t.name }}{{ t.phone ? ` (${t.phone})` : t.subject ? ` (${t.subject})` : '' }}</span>
+                    </label>
+                    <div v-if="!teachers.length" class="class-teacher-empty">
+                      Chưa có giáo viên để chọn.
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -367,62 +387,37 @@ defineExpose({ load })
 </template>
 
 <style scoped>
-.pagination-bar {
+.class-teacher-checklist {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
-  padding: 0.9rem 1.25rem 0.2rem;
-  flex-wrap: wrap;
-}
-
-.pagination-info {
-  color: #64748b;
-  font-size: 0.78rem;
-  font-weight: 600;
-}
-
-.pagination-controls {
-  display: flex;
-  align-items: center;
-  gap: 0.35rem;
-  flex-wrap: wrap;
-}
-
-.page-btn {
-  min-width: 2rem;
-  height: 2rem;
-  padding: 0 0.55rem;
+  flex-direction: column;
+  gap: 0.45rem;
+  max-height: 180px;
+  overflow-y: auto;
+  padding: 0.75rem;
   border: 1px solid #d9e2ee;
   border-radius: 0.65rem;
   background: #fff;
-  color: #475569;
-  font-size: 0.78rem;
-  font-weight: 700;
-  transition: all 0.18s ease;
 }
 
-.page-btn:hover:not(:disabled):not(.active) {
-  border-color: #bfd0ea;
-  background: #f8fbff;
-  color: #1f2a44;
+.class-teacher-option {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  margin: 0;
+  color: #344767;
+  font-size: 0.85rem;
+  cursor: pointer;
 }
 
-.page-btn.active {
-  border-color: transparent;
-  background: linear-gradient(135deg, #3559d8, #5b77e6);
-  color: #fff;
-  box-shadow: 0 0.75rem 1.25rem -1rem rgba(53, 89, 216, 0.6);
+.class-teacher-option input {
+  width: 1rem;
+  height: 1rem;
+  flex-shrink: 0;
 }
 
-.page-btn:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
-}
-
-.page-ellipsis {
-  padding: 0 0.2rem;
-  color: #94a3b8;
-  font-weight: 700;
+.class-teacher-empty {
+  color: #8392ab;
+  font-size: 0.82rem;
 }
 </style>
+
