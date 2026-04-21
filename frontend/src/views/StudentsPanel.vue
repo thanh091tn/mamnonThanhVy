@@ -809,7 +809,7 @@ defineExpose({ load })
               {{ formErr }}
             </argon-alert>
             <p class="text-sm text-uppercase text-muted">Thông tin học sinh</p>
-            <div class="row">
+            <div class="row student-detail-grid">
               <div class="col-12">
                 <label for="student-name" class="form-control-label">Họ tên *</label>
                 <argon-input
@@ -942,7 +942,7 @@ defineExpose({ load })
 
             <!-- CSDLQG Section -->
             <p class="text-sm text-uppercase text-muted mt-3">Thông tin phục vụ CSDLQG ngành Giáo dục</p>
-            <div class="row">
+            <div class="row student-detail-grid">
               <div class="col-6">
                 <label for="student-nationality" class="form-control-label">Quốc tịch</label>
                 <argon-input id="student-nationality" v-model="form.nationality" placeholder="VD: Việt Nam" name="nationality" />
@@ -979,6 +979,9 @@ defineExpose({ load })
                 <argon-input id="student-mother-by" v-model="form.motherBirthYear" placeholder="VD: 1987" name="motherBirthYear" />
               </div>
               <div class="col-12">
+                <div class="student-detail-subtitle">Thông tin mẹ</div>
+              </div>
+              <div class="col-12">
                 <label for="student-mother-name" class="form-control-label">Họ tên mẹ</label>
                 <argon-input id="student-mother-name" v-model="form.motherName" placeholder="Họ tên mẹ" name="motherName" />
               </div>
@@ -1007,6 +1010,9 @@ defineExpose({ load })
                 <argon-input id="student-mother-occ" v-model="form.motherOccupation" placeholder="Nghề nghiệp mẹ" name="motherOccupation" />
               </div>
               <div class="col-12">
+                <div class="student-detail-subtitle">Thông tin bố</div>
+              </div>
+              <div class="col-12">
                 <label for="student-father-name" class="form-control-label">Họ tên bố</label>
                 <argon-input id="student-father-name" v-model="form.fatherName" placeholder="Họ tên bố" name="fatherName" />
               </div>
@@ -1033,6 +1039,9 @@ defineExpose({ load })
               <div class="col-6">
                 <label for="student-father-occ" class="form-control-label">Nghề nghiệp bố</label>
                 <argon-input id="student-father-occ" v-model="form.fatherOccupation" placeholder="Nghề nghiệp bố" name="fatherOccupation" />
+              </div>
+              <div class="col-12">
+                <div class="student-detail-subtitle">Giấy tờ và chính sách</div>
               </div>
               <div class="col-6">
                 <label for="student-idnumber" class="form-control-label">Số CMND/TCC</label>
@@ -1066,7 +1075,7 @@ defineExpose({ load })
 
             <!-- Guardian Section -->
             <p class="text-sm text-uppercase text-muted mt-3">Thông tin người giám hộ</p>
-            <div class="row">
+            <div class="row student-detail-grid">
               <div class="col-12">
                 <label for="student-guardian-name" class="form-control-label">Họ tên người giám hộ</label>
                 <argon-input id="student-guardian-name" v-model="form.guardianName" placeholder="Họ tên" name="guardianName" />
@@ -1202,7 +1211,7 @@ defineExpose({ load })
 .drawer-backdrop {
   position: fixed;
   inset: 0;
-  z-index: 1040;
+  z-index: 10000;
   background: rgba(15, 23, 42, 0.34);
   backdrop-filter: blur(7px);
 }
@@ -1212,9 +1221,10 @@ defineExpose({ load })
   top: 0;
   right: 0;
   bottom: 0;
-  z-index: 1045;
-  width: min(760px, 100vw);
-  max-width: 96vw;
+  z-index: 10010;
+  width: 50vw;
+  min-width: min(760px, 100vw);
+  max-width: 100vw;
   background:
     linear-gradient(180deg, rgba(248, 250, 252, 0.96) 0%, rgba(255, 255, 255, 0.98) 18%, #ffffff 100%);
   display: flex;
@@ -1319,15 +1329,58 @@ defineExpose({ load })
 }
 
 .drawer-body > .text-sm.text-uppercase.text-muted {
-  margin-bottom: 1rem;
+  margin: 1rem 0 0;
+  padding: 0.85rem 1rem 0;
+  border: 1px solid #e2e8f0;
+  border-bottom: 0;
+  border-radius: 1rem 1rem 0 0;
+  background: #ffffff;
   color: #64748b !important;
   font-weight: 800;
   letter-spacing: 0.08em;
 }
 
+.drawer-body > .text-sm.text-uppercase.text-muted:first-of-type {
+  margin-top: 0;
+}
+
 .drawer-body .row {
   --bs-gutter-x: 1rem;
   --bs-gutter-y: 0.95rem;
+}
+
+.drawer-body > .student-detail-grid {
+  margin-left: 0;
+  margin-right: 0;
+  margin-bottom: 1rem;
+  padding: 1rem;
+  border: 1px solid #e2e8f0;
+  border-top: 0;
+  border-radius: 0 0 1rem 1rem;
+  background: #ffffff;
+  box-shadow: 0 14px 32px rgba(15, 23, 42, 0.06);
+}
+
+.student-detail-subtitle {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.15rem;
+  padding-top: 0.9rem;
+  border-top: 1px solid #eef2f7;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #0f766e;
+}
+
+.student-detail-subtitle::before {
+  content: "";
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 999px;
+  background: #14b8a6;
 }
 
 .drawer-body .form-control-label {
