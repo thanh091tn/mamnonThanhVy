@@ -5,7 +5,7 @@
 -- This script is idempotent:
 -- - Existing teacher-linked users get password_hash reset to the default.
 -- - Missing teacher users are created when the teacher has a phone or email.
--- - Manager accounts are not changed.
+-- - Staff with role "Quản trị hệ thống" are created/updated as admin accounts.
 
 BEGIN;
 
@@ -14,32 +14,41 @@ WITH teacher_accounts AS (
     t.id AS teacher_id,
     NULLIF(TRIM(t.email), '') AS email,
     NULLIF(REGEXP_REPLACE(TRIM(COALESCE(t.phone, '')), '[\s().-]', '', 'g'), '') AS phone,
-    COALESCE(NULLIF(TRIM(t.name), ''), 'Teacher') AS name
+    COALESCE(NULLIF(TRIM(t.name), ''), 'Teacher') AS name,
+    CASE
+      WHEN LOWER(TRIM(COALESCE(tr.name, t.subject, ''))) = LOWER('Quản trị hệ thống') THEN 'admin'
+      ELSE 'teacher'
+    END AS app_role
   FROM teachers t
+  LEFT JOIN teacher_roles tr ON tr.id = t.role_id
 )
 UPDATE users u
 SET
   password_hash = '$2b$10$tF7FYBNDum.2Go2.yb1uc.YwND8gqU5n0AjfC1YrdeE79EnUcLZPm',
-  role = 'teacher',
+  role = ta.app_role,
   name = ta.name
 FROM teacher_accounts ta
-WHERE u.teacher_id = ta.teacher_id
-  AND u.role = 'teacher';
+WHERE u.teacher_id = ta.teacher_id;
 
 WITH teacher_accounts AS (
   SELECT
     t.id AS teacher_id,
     NULLIF(TRIM(t.email), '') AS email,
     NULLIF(REGEXP_REPLACE(TRIM(COALESCE(t.phone, '')), '[\s().-]', '', 'g'), '') AS phone,
-    COALESCE(NULLIF(TRIM(t.name), ''), 'Teacher') AS name
+    COALESCE(NULLIF(TRIM(t.name), ''), 'Teacher') AS name,
+    CASE
+      WHEN LOWER(TRIM(COALESCE(tr.name, t.subject, ''))) = LOWER('Quản trị hệ thống') THEN 'admin'
+      ELSE 'teacher'
+    END AS app_role
   FROM teachers t
+  LEFT JOIN teacher_roles tr ON tr.id = t.role_id
 )
 INSERT INTO users (email, phone, password_hash, role, name, teacher_id)
 SELECT
   ta.email,
   COALESCE(ta.phone, ''),
   '$2b$10$tF7FYBNDum.2Go2.yb1uc.YwND8gqU5n0AjfC1YrdeE79EnUcLZPm',
-  'teacher',
+  ta.app_role,
   ta.name,
   ta.teacher_id
 FROM teacher_accounts ta

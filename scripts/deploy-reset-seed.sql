@@ -25,7 +25,7 @@ ALTER TABLE "students" ADD COLUMN IF NOT EXISTS "mother_occupation" TEXT DEFAULT
 TRUNCATE TABLE "class_teachers", "classes", "discount_policies", "discount_policy_students", "fee_adjustments", "fee_item_templates", "fee_payments", "fee_period_items", "fee_periods", "student_attendance", "student_class_history", "student_fee_period_discounts", "student_fee_period_items", "student_fee_periods", "student_service_subscriptions", "student_service_usage_entries", "students", "teacher_attendance", "teachers", "teacher_roles", "users" RESTART IDENTITY CASCADE;
 
 INSERT INTO "users" ("id", "email", "password_hash", "role", "name", "teacher_id", "created_at", "phone") VALUES
-  (1, 'admin@mamnon.local', '$2b$10$9HFsWZH1Z9WJ3enpagsdIetkWJRL4TyTeSCsDywv1bStoeVfHJBgi', 'manager', 'admin', NULL, '2026-04-16', 'admin');
+  (1, 'admin@mamnon.local', '$2b$10$9HFsWZH1Z9WJ3enpagsdIetkWJRL4TyTeSCsDywv1bStoeVfHJBgi', 'admin', 'admin', NULL, '2026-04-16', 'admin');
 
 INSERT INTO "teacher_roles" ("id", "name", "created_at") VALUES
   (1, 'Chủ cơ sở/Hiệu trưởng', '2026-04-19'),

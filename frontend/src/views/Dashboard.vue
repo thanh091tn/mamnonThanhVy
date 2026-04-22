@@ -11,7 +11,7 @@ const loadErr = ref("");
 const data = ref(null);
 const selectedMonth = ref(currentMonthKey());
 
-const isManager = computed(() => data.value?.role === "manager");
+const isAdmin = computed(() => data.value?.role === "admin");
 const isTeacher = computed(() => data.value?.role === "teacher");
 const attendance = computed(() => data.value?.attendanceToday || {});
 const byClass = computed(() => attendance.value.byClass || data.value?.classes || []);
@@ -23,7 +23,7 @@ const quietClasses = computed(() =>
   byClass.value.filter((row) => Number(row.studentCount || 0) === 0 || Number(row.unmarkedCount || 0) === 0)
 );
 const leaveUpcoming = computed(() =>
-  isManager.value ? data.value?.teacherLeave?.upcoming || [] : data.value?.myLeave?.upcoming || []
+  isAdmin.value ? data.value?.teacherLeave?.upcoming || [] : data.value?.myLeave?.upcoming || []
 );
 const monthlyAttendance = computed(() => data.value?.monthlyAttendance || {});
 const monthOptions = computed(() => data.value?.monthOptions || []);
@@ -36,7 +36,7 @@ const monthRangeLabel = computed(() => {
 
 const kpis = computed(() => {
   if (!data.value) return [];
-  if (isManager.value) {
+  if (isAdmin.value) {
     const overview = data.value.overview || {};
     return [
       {
@@ -300,18 +300,18 @@ watch(selectedMonth, () => {
         <article class="dashboard-panel">
           <div class="dashboard-panel-header">
             <div>
-              <h6>{{ isManager ? "Lịch nghỉ giáo viên" : "Lịch nghỉ của tôi" }}</h6>
-              <p>{{ isManager ? "Các ngày nghỉ trong 7 ngày tới." : "Các bản ghi sắp tới của bạn." }}</p>
+              <h6>{{ isAdmin ? "Lịch nghỉ giáo viên" : "Lịch nghỉ của tôi" }}</h6>
+              <p>{{ isAdmin ? "Các ngày nghỉ trong 7 ngày tới." : "Các bản ghi sắp tới của bạn." }}</p>
             </div>
-            <RouterLink :to="isManager ? '/leave-calendar' : '/teacher-leave'" class="dashboard-link">
+            <RouterLink :to="isAdmin ? '/leave-calendar' : '/teacher-leave'" class="dashboard-link">
               Xem lịch
             </RouterLink>
           </div>
           <div class="dashboard-leave-list">
             <div v-for="row in leaveUpcoming.slice(0, 6)" :key="row.id" class="dashboard-leave-row">
               <div>
-                <strong>{{ isManager ? row.teacherName : formatDate(row.attendanceDate) }}</strong>
-                <small>{{ isManager ? formatDate(row.attendanceDate) : row.note || "Không có ghi chú" }}</small>
+                <strong>{{ isAdmin ? row.teacherName : formatDate(row.attendanceDate) }}</strong>
+                <small>{{ isAdmin ? formatDate(row.attendanceDate) : row.note || "Không có ghi chú" }}</small>
               </div>
               <span>{{ row.status === "leave" ? "Nghỉ phép" : row.status }}</span>
             </div>

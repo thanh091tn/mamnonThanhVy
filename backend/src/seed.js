@@ -3,7 +3,7 @@ import bcrypt from "bcryptjs";
 import { pool, initDb } from "./db.js";
 
 /** Default logins (ON CONFLICT email skipped if exists):
- *  - Manager: admin@mamnon.local / admin123
+ *  - Admin: admin@mamnon.local / admin123
  *  - Teacher: teacher@mamnon.local / teacher123 (liên kết giáo viên đầu tiên trong seed)
  */
 
@@ -177,14 +177,14 @@ async function seed() {
     }
     console.log(`Inserted ${tAttCount} teacher attendance records`);
 
-    const mgrHash = bcrypt.hashSync("admin123", 10);
+    const adminHash = bcrypt.hashSync("admin123", 10);
     await client.query(
       `INSERT INTO users (email, phone, password_hash, role, name, teacher_id)
-       VALUES ('admin@mamnon.local', '', $1, 'manager', 'Quản trị viên', NULL)
+       VALUES ('admin@mamnon.local', '', $1, 'admin', 'Quản trị viên', NULL)
        ON CONFLICT (email) DO NOTHING`,
-      [mgrHash]
+      [adminHash]
     );
-    console.log("Default manager (ON CONFLICT skip if exists): admin@mamnon.local / admin123");
+    console.log("Default admin (ON CONFLICT skip if exists): admin@mamnon.local / admin123");
 
     const tHash = bcrypt.hashSync("teacher123", 10);
     await client.query(

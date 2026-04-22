@@ -248,7 +248,7 @@ onMounted(() => {
           Xin nghỉ giáo viên
         </h4>
         <p class="teacher-leave-subtitle mb-0">
-          Đăng ký nghỉ phép trước cho hôm nay hoặc nhiều ngày sắp tới. Quản lý sẽ theo dõi ở lịch nghỉ giáo viên.
+          Đăng ký nghỉ phép trước cho hôm nay hoặc nhiều ngày sắp tới. Quản trị viên sẽ theo dõi ở lịch nghỉ giáo viên.
         </p>
       </div>
 
@@ -374,7 +374,7 @@ onMounted(() => {
             <div class="teacher-leave-note-shell">
               <div class="teacher-leave-field-head">
                 <span class="teacher-leave-field-label">Lý do hoặc ghi chú</span>
-                <small class="teacher-leave-field-meta">Giúp quản lý nắm nhanh lý do nghỉ</small>
+                <small class="teacher-leave-field-meta">Giúp quản trị viên nắm nhanh lý do nghỉ</small>
               </div>
               <textarea
                 v-model="leaveNote"

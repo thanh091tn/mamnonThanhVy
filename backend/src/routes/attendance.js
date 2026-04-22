@@ -53,7 +53,7 @@ async function assertClassAccess(db, req, rawClassId) {
     return { status: 404, error: "Class not found" };
   }
 
-  if (req.user?.role === "manager") {
+  if (req.user?.role === "admin") {
     return { classId };
   }
 
@@ -84,12 +84,12 @@ async function assertStudentAccess(db, req, rawStudentId) {
   }
 
   const classId = student.rows[0].class_id;
-  if (classId == null) {
-    if (req.user?.role === "manager") {
-      return { studentId, classId: null };
+    if (classId == null) {
+      if (req.user?.role === "admin") {
+        return { studentId, classId: null };
+      }
+      return { status: 403, error: "Student is not assigned to a class" };
     }
-    return { status: 403, error: "Student is not assigned to a class" };
-  }
 
   const access = await assertClassAccess(db, req, classId);
   if (access.error) return access;
@@ -473,12 +473,12 @@ router.delete("/teachers/me/leave-request", async (req, res, next) => {
 
 /**
  * GET /teachers/leave-calendar?year=&month=
- * Manager only: all teacher leave rows in that calendar month.
+ * Admin only: all teacher leave rows in that calendar month.
  */
 router.get("/teachers/leave-calendar", async (req, res, next) => {
   try {
-    if (req.user.role !== "manager") {
-      return res.status(403).json({ error: "Chỉ quản lý mới xem được lịch nghỉ" });
+    if (req.user.role !== "admin") {
+      return res.status(403).json({ error: "Chỉ quản trị viên mới xem được lịch nghỉ" });
     }
     const { year, month } = req.query;
     if (year == null || month == null) {

@@ -278,7 +278,7 @@ export async function initDb() {
         email VARCHAR(500) UNIQUE,
         phone VARCHAR(100) DEFAULT '',
         password_hash TEXT NOT NULL,
-        role VARCHAR(20) NOT NULL CHECK (role IN ('manager', 'teacher')),
+        role VARCHAR(20) NOT NULL CHECK (role IN ('admin', 'teacher', 'accountant')),
         name VARCHAR(500) DEFAULT '',
         teacher_id INTEGER REFERENCES teachers(id) ON DELETE SET NULL,
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -286,6 +286,20 @@ export async function initDb() {
     `);
     await client.query(`ALTER TABLE users ALTER COLUMN email DROP NOT NULL;`);
     await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS phone VARCHAR(100) DEFAULT '';`);
+    await client.query(`ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check;`);
+    await client.query(`UPDATE users SET role = 'admin' WHERE role = 'manager';`);
+    await client.query(`
+      UPDATE users u
+      SET role = 'admin'
+      FROM teachers t
+      JOIN teacher_roles tr ON tr.id = t.role_id
+      WHERE u.teacher_id = t.id
+        AND LOWER(TRIM(tr.name)) = LOWER('Quản trị hệ thống');
+    `);
+    await client.query(`
+      ALTER TABLE users ADD CONSTRAINT users_role_check
+      CHECK (role IN ('admin', 'teacher', 'accountant'));
+    `);
     await client.query(`
       CREATE UNIQUE INDEX IF NOT EXISTS idx_users_teacher_id_unique
       ON users (teacher_id) WHERE teacher_id IS NOT NULL;

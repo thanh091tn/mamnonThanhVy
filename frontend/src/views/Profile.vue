@@ -24,7 +24,7 @@ const GENDER_LABEL = { male: "Nam", female: "Nữ" };
 
 const roleLabel = computed(() => {
   const r = user.value?.role;
-  if (r === "manager") return "Quản lý";
+  if (r === "admin") return "Quản trị viên";
   if (r === "teacher") return "Giáo viên";
   return "—";
 });
@@ -228,10 +228,10 @@ watch(
                 </p>
               </template>
 
-              <template v-else-if="user.role === 'manager'">
+              <template v-else-if="user.role === 'admin'">
                 <hr class="horizontal dark profile-divider" />
                 <p class="text-sm text-secondary mb-0 profile-note">
-                  Tài khoản quản lý không gắn hồ sơ giáo viên. Bạn có thể chỉnh dữ liệu giáo viên
+                  Tài khoản quản trị viên không gắn hồ sơ giáo viên. Bạn có thể chỉnh dữ liệu giáo viên
                   ở mục Trường học khi cần.
                 </p>
               </template>

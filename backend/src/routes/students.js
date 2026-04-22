@@ -7,7 +7,6 @@ import {
   normalizeStudentStatus,
   normalizeStudentGender,
 } from "../db.js";
-import { requireManager } from "../middleware/auth.js";
 
 const router = Router();
 
@@ -62,7 +61,7 @@ async function assertStudentAccess(db, req, rawStudentId) {
   if (!r.rowCount) {
     return { status: 404, error: "Student not found" };
   }
-  if (req.user?.role === "manager") {
+  if (req.user?.role === "admin") {
     return { studentId };
   }
   if (req.user?.role === "teacher" && req.user.teacherId != null && r.rows[0].class_id != null) {
@@ -75,6 +74,26 @@ async function assertStudentAccess(db, req, rawStudentId) {
     }
   }
   return { status: 403, error: "Student is not assigned to this teacher" };
+}
+
+async function assertClassWriteAccess(db, req, classId) {
+  if (req.user?.role === "admin") {
+    return {};
+  }
+  if (req.user?.role !== "teacher" || req.user.teacherId == null) {
+    return { status: 403, error: "Admin or assigned teacher access required" };
+  }
+  if (classId == null) {
+    return { status: 403, error: "Teacher can only manage students in assigned classes" };
+  }
+  const access = await db.query(
+    `SELECT 1 FROM class_teachers WHERE class_id = $1 AND teacher_id = $2`,
+    [classId, req.user.teacherId]
+  );
+  if (!access.rowCount) {
+    return { status: 403, error: "Class is not assigned to this teacher" };
+  }
+  return {};
 }
 
 router.get("/", async (req, res, next) => {
@@ -139,7 +158,7 @@ function str(v) {
   return v != null ? String(v).trim() : "";
 }
 
-router.post("/", requireManager, async (req, res, next) => {
+router.post("/", async (req, res, next) => {
   try {
     const b = req.body || {};
     const { name, grade, email, dateOfBirth, classId, avatar, joinDate, status, gender } = b;
@@ -149,6 +168,8 @@ router.post("/", requireManager, async (req, res, next) => {
     const cid = await resolveClassId(classId);
     if (cid && cid.error) return res.status(400).json({ error: cid.error });
     const class_id = cid == null ? null : cid.id;
+    const classAccess = await assertClassWriteAccess(pool, req, class_id);
+    if (classAccess.error) return res.status(classAccess.status).json({ error: classAccess.error });
 
     const st = normalizeStudentStatus(status);
     if (typeof st === "object" && st.error) {
@@ -222,7 +243,7 @@ router.post("/", requireManager, async (req, res, next) => {
   }
 });
 
-router.put("/:id", requireManager, async (req, res, next) => {
+router.put("/:id", async (req, res, next) => {
   try {
     const id = Number(req.params.id);
     const b = req.body || {};
@@ -265,6 +286,19 @@ router.put("/:id", requireManager, async (req, res, next) => {
           return res.status(400).json({ error: cid.error });
         }
         nextClassId = cid == null ? null : cid.id;
+      }
+
+      const currentClassAccess = await assertClassWriteAccess(client, req, cur.class_id);
+      if (currentClassAccess.error) {
+        await client.query("ROLLBACK");
+        return res.status(currentClassAccess.status).json({ error: currentClassAccess.error });
+      }
+      if (classIdsDiffer(cur.class_id, nextClassId)) {
+        const nextClassAccess = await assertClassWriteAccess(client, req, nextClassId);
+        if (nextClassAccess.error) {
+          await client.query("ROLLBACK");
+          return res.status(nextClassAccess.status).json({ error: nextClassAccess.error });
+        }
       }
 
       const nextAvatar =
@@ -389,9 +423,11 @@ router.put("/:id", requireManager, async (req, res, next) => {
   }
 });
 
-router.delete("/:id", requireManager, async (req, res, next) => {
+router.delete("/:id", async (req, res, next) => {
   try {
     const id = Number(req.params.id);
+    const access = await assertStudentAccess(pool, req, id);
+    if (access.error) return res.status(access.status).json({ error: access.error });
     const r = await pool.query(
       `DELETE FROM students WHERE id = $1 RETURNING *`,
       [id]

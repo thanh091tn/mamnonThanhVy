@@ -119,7 +119,7 @@ router.beforeEach((to, _from, next) => {
 
   if (to.meta.requiresManager) {
     const user = store.state.authUser
-    if (!user || user.role !== 'manager') {
+    if (!user || user.role !== 'admin') {
       next({ name: 'Dashboard' })
       return
     }

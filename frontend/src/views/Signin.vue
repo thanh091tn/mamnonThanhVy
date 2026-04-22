@@ -194,7 +194,7 @@ async function submit() {
                         <div class="text-center mt-4 pt-3 border-top">
                           <p class="text-muted mb-0">
                             <i class="fas fa-info-circle me-2 text-info"></i>
-                            Tài khoản giáo viên được tạo bởi quản lý nhà trường
+                            Tài khoản giáo viên được tạo bởi quản trị viên nhà trường
                           </p>
                           <p class="mt-2 mb-0">
                             <a href="#" class="text-decoration-none text-primary">

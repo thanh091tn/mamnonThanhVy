@@ -6,7 +6,7 @@ import {
   normalizeTeacherStatus,
   normalizeTeacherGender,
 } from "../db.js";
-import { requireManager } from "../middleware/auth.js";
+import { requireAdmin, requireManager } from "../middleware/auth.js";
 
 const router = Router();
 
@@ -43,6 +43,19 @@ function normalizeRoleName(v) {
   return v.trim();
 }
 
+function normalizeRoleKey(v) {
+  return String(v || "")
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "")
+    .replace(/\s+/g, " ");
+}
+
+function userRoleForTeacherRole(roleName) {
+  return normalizeRoleKey(roleName) === "quan tri he thong" ? "admin" : "teacher";
+}
+
 function normalizePositiveInt(v) {
   if (v == null || v === "") return null;
   const n = Number(v);
@@ -73,7 +86,7 @@ async function resolveTeacherRole(client, { roleId, subject, fallbackRoleId = nu
   return { roleId: fallbackRoleId, subject: fallbackSubject || "" };
 }
 
-router.get("/roles", async (_req, res, next) => {
+router.get("/roles", requireAdmin, async (_req, res, next) => {
   try {
     const r = await pool.query(`
       SELECT id, name
@@ -138,7 +151,7 @@ router.delete("/roles/:id", requireManager, async (req, res, next) => {
   }
 });
 
-router.get("/", async (_req, res, next) => {
+router.get("/", requireAdmin, async (_req, res, next) => {
   try {
     const r = await pool.query(`
       SELECT ${TEACHER_SELECT}
@@ -156,6 +169,9 @@ router.get("/", async (_req, res, next) => {
 router.get("/:id", async (req, res, next) => {
   try {
     const id = Number(req.params.id);
+    if (req.user?.role !== "admin" && req.user?.teacherId !== id) {
+      return res.status(403).json({ error: "Admin access required" });
+    }
     const r = await pool.query(
       `SELECT ${TEACHER_SELECT}
        FROM teachers t
@@ -234,10 +250,11 @@ router.post("/", requireManager, async (req, res, next) => {
         ]
       );
       const teacher = t.rows[0];
+      const userRole = userRoleForTeacherRole(role.subject);
       await client.query(
         `INSERT INTO users (email, phone, password_hash, role, name, teacher_id)
-         VALUES ($1, $2, $3, 'teacher', $4, $5)`,
-        [cleanEmail || null, cleanPhone, passwordHash, teacher.name, teacher.id]
+         VALUES ($1, $2, $3, $4, $5, $6)`,
+        [cleanEmail || null, cleanPhone, passwordHash, userRole, teacher.name, teacher.id]
       );
 
       const row = await client.query(
@@ -345,28 +362,30 @@ router.put("/:id", requireManager, async (req, res, next) => {
       );
 
       if (user.rowCount) {
+        const userRole = userRoleForTeacherRole(role.subject);
         if (password) {
           const passwordHash = await bcrypt.hash(password, BCRYPT_ROUNDS);
           await client.query(
             `UPDATE users
-             SET name = $1, email = $2, phone = $3, password_hash = $4
-             WHERE teacher_id = $5`,
-            [nextName, nextEmail || null, nextPhone, passwordHash, id]
+             SET name = $1, email = $2, phone = $3, password_hash = $4, role = $5
+             WHERE teacher_id = $6`,
+            [nextName, nextEmail || null, nextPhone, passwordHash, userRole, id]
           );
         } else {
           await client.query(
             `UPDATE users
-             SET name = $1, email = $2, phone = $3
-             WHERE teacher_id = $4`,
-            [nextName, nextEmail || null, nextPhone, id]
+             SET name = $1, email = $2, phone = $3, role = $4
+             WHERE teacher_id = $5`,
+            [nextName, nextEmail || null, nextPhone, userRole, id]
           );
         }
       } else if (password) {
         const passwordHash = await bcrypt.hash(password, BCRYPT_ROUNDS);
+        const userRole = userRoleForTeacherRole(role.subject);
         await client.query(
           `INSERT INTO users (email, phone, password_hash, role, name, teacher_id)
-           VALUES ($1, $2, $3, 'teacher', $4, $5)`,
-          [nextEmail || null, nextPhone, passwordHash, nextName, id]
+           VALUES ($1, $2, $3, $4, $5, $6)`,
+          [nextEmail || null, nextPhone, passwordHash, userRole, nextName, id]
         );
       }
 

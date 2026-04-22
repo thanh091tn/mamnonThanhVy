@@ -27,7 +27,7 @@ const loading = ref(false);
 
 const roleOptions = computed(() => {
   const opts = [{ value: "teacher", label: "Giáo viên" }];
-  if (showManagerRole) opts.push({ value: "manager", label: "Quản lý" });
+  if (showManagerRole) opts.push({ value: "admin", label: "Quản trị viên" });
   return opts;
 });
 
@@ -97,7 +97,7 @@ async function submit() {
           <div class="col-lg-5 text-center mx-auto">
             <h1 class="text-white mb-2 mt-5">Đăng ký</h1>
             <p class="text-lead text-white">
-              Tạo tài khoản giáo viên hoặc quản lý (nếu được bật trên máy chủ).
+              Tạo tài khoản giáo viên hoặc quản trị viên (nếu được bật trên máy chủ).
             </p>
           </div>
         </div>

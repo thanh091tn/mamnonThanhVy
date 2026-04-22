@@ -315,7 +315,7 @@ function leaveRow(row) {
   };
 }
 
-async function managerDashboard(req, res, next) {
+async function adminDashboard(req, res, next) {
   try {
     const today = todayStrLocal();
     const selectedMonth = normalizeMonthKey(req.query.month);
@@ -404,7 +404,7 @@ async function managerDashboard(req, res, next) {
     }
 
     res.json({
-      role: "manager",
+      role: "admin",
       today,
       overview: {
         studentCount: num(overview.student_count),
@@ -504,7 +504,7 @@ async function teacherDashboard(req, res, next) {
 }
 
 router.get("/", async (req, res, next) => {
-  if (req.user?.role === "manager") return managerDashboard(req, res, next);
+  if (req.user?.role === "admin") return adminDashboard(req, res, next);
   if (req.user?.role === "teacher") return teacherDashboard(req, res, next);
   return res.status(403).json({ error: "Unsupported user role" });
 });

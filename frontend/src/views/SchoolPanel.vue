@@ -1,12 +1,15 @@
 <script setup>
-import { ref } from 'vue'
+import { computed, ref, watch } from 'vue'
+import { useStore } from 'vuex'
 import StudentsPanel from './StudentsPanel.vue'
 import TeachersPanel from './TeachersPanel.vue'
 import ClassesPanel from './ClassesPanel.vue'
 
+const store = useStore()
 const activeTab = ref('students')
+const isAdmin = computed(() => store.state.authUser?.role === 'admin')
 
-const tabs = [
+const allTabs = [
   {
     key: 'students',
     label: 'Học sinh',
@@ -26,6 +29,16 @@ const tabs = [
     meta: 'Tổ chức lớp và số lượng học sinh',
   },
 ]
+
+const tabs = computed(() =>
+  isAdmin.value ? allTabs : allTabs.filter((tab) => tab.key === 'students')
+)
+
+watch(tabs, (nextTabs) => {
+  if (!nextTabs.some((tab) => tab.key === activeTab.value)) {
+    activeTab.value = nextTabs[0]?.key || 'students'
+  }
+}, { immediate: true })
 </script>
 
 <template>
@@ -70,8 +83,8 @@ const tabs = [
     </div>
 
     <StudentsPanel v-show="activeTab === 'students'" />
-    <TeachersPanel v-show="activeTab === 'teachers'" />
-    <ClassesPanel v-show="activeTab === 'classes'" />
+    <TeachersPanel v-if="isAdmin" v-show="activeTab === 'teachers'" />
+    <ClassesPanel v-if="isAdmin" v-show="activeTab === 'classes'" />
   </div>
 </template>
 

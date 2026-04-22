@@ -102,7 +102,7 @@ const getRoute = () => route.path.split("/")[1];
         </sidenav-item>
       </li>
 
-      <li v-if="authUser?.role === 'manager'" class="nav-item">
+      <li v-if="authUser?.role === 'admin'" class="nav-item">
         <sidenav-item
           to="/leave-calendar"
           :class="getRoute() === 'leave-calendar' ? 'active' : ''"
@@ -114,7 +114,7 @@ const getRoute = () => route.path.split("/")[1];
         </sidenav-item>
       </li>
 
-      <li v-if="authUser?.role === 'manager'" class="nav-item sidenav-section-title">
+      <li v-if="authUser?.role === 'admin'" class="nav-item sidenav-section-title">
         <h6
           class="text-xs text-uppercase font-weight-bolder mb-0"
           :class="isRTL ? 'me-2' : ''"
@@ -123,7 +123,7 @@ const getRoute = () => route.path.split("/")[1];
         </h6>
       </li>
 
-      <li v-if="authUser?.role === 'manager'" class="nav-item">
+      <li v-if="authUser?.role === 'admin'" class="nav-item">
         <sidenav-item
           to="/fee-items"
           :class="getRoute() === 'fee-items' ? 'active' : ''"
@@ -135,7 +135,7 @@ const getRoute = () => route.path.split("/")[1];
         </sidenav-item>
       </li>
 
-      <li v-if="authUser?.role === 'manager'" class="nav-item">
+      <li v-if="authUser?.role === 'admin'" class="nav-item">
         <sidenav-item
           to="/fee-periods"
           :class="getRoute() === 'fee-periods' ? 'active' : ''"
@@ -147,7 +147,7 @@ const getRoute = () => route.path.split("/")[1];
         </sidenav-item>
       </li>
 
-      <li v-if="authUser?.role === 'manager'" class="nav-item">
+      <li v-if="authUser?.role === 'admin'" class="nav-item">
         <sidenav-item
           to="/fee-policies"
           :class="getRoute() === 'fee-policies' ? 'active' : ''"
@@ -159,7 +159,7 @@ const getRoute = () => route.path.split("/")[1];
         </sidenav-item>
       </li>
 
-      <li v-if="authUser?.role === 'manager'" class="nav-item">
+      <li v-if="authUser?.role === 'admin'" class="nav-item">
         <sidenav-item
           to="/fee-services"
           :class="getRoute() === 'fee-services' ? 'active' : ''"
@@ -171,7 +171,7 @@ const getRoute = () => route.path.split("/")[1];
         </sidenav-item>
       </li>
 
-      <li v-if="authUser?.role === 'manager'" class="nav-item">
+      <li v-if="authUser?.role === 'admin'" class="nav-item">
         <sidenav-item
           to="/fee-collection"
           :class="getRoute() === 'fee-collection' ? 'active' : ''"

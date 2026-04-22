@@ -104,7 +104,7 @@ export default createStore({
     isAuthenticated: (state) => Boolean(state.authToken),
     authRoleLabel: (state) => {
       const r = state.authUser?.role;
-      if (r === "manager") return "Quản lý";
+      if (r === "admin") return "Quản trị viên";
       if (r === "teacher") return "Giáo viên";
       return "";
     },

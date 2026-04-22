@@ -42,9 +42,14 @@ export function requireAuth(req, res, next) {
   }
 }
 
-export function requireManager(req, res, next) {
-  if (!req.user || req.user.role !== "manager") {
-    return res.status(403).json({ error: "Manager access required" });
+export function requireAdmin(req, res, next) {
+  if (!req.user || req.user.role !== "admin") {
+    return res.status(403).json({ error: "Admin access required" });
   }
   next();
+}
+
+// Keep requireManager as alias for backward compatibility
+export function requireManager(req, res, next) {
+  return requireAdmin(req, res, next);
 }

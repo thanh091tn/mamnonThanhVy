@@ -21,7 +21,7 @@ function addDaysStr(days) {
 }
 
 const authUser = computed(() => store.state.authUser)
-const isManager = computed(() => authUser.value?.role === 'manager')
+const isAdmin = computed(() => authUser.value?.role === 'admin')
 const isTeacher = computed(
   () => authUser.value?.role === 'teacher' && authUser.value?.teacherId != null
 )
@@ -659,9 +659,9 @@ onMounted(() => {
       </div>
     </div>
 
-    <!-- Quản lý: không còn bảng điểm danh GV — dùng Lịch nghỉ GV -->
+    <!-- Quản trị viên: không còn bảng điểm danh GV — dùng Lịch nghỉ GV -->
     <div
-      v-else-if="activeTab === 'teachers' && isManager"
+      v-else-if="activeTab === 'teachers' && isAdmin"
       class="att-content"
     >
       <div class="card">
@@ -692,7 +692,7 @@ onMounted(() => {
             Xin nghỉ phép trước
           </h6>
           <p class="text-sm text-secondary mb-0">
-            Đăng ký nghỉ có phép cho một ngày (hôm nay hoặc ngày tới). Quản lý xem trên trang <strong>Lịch nghỉ GV</strong>.
+            Đăng ký nghỉ có phép cho một ngày (hôm nay hoặc ngày tới). Quản trị viên xem trên trang <strong>Lịch nghỉ GV</strong>.
           </p>
         </div>
         <div class="card-body">
@@ -866,7 +866,7 @@ onMounted(() => {
             Chức năng giáo viên cần đăng nhập bằng tài khoản <strong>Giáo viên</strong> (đã liên kết hồ sơ).
           </p>
           <p class="mb-0">
-            Quản lý xem lịch nghỉ tại <router-link to="/leave-calendar">Lịch nghỉ GV</router-link>.
+            Quản trị viên xem lịch nghỉ tại <router-link to="/leave-calendar">Lịch nghỉ GV</router-link>.
           </p>
         </div>
       </div>

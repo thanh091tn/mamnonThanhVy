@@ -6,7 +6,7 @@ import ArgonAlert from '@/components/ArgonAlert.vue'
 import ArgonButton from '@/components/ArgonButton.vue'
 
 const store = useStore()
-const isManager = computed(() => store.state.authUser?.role === 'manager')
+const isAdmin = computed(() => store.state.authUser?.role === 'admin')
 
 const now = new Date()
 const viewYear = ref(now.getFullYear())
@@ -80,7 +80,7 @@ const selectedLeaves = computed(() => {
 })
 
 async function loadMonth() {
-  if (!isManager.value) return
+  if (!isAdmin.value) return
 
   err.value = ''
   loading.value = true
@@ -149,7 +149,7 @@ watch([viewYear, viewMonth], () => {
 })
 
 onMounted(() => {
-  if (isManager.value) loadMonth()
+  if (isAdmin.value) loadMonth()
 })
 </script>
 
@@ -168,8 +168,8 @@ onMounted(() => {
           </div>
 
           <div class="card-body">
-            <argon-alert v-if="!isManager" color="warning">
-              Chỉ tài khoản quản lý mới xem được trang này.
+            <argon-alert v-if="!isAdmin" color="warning">
+              Chỉ tài khoản quản trị viên mới xem được trang này.
             </argon-alert>
 
             <template v-else>

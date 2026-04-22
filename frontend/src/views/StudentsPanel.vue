@@ -1,5 +1,6 @@
 <script setup>
 import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
+import { useStore } from 'vuex'
 import { api } from '../api/client.js'
 import ArgonInput from '@/components/ArgonInput.vue'
 import ArgonButton from '@/components/ArgonButton.vue'
@@ -7,6 +8,11 @@ import ArgonAlert from '@/components/ArgonAlert.vue'
 import AppDateField from '@/components/AppDateField.vue'
 import defaultAvatarMale from '@/assets/img/logos/betrai.png'
 import defaultAvatarFemale from '@/assets/img/logos/begai.png'
+
+const store = useStore()
+const isAdmin = computed(() => store.state.authUser?.role === 'admin')
+const isTeacher = computed(() => store.state.authUser?.role === 'teacher')
+const canManageStudents = computed(() => isAdmin.value || isTeacher.value)
 
 const STATUS_OPTIONS = [
   { value: 'active', label: 'Đang học' },
@@ -179,6 +185,7 @@ function resetForm() {
 }
 
 function openCreate() {
+  if (!canManageStudents.value) return
   resetAll()
   classChangeEffectiveDate.value = todayISODate()
   drawerOpen.value = true
@@ -636,7 +643,7 @@ defineExpose({ load })
             <h6>Danh sách học sinh</h6>
             <p class="mb-2 text-sm text-secondary">Quản lý hồ sơ học sinh</p>
           </div>
-          <argon-button color="primary" variant="gradient" type="button" @click="openCreate">
+          <argon-button v-if="canManageStudents" color="primary" variant="gradient" type="button" @click="openCreate">
             Thêm học sinh
           </argon-button>
         </div>
@@ -828,11 +835,11 @@ defineExpose({ load })
                     {{ c.name }}
                   </option>
                 </select>
-                <p v-if="editingId" class="mt-1 mb-0 text-xs text-secondary">
+                <p v-if="editingId && isAdmin" class="mt-1 mb-0 text-xs text-secondary">
                   Thay đổi lớp sẽ ghi lại lịch sử chuyển lớp khi cập nhật.
                 </p>
               </div>
-              <div v-if="editingId && classIsChanging" class="col-12">
+              <div v-if="editingId && classIsChanging && isAdmin" class="col-12">
                 <div class="p-3 border border-radius-lg bg-light">
                   <p class="mb-2 text-sm font-weight-bold text-dark">Chuyển lớp / lên lớp</p>
                   <div class="row">
@@ -1092,7 +1099,7 @@ defineExpose({ load })
           </div>
           <div class="drawer-footer">
             <argon-button
-              v-if="editingId"
+              v-if="editingId && canManageStudents"
               color="danger"
               variant="outline"
               type="button"
@@ -1106,7 +1113,14 @@ defineExpose({ load })
             <argon-button color="secondary" variant="outline" size="sm" type="button" :disabled="saving" @click="closeDrawer">
               Hủy
             </argon-button>
-            <argon-button color="primary" variant="gradient" size="sm" type="submit" :disabled="saving">
+            <argon-button
+              v-if="editingId || canManageStudents"
+              color="primary"
+              variant="gradient"
+              size="sm"
+              type="submit"
+              :disabled="saving"
+            >
               {{ saving ? 'Đang lưu…' : editingId ? 'Cập nhật' : 'Tạo mới' }}
             </argon-button>
           </div>

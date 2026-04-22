@@ -29,8 +29,8 @@ function publicUser(row) {
   };
 }
 
-function managerRegisterAllowed() {
-  const v = String(process.env.ENABLE_MANAGER_REGISTER ?? "").toLowerCase();
+function adminRegisterAllowed() {
+  const v = String(process.env.ENABLE_ADMIN_REGISTER ?? "").toLowerCase();
   return v === "true" || v === "1" || v === "yes";
 }
 
@@ -44,8 +44,8 @@ router.post("/register", async (req, res, next) => {
     const role =
       String(rawRole || "teacher")
         .trim()
-        .toLowerCase() === "manager"
-        ? "manager"
+        .toLowerCase() === "admin"
+        ? "admin"
         : "teacher";
 
     if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
@@ -59,8 +59,8 @@ router.post("/register", async (req, res, next) => {
     if (!name) {
       return res.status(400).json({ error: "Name is required" });
     }
-    if (role === "manager" && !managerRegisterAllowed()) {
-      return res.status(403).json({ error: "Manager registration is disabled" });
+    if (role === "admin" && !adminRegisterAllowed()) {
+      return res.status(403).json({ error: "Admin registration is disabled" });
     }
 
     const dup = await pool.query(`SELECT id FROM users WHERE email = $1`, [email]);

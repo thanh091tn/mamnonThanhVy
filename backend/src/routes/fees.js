@@ -3,14 +3,14 @@ import { pool } from "../db.js";
 
 const router = Router();
 
-function requireManager(req, res, next) {
-  if (req.user?.role !== "manager") {
-    return res.status(403).json({ error: "Chỉ quản lý mới được thao tác học phí" });
+function requireAdmin(req, res, next) {
+  if (req.user?.role !== "admin") {
+    return res.status(403).json({ error: "Chỉ quản trị viên mới được thao tác học phí" });
   }
   next();
 }
 
-router.use(requireManager);
+router.use(requireAdmin);
 
 const PERIOD_STATUSES = new Set(["draft", "published", "closed"]);
 const CHARGE_TIMINGS = new Set(["advance", "arrears"]);
