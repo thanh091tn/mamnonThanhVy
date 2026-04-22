@@ -153,4 +153,242 @@
   button.link.danger {
     @apply tw-text-[#c62828];
   }
+
+  /* Login page styles */
+  .login-container {
+    @apply tw-min-h-screen tw-bg-gradient-to-br tw-from-blue-50 tw-to-indigo-100 dark:tw-from-gray-900 dark:tw-to-gray-800;
+  }
+
+  .login-brand-section {
+    @apply tw-relative tw-bg-gradient-to-br tw-from-blue-600 tw-to-purple-700 tw-rounded-2xl tw-my-5 tw-mx-3;
+    background: linear-gradient(135deg, #1e40af 0%, #7c3aed 100%);
+    min-height: 600px;
+  }
+
+  .login-brand-content {
+    @apply tw-relative tw-z-10 tw-flex tw-flex-col tw-justify-center tw-p-8 tw-h-full;
+  }
+
+  .brand-overlay {
+    @apply tw-absolute tw-inset-0 tw-bg-black/20 tw-rounded-2xl;
+  }
+
+  .school-logo {
+    @apply tw-inline-flex tw-items-center tw-justify-center tw-w-24 tw-h-24 tw-rounded-2xl tw-bg-white/10 tw-backdrop-blur-sm;
+  }
+
+  .brand-title {
+    @apply tw-text-4xl tw-font-bold tw-tracking-tight;
+  }
+
+  .brand-subtitle {
+    @apply tw-text-xl tw-opacity-90;
+  }
+
+  .brand-features {
+    @apply tw-mt-8;
+  }
+
+  .feature-item {
+    @apply tw-flex tw-items-center;
+  }
+
+  .login-form-section {
+    @apply tw-bg-transparent;
+  }
+
+  .login-form-container {
+    @apply tw-w-full tw-p-4;
+    max-width: 28rem;
+  }
+
+  .form-logo {
+    @apply tw-inline-flex tw-items-center tw-justify-center tw-w-20 tw-h-20 tw-rounded-2xl tw-bg-blue-100 dark:tw-bg-blue-900/30;
+  }
+
+  .login-title {
+    @apply tw-text-3xl tw-font-bold tw-text-gray-800 dark:tw-text-white;
+  }
+
+  .login-subtitle {
+    @apply tw-text-lg;
+  }
+
+  .login-card {
+    @apply tw-rounded-2xl tw-bg-white/95 dark:tw-bg-gray-800/95 tw-backdrop-blur-sm;
+  }
+
+  .login-form .form-label {
+    @apply tw-flex tw-items-center;
+  }
+
+  .login-btn {
+    @apply tw-py-3 tw-rounded-xl tw-font-semibold tw-text-lg;
+  }
+
+  @media (max-width: 768px) {
+    .login-brand-section {
+      @apply tw-hidden;
+    }
+    
+    .login-form-container {
+      @apply tw-p-2;
+    }
+  }
+
+  /* Medium-large screens (1440px+) */
+  @media (min-width: 1440px) {
+    .login-brand-section {
+      @apply tw-p-10;
+      min-height: 650px;
+    }
+
+    .login-brand-content {
+      @apply tw-p-10;
+    }
+
+    .school-logo {
+      @apply tw-w-28 tw-h-28;
+    }
+
+    .brand-title {
+      @apply tw-text-4xl;
+    }
+
+    .brand-subtitle {
+      @apply tw-text-xl;
+    }
+
+    .login-form-container {
+      max-width: 32rem;
+    }
+
+    .form-logo {
+      @apply tw-w-24 tw-h-24;
+    }
+
+    .login-title {
+      @apply tw-text-3xl;
+    }
+
+    .login-subtitle {
+      @apply tw-text-lg;
+    }
+  }
+
+  /* Large screen optimizations (2K+ displays) */
+  @media (min-width: 1920px) {
+    .login-container {
+      @apply tw-bg-gradient-to-br tw-from-blue-100 tw-to-indigo-200 dark:tw-from-gray-800 dark:tw-to-gray-700;
+    }
+
+    .login-brand-section {
+      @apply tw-p-12;
+      min-height: 700px;
+    }
+
+    .login-brand-content {
+      @apply tw-p-12;
+    }
+
+    .school-logo {
+      @apply tw-w-32 tw-h-32;
+    }
+
+    .brand-title {
+      @apply tw-text-5xl;
+    }
+
+    .brand-subtitle {
+      @apply tw-text-2xl;
+    }
+
+    .feature-item {
+      @apply tw-text-xl;
+    }
+
+    .login-form-container {
+      @apply tw-max-w-lg;
+    }
+
+    .form-logo {
+      @apply tw-w-24 tw-h-24;
+    }
+
+    .login-title {
+      @apply tw-text-4xl;
+    }
+
+    .login-subtitle {
+      @apply tw-text-xl;
+    }
+
+    .login-card {
+      @apply tw-p-6;
+    }
+
+    .login-form .form-label {
+      @apply tw-text-lg;
+    }
+
+    .login-btn {
+      @apply tw-py-4 tw-text-xl;
+    }
+  }
+
+  /* Extra large screens (4K displays) */
+  @media (min-width: 3840px) {
+    .login-brand-section {
+      @apply tw-p-24;
+      min-height: 800px;
+    }
+
+    .login-brand-content {
+      @apply tw-p-24;
+    }
+
+    .school-logo {
+      @apply tw-w-48 tw-h-48;
+    }
+
+    .brand-title {
+      @apply tw-text-7xl;
+    }
+
+    .brand-subtitle {
+      @apply tw-text-4xl;
+    }
+
+    .feature-item {
+      @apply tw-text-3xl;
+    }
+
+    .login-form-container {
+      @apply tw-max-w-2xl;
+    }
+
+    .form-logo {
+      @apply tw-w-32 tw-h-32;
+    }
+
+    .login-title {
+      @apply tw-text-6xl;
+    }
+
+    .login-subtitle {
+      @apply tw-text-3xl;
+    }
+
+    .login-card {
+      @apply tw-p-8;
+    }
+
+    .login-form .form-label {
+      @apply tw-text-2xl;
+    }
+
+    .login-btn {
+      @apply tw-py-6 tw-text-3xl;
+    }
+  }
 }

@@ -57,100 +57,167 @@ async function submit() {
 }
 </script>
 <template>
-  <div class="container top-0 position-sticky z-index-sticky">
-    <div class="row">
-      <div class="col-12">
-        <navbar
-          isBlur="blur  border-radius-lg my-3 py-2 start-0 end-0 mx-4 shadow"
-          v-bind:darkMode="true"
-        />
-      </div>
-    </div>
-  </div>
-  <main class="mt-0 main-content">
-    <section>
-      <div class="page-header min-vh-100">
-        <div class="container">
-          <div class="row">
-            <div
-              class="mx-auto col-xl-4 col-lg-5 col-md-7 d-flex flex-column mx-lg-0"
-            >
-              <div class="card card-plain">
-                <div class="pb-0 card-header text-start">
-                  <h4 class="font-weight-bolder">Đăng nhập</h4>
-                  <p class="mb-0">Nhập số điện thoại và mật khẩu</p>
+  <div class="login-container">
+    <!-- Remove navbar from login page for cleaner design -->
+    <main class="login-main">
+      <div class="login-page">
+        <div class="container-fluid">
+          <div class="row align-items-center justify-content-center min-vh-100 py-5 py-lg-0">
+            <!-- Left side: Branding and welcome message -->
+            <div class="col-lg-5 col-xl-4 d-none d-lg-flex login-brand-section">
+              <div class="login-brand-content">
+                <div class="brand-logo-placeholder">
+                  <div class="school-logo">
+                    <i class="fas fa-school text-white fa-4x"></i>
+                  </div>
                 </div>
-                <div class="card-body">
-                  <argon-alert v-if="err" color="danger" icon="ni ni-fat-remove" class="mb-3">
-                    {{ err }}
-                  </argon-alert>
-                  <form role="form" @submit.prevent="submit">
-                    <div class="mb-3">
-                      <argon-input
-                        id="login"
-                        v-model="login"
-                        type="text"
-                        placeholder="Số điện thoại hoặc email quản lý"
-                        name="login"
-                        size="lg"
-                        autocomplete="username"
-                      />
-                    </div>
-                    <div class="mb-3">
-                      <argon-input
-                        id="password"
-                        v-model="password"
-                        type="password"
-                        placeholder="Mật khẩu"
-                        name="password"
-                        size="lg"
-                        autocomplete="current-password"
-                      />
-                    </div>
-                    <div class="text-center">
-                      <argon-button
-                        class="mt-4"
-                        variant="gradient"
-                        color="success"
-                        fullWidth
-                        size="lg"
-                        type="submit"
-                        :disabled="loading"
-                      >
-                        {{ loading ? "Đang đăng nhập..." : "Đăng nhập" }}
-                      </argon-button>
-                    </div>
-                  </form>
-                </div>
-                <div class="px-1 pt-0 text-center card-footer px-lg-2">
-                  <p class="mx-auto mb-4 text-sm">
-                    Tài khoản giáo viên được tạo bởi quản lý nhà trường.
-                  </p>
+                <h1 class="brand-title text-white mt-4">Mầm non Thanh Vy</h1>
+                <p class="brand-subtitle text-white mt-3">
+                  Hệ thống quản lý trường học thông minh
+                </p>
+                <div class="brand-features mt-5">
+                  <div class="feature-item">
+                    <i class="fas fa-check-circle text-success me-3"></i>
+                    <span class="text-white">Quản lý học sinh & giáo viên</span>
+                  </div>
+                  <div class="feature-item mt-3">
+                    <i class="fas fa-check-circle text-success me-3"></i>
+                    <span class="text-white">Theo dõi điểm danh hàng ngày</span>
+                  </div>
+                  <div class="feature-item mt-3">
+                    <i class="fas fa-check-circle text-success me-3"></i>
+                    <span class="text-white">Tính toán học phí tự động</span>
+                  </div>
+                  <div class="feature-item mt-3">
+                    <i class="fas fa-check-circle text-success me-3"></i>
+                    <span class="text-white">Báo cáo chi tiết & thống kê</span>
+                  </div>
                 </div>
               </div>
+              <div class="brand-overlay"></div>
             </div>
-            <div
-              class="top-0 my-auto text-center col-6 d-lg-flex d-none h-100 pe-0 position-absolute end-0 justify-content-center flex-column"
-            >
-              <div
-                class="position-relative bg-gradient-primary h-100 m-3 px-7 border-radius-lg d-flex flex-column justify-content-center overflow-hidden"
-                style="
-                  background-image: url(&quot;https://raw.githubusercontent.com/creativetimofficial/public-assets/master/argon-dashboard-pro/assets/img/signin-ill.jpg&quot;);
-                  background-size: cover;
-                "
-              >
-                <span class="mask bg-gradient-success opacity-6"></span>
-                <h4 class="mt-5 text-white font-weight-bolder position-relative">
-                  Mầm non Thanh Vy
-                </h4>
-                <p class="text-white position-relative">
-                  Hệ thống quản lý trường học
-                </p>
+
+            <!-- Right side: Login form -->
+            <div class="col-lg-5 col-xl-4 col-12 login-form-section">
+              <div class="d-flex flex-column justify-content-center py-5 py-lg-0">
+                <div class="login-form-container mx-auto w-100">
+                  <div class="text-center mb-5">
+                    <div class="form-logo mb-4">
+                      <i class="fas fa-graduation-cap text-primary fa-3x"></i>
+                    </div>
+                    <h2 class="login-title">Chào mừng trở lại</h2>
+                    <p class="login-subtitle text-muted">
+                      Đăng nhập để tiếp tục quản lý trường học
+                    </p>
+                  </div>
+
+                  <div class="login-card card border-0 shadow-lg">
+                    <div class="card-body p-4 p-lg-5">
+                      <argon-alert v-if="err" color="danger" icon="ni ni-fat-remove" class="mb-4">
+                        {{ err }}
+                      </argon-alert>
+                      
+                      <form role="form" @submit.prevent="submit" class="login-form">
+                        <div class="mb-4">
+                          <label for="login" class="form-label fw-semibold text-dark">
+                            <i class="fas fa-user me-2 text-primary"></i>
+                            Tên đăng nhập
+                          </label>
+                          <argon-input
+                            id="login"
+                            v-model="login"
+                            type="text"
+                            placeholder="Số điện thoại hoặc email"
+                            name="login"
+                            size="lg"
+                            autocomplete="username"
+                            class="form-control-lg w-100"
+                          />
+                          <div class="form-text text-muted mt-1">
+                            Nhập số điện thoại hoặc email đã đăng ký
+                          </div>
+                        </div>
+                        
+                        <div class="mb-4">
+                          <label for="password" class="form-label fw-semibold text-dark">
+                            <i class="fas fa-lock me-2 text-primary"></i>
+                            Mật khẩu
+                          </label>
+                          <argon-input
+                            id="password"
+                            v-model="password"
+                            type="password"
+                            placeholder="Nhập mật khẩu"
+                            name="password"
+                            size="lg"
+                            autocomplete="current-password"
+                            class="form-control-lg w-100"
+                          />
+                          <div class="d-flex justify-content-end mt-2">
+                            <a href="#" class="text-decoration-none text-primary small">
+                              <i class="fas fa-key me-1"></i>
+                              Quên mật khẩu?
+                            </a>
+                          </div>
+                        </div>
+
+                        <div class="mb-4">
+                          <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="rememberMe">
+                            <label class="form-check-label text-muted" for="rememberMe">
+                              Ghi nhớ đăng nhập
+                            </label>
+                          </div>
+                        </div>
+
+                        <div class="d-grid gap-2">
+                          <argon-button
+                            class="login-btn"
+                            variant="gradient"
+                            color="primary"
+                            fullWidth
+                            size="lg"
+                            type="submit"
+                            :disabled="loading"
+                          >
+                            <span v-if="loading">
+                              <i class="fas fa-spinner fa-spin me-2"></i>
+                              Đang xác thực...
+                            </span>
+                            <span v-else>
+                              <i class="fas fa-sign-in-alt me-2"></i>
+                              Đăng nhập
+                            </span>
+                          </argon-button>
+                        </div>
+
+                        <div class="text-center mt-4 pt-3 border-top">
+                          <p class="text-muted mb-0">
+                            <i class="fas fa-info-circle me-2 text-info"></i>
+                            Tài khoản giáo viên được tạo bởi quản lý nhà trường
+                          </p>
+                          <p class="mt-2 mb-0">
+                            <a href="#" class="text-decoration-none text-primary">
+                              <i class="fas fa-question-circle me-1"></i>
+                              Cần trợ giúp? Liên hệ quản trị viên
+                            </a>
+                          </p>
+                        </div>
+                      </form>
+                    </div>
+                  </div>
+
+                  <div class="text-center mt-4">
+                    <p class="text-muted">
+                      &copy; 2024 Mầm non Thanh Vy. Phiên bản 2.0
+                    </p>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
         </div>
       </div>
-    </section>
-  </main>
+    </main>
+  </div>
 </template>
