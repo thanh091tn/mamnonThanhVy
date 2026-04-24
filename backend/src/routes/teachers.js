@@ -12,9 +12,9 @@ const router = Router();
 
 const BCRYPT_ROUNDS = 10;
 const MIN_PASSWORD_LEN = 8;
-const COLS = "id, name, email, phone, role_id, subject, address, status, gender";
+const COLS = "id, name, last_name, first_name, email, phone, role_id, subject, address, status, gender";
 const TEACHER_SELECT = `
-  t.id, t.name, t.email, t.phone, t.role_id,
+  t.id, t.name, t.last_name, t.first_name, t.email, t.phone, t.role_id,
   COALESCE(tr.name, t.subject, '') AS subject,
   t.address, t.status, t.gender,
   u.id AS user_id
@@ -41,6 +41,31 @@ function validatePassword(password, { required }) {
 function normalizeRoleName(v) {
   if (v == null || typeof v !== "string") return "";
   return v.trim();
+}
+
+function splitFullName(value) {
+  const full = normalizeRoleName(value).replace(/\s+/g, " ");
+  if (!full) return { lastName: "", firstName: "" };
+  const parts = full.split(" ");
+  if (parts.length === 1) return { lastName: "", firstName: parts[0] };
+  return {
+    lastName: parts.slice(0, -1).join(" "),
+    firstName: parts[parts.length - 1],
+  };
+}
+
+function normalizePersonName({ name, lastName, firstName }, fallbackName = "") {
+  const cleanLastName = normalizeRoleName(lastName);
+  const cleanFirstName = normalizeRoleName(firstName);
+  if (cleanLastName || cleanFirstName) {
+    return {
+      name: [cleanLastName, cleanFirstName].filter(Boolean).join(" "),
+      lastName: cleanLastName,
+      firstName: cleanFirstName,
+    };
+  }
+  const fullName = normalizeRoleName(name || fallbackName).replace(/\s+/g, " ");
+  return { name: fullName, ...splitFullName(fullName) };
 }
 
 function normalizeRoleKey(v) {
@@ -189,8 +214,9 @@ router.get("/:id", async (req, res, next) => {
 
 router.post("/", requireManager, async (req, res, next) => {
   try {
-    const { name, email, phone, roleId, subject, address, status, gender, password } = req.body || {};
-    if (!name || typeof name !== "string" || !name.trim()) {
+    const { name, lastName, firstName, email, phone, roleId, subject, address, status, gender, password } = req.body || {};
+    const personName = normalizePersonName({ name, lastName, firstName });
+    if (!personName.name) {
       return res.status(400).json({ error: "name is required" });
     }
     const cleanPhone = normalizePhone(phone);
@@ -235,11 +261,13 @@ router.post("/", requireManager, async (req, res, next) => {
       }
 
       const t = await client.query(
-        `INSERT INTO teachers (name, email, phone, role_id, subject, address, status, gender)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        `INSERT INTO teachers (name, last_name, first_name, email, phone, role_id, subject, address, status, gender)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
          RETURNING ${COLS}`,
         [
-          name.trim(),
+          personName.name,
+          personName.lastName,
+          personName.firstName,
           cleanEmail,
           cleanPhone,
           role.roleId,
@@ -252,9 +280,9 @@ router.post("/", requireManager, async (req, res, next) => {
       const teacher = t.rows[0];
       const userRole = userRoleForTeacherRole(role.subject);
       await client.query(
-        `INSERT INTO users (email, phone, password_hash, role, name, teacher_id)
-         VALUES ($1, $2, $3, $4, $5, $6)`,
-        [cleanEmail || null, cleanPhone, passwordHash, userRole, teacher.name, teacher.id]
+        `INSERT INTO users (email, phone, password_hash, role, name, last_name, first_name, teacher_id)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+        [cleanEmail || null, cleanPhone, passwordHash, userRole, teacher.name, teacher.last_name, teacher.first_name, teacher.id]
       );
 
       const row = await client.query(
@@ -287,17 +315,22 @@ router.put("/:id", requireManager, async (req, res, next) => {
     );
     if (!sel.rowCount) return res.status(404).json({ error: "Teacher not found" });
     const cur = sel.rows[0];
-    const { name, email, phone, roleId, subject, address, status, gender, password } = req.body || {};
+    const { name, lastName, firstName, email, phone, roleId, subject, address, status, gender, password } = req.body || {};
     const passwordErr = validatePassword(password, { required: false });
     if (passwordErr) return res.status(400).json(passwordErr);
 
-    let nextName = cur.name;
-    if (name != null) {
-      if (typeof name !== "string" || !name.trim()) {
-        return res.status(400).json({ error: "name must be a non-empty string" });
-      }
-      nextName = name.trim();
+    const personName =
+      name != null || lastName != null || firstName != null
+        ? normalizePersonName({ name, lastName, firstName }, cur.name)
+        : {
+            name: cur.name,
+            lastName: cur.last_name ?? "",
+            firstName: cur.first_name ?? "",
+          };
+    if (!personName.name) {
+      return res.status(400).json({ error: "name must be a non-empty string" });
     }
+    const nextName = personName.name;
     const nextEmail = email != null ? normalizeEmail(email) : cur.email;
     const nextPhone = phone != null ? normalizePhone(phone) : cur.phone;
     if (!nextPhone) {
@@ -356,9 +389,9 @@ router.put("/:id", requireManager, async (req, res, next) => {
       }
 
       await client.query(
-        `UPDATE teachers SET name=$1, email=$2, phone=$3, role_id=$4, subject=$5, address=$6, status=$7, gender=$8
-         WHERE id = $9`,
-        [nextName, nextEmail, nextPhone, role.roleId, role.subject, nextAddress, nextStatus, nextGender, id]
+        `UPDATE teachers SET name=$1, last_name=$2, first_name=$3, email=$4, phone=$5, role_id=$6, subject=$7, address=$8, status=$9, gender=$10
+         WHERE id = $11`,
+        [nextName, personName.lastName, personName.firstName, nextEmail, nextPhone, role.roleId, role.subject, nextAddress, nextStatus, nextGender, id]
       );
 
       if (user.rowCount) {
@@ -367,25 +400,25 @@ router.put("/:id", requireManager, async (req, res, next) => {
           const passwordHash = await bcrypt.hash(password, BCRYPT_ROUNDS);
           await client.query(
             `UPDATE users
-             SET name = $1, email = $2, phone = $3, password_hash = $4, role = $5
-             WHERE teacher_id = $6`,
-            [nextName, nextEmail || null, nextPhone, passwordHash, userRole, id]
+             SET name = $1, last_name = $2, first_name = $3, email = $4, phone = $5, password_hash = $6, role = $7
+             WHERE teacher_id = $8`,
+            [nextName, personName.lastName, personName.firstName, nextEmail || null, nextPhone, passwordHash, userRole, id]
           );
         } else {
           await client.query(
             `UPDATE users
-             SET name = $1, email = $2, phone = $3, role = $4
-             WHERE teacher_id = $5`,
-            [nextName, nextEmail || null, nextPhone, userRole, id]
+             SET name = $1, last_name = $2, first_name = $3, email = $4, phone = $5, role = $6
+             WHERE teacher_id = $7`,
+            [nextName, personName.lastName, personName.firstName, nextEmail || null, nextPhone, userRole, id]
           );
         }
       } else if (password) {
         const passwordHash = await bcrypt.hash(password, BCRYPT_ROUNDS);
         const userRole = userRoleForTeacherRole(role.subject);
         await client.query(
-          `INSERT INTO users (email, phone, password_hash, role, name, teacher_id)
-           VALUES ($1, $2, $3, $4, $5, $6)`,
-          [nextEmail || null, nextPhone, passwordHash, userRole, nextName, id]
+          `INSERT INTO users (email, phone, password_hash, role, name, last_name, first_name, teacher_id)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+          [nextEmail || null, nextPhone, passwordHash, userRole, nextName, personName.lastName, personName.firstName, id]
         );
       }
 

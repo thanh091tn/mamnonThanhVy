@@ -187,6 +187,147 @@ router.get("/students", async (req, res, next) => {
 });
 
 /**
+ * GET /students/classes/:classId/month-summary?year=&month=
+ * Monthly attendance totals for one class.
+ */
+router.get("/students/classes/:classId/month-summary", async (req, res, next) => {
+  try {
+    const access = await assertClassAccess(pool, req, req.params.classId);
+    if (access.error) return res.status(access.status).json({ error: access.error });
+    const { year, month } = req.query;
+    if (year == null || month == null) {
+      return res.status(400).json({ error: "year and month are required (month 1-12)" });
+    }
+    const bounds = calendarMonthBounds(year, month);
+    if (bounds.error) return res.status(400).json({ error: bounds.error });
+
+    const cid = access.classId;
+    const meta = await pool.query(
+      `SELECT c.name AS class_name,
+              COUNT(s.id)::int AS student_count
+       FROM classes c
+       LEFT JOIN students s ON s.class_id = c.id AND s.status = 'active'
+       WHERE c.id = $1
+       GROUP BY c.id, c.name`,
+      [cid]
+    );
+    const rows = await pool.query(
+      `SELECT status, COUNT(*)::int AS count
+       FROM student_attendance
+       WHERE class_id = $1
+         AND attendance_date >= $2::date
+         AND attendance_date <= $3::date
+       GROUP BY status`,
+      [cid, bounds.from, bounds.to]
+    );
+    const summary = { present: 0, absent: 0, late: 0, excused: 0 };
+    for (const row of rows.rows) {
+      if (summary[row.status] !== undefined) summary[row.status] = Number(row.count) || 0;
+    }
+    const totalRecords = Object.values(summary).reduce((sum, n) => sum + n, 0);
+    const studentCount = meta.rows[0]?.student_count ?? 0;
+    const daysInMonth = new Date(Number(year), Number(month), 0).getDate();
+    const expectedRecords = studentCount * daysInMonth;
+    res.json({
+      classId: cid,
+      className: meta.rows[0]?.class_name ?? "",
+      year: Number(year),
+      month: Number(month),
+      from: bounds.from,
+      to: bounds.to,
+      studentCount,
+      daysInMonth,
+      expectedRecords,
+      totalRecords,
+      noRecord: Math.max(expectedRecords - totalRecords, 0),
+      ...summary,
+    });
+  } catch (e) {
+    next(e);
+  }
+});
+
+/**
+ * GET /students/classes/:classId/student-month-summary?year=&month=
+ * Monthly attendance totals per student for one class.
+ */
+router.get("/students/classes/:classId/student-month-summary", async (req, res, next) => {
+  try {
+    const access = await assertClassAccess(pool, req, req.params.classId);
+    if (access.error) return res.status(access.status).json({ error: access.error });
+    const { year, month } = req.query;
+    if (year == null || month == null) {
+      return res.status(400).json({ error: "year and month are required (month 1-12)" });
+    }
+    const bounds = calendarMonthBounds(year, month);
+    if (bounds.error) return res.status(400).json({ error: bounds.error });
+
+    const cid = access.classId;
+    const daysInMonth = new Date(Number(year), Number(month), 0).getDate();
+    const r = await pool.query(
+      `WITH active_students AS (
+         SELECT id, name, avatar, gender
+         FROM students
+         WHERE class_id = $1
+           AND status = 'active'
+       ),
+       attendance_counts AS (
+         SELECT student_id,
+                COUNT(*)::int AS total_records,
+                COUNT(*) FILTER (WHERE status = 'present')::int AS present,
+                COUNT(*) FILTER (WHERE status = 'absent')::int AS absent,
+                COUNT(*) FILTER (WHERE status = 'late')::int AS late,
+                COUNT(*) FILTER (WHERE status = 'excused')::int AS excused
+         FROM student_attendance
+         WHERE class_id = $1
+           AND attendance_date >= $2::date
+           AND attendance_date <= $3::date
+         GROUP BY student_id
+       )
+       SELECT s.id AS student_id,
+              s.name AS student_name,
+              s.avatar AS student_avatar,
+              s.gender AS student_gender,
+              COALESCE(a.total_records, 0)::int AS total_records,
+              COALESCE(a.present, 0)::int AS present,
+              COALESCE(a.absent, 0)::int AS absent,
+              COALESCE(a.late, 0)::int AS late,
+              COALESCE(a.excused, 0)::int AS excused
+       FROM active_students s
+       LEFT JOIN attendance_counts a ON a.student_id = s.id
+       ORDER BY s.name`,
+      [cid, bounds.from, bounds.to]
+    );
+
+    res.json({
+      classId: cid,
+      year: Number(year),
+      month: Number(month),
+      from: bounds.from,
+      to: bounds.to,
+      daysInMonth,
+      students: r.rows.map((row) => {
+        const totalRecords = Number(row.total_records) || 0;
+        return {
+          studentId: row.student_id,
+          studentName: row.student_name,
+          studentAvatar: row.student_avatar || null,
+          studentGender: row.student_gender || "male",
+          totalRecords,
+          present: Number(row.present) || 0,
+          absent: Number(row.absent) || 0,
+          late: Number(row.late) || 0,
+          excused: Number(row.excused) || 0,
+          noRecord: Math.max(daysInMonth - totalRecords, 0),
+        };
+      }),
+    });
+  } catch (e) {
+    next(e);
+  }
+});
+
+/**
  * GET /students/student/:studentId?from=&to=
  * Attendance history for a single student.
  */

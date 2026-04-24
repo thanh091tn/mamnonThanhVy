@@ -17,6 +17,9 @@ echo "Installing backend dependencies"
 cd "$BACKEND_DIR"
 npm ci --omit=dev
 
+echo "Refreshing students from SQL"
+npm run db:refresh-students
+
 echo "Installing frontend dependencies"
 cd "$FRONTEND_DIR"
 npm ci

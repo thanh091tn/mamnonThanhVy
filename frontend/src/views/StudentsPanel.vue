@@ -1,15 +1,19 @@
 <script setup>
 import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
+import { useRouter } from 'vue-router'
 import { useStore } from 'vuex'
 import { api } from '../api/client.js'
 import ArgonInput from '@/components/ArgonInput.vue'
 import ArgonButton from '@/components/ArgonButton.vue'
 import ArgonAlert from '@/components/ArgonAlert.vue'
 import AppDateField from '@/components/AppDateField.vue'
+import SearchableDropdown from '@/components/SearchableDropdown.vue'
 import defaultAvatarMale from '@/assets/img/logos/betrai.png'
 import defaultAvatarFemale from '@/assets/img/logos/begai.png'
+import { findProvinceByName, hasWardInProvince, provinces, wardsForProvinceName } from '@/utils/vnAdministrativeUnits.js'
 
 const store = useStore()
+const router = useRouter()
 const isAdmin = computed(() => store.state.authUser?.role === 'admin')
 const isTeacher = computed(() => store.state.authUser?.role === 'teacher')
 const canManageStudents = computed(() => isAdmin.value || isTeacher.value)
@@ -70,6 +74,7 @@ function goToPage(page) {
 const loadErr = ref('')
 const formErr = ref('')
 const editingId = ref(null)
+const isViewingExistingStudent = computed(() => Boolean(editingId.value))
 const saving = ref(false)
 const drawerOpen = ref(false)
 const avatarFileInput = ref(null)
@@ -88,6 +93,8 @@ const viewingStudent = ref(null)
 
 const form = ref({
   name: '',
+  lastName: '',
+  firstName: '',
   classId: '',
   grade: '',
   email: '',
@@ -99,6 +106,8 @@ const form = ref({
   phone: '',
   nationality: '',
   religion: '',
+  houseNumber: '',
+  street: '',
   province: '',
   ward: '',
   hamlet: '',
@@ -123,6 +132,7 @@ const form = ref({
   idIssuedPlace: '',
   idIssuedDate: '',
   area: '',
+  bhytNumber: '',
   disabilityType: '',
   policyBeneficiary: '',
   eyeDisease: '',
@@ -141,6 +151,18 @@ const classIsChanging = computed(() => {
   const snap = initialClassIdSnapshot.value === '' ? '' : String(initialClassIdSnapshot.value)
   return cur !== snap
 })
+
+const selectedProvince = computed(() => findProvinceByName(form.value.province))
+const wardOptions = computed(() => wardsForProvinceName(form.value.province))
+
+watch(
+  () => form.value.province,
+  (province) => {
+    if (form.value.ward && !hasWardInProvince(province, form.value.ward)) {
+      form.value.ward = ''
+    }
+  }
+)
 
 function closeDrawer() {
   drawerOpen.value = false
@@ -164,13 +186,13 @@ function resetAll() {
 }
 
 const EXTRA_FIELDS_DEFAULTS = {
-  phone: '', nationality: '', religion: '', province: '', ward: '', hamlet: '',
+  phone: '', nationality: '', religion: '', houseNumber: '', street: '', province: '', ward: '', hamlet: '',
   birthPlace: '', fatherBirthYear: '', motherBirthYear: '',
   fatherName: '', fatherBirthDate: '', fatherPhone: '', fatherEmail: '',
   fatherLogin: '', fatherIdNumber: '', fatherOccupation: '',
   motherName: '', motherBirthDate: '', motherPhone: '', motherEmail: '',
   motherLogin: '', motherIdNumber: '', motherOccupation: '',
-  idNumber: '', idIssuedPlace: '', idIssuedDate: '', area: '',
+  idNumber: '', idIssuedPlace: '', idIssuedDate: '', area: '', bhytNumber: '',
   disabilityType: '', policyBeneficiary: '', eyeDisease: '',
   guardianName: '', guardianOccupation: '', guardianBirthYear: '',
 }
@@ -178,17 +200,59 @@ const EXTRA_FIELDS_DEFAULTS = {
 function resetForm() {
   editingId.value = null
   form.value = {
-    name: '', classId: '', grade: '', email: '', dateOfBirth: '',
+    name: '', lastName: '', firstName: '', classId: '', grade: '', email: '', dateOfBirth: '',
     avatar: '', joinDate: '', status: 'active', gender: 'male',
     ...EXTRA_FIELDS_DEFAULTS,
   }
 }
 
+function splitFullName(value) {
+  const full = String(value || '').trim().replace(/\s+/g, ' ')
+  if (!full) return { lastName: '', firstName: '' }
+  const parts = full.split(' ')
+  if (parts.length === 1) return { lastName: '', firstName: parts[0] }
+  return { lastName: parts.slice(0, -1).join(' '), firstName: parts[parts.length - 1] }
+}
+
+function fullNameFromParts(lastName, firstName) {
+  return [lastName, firstName].map((v) => String(v || '').trim()).filter(Boolean).join(' ')
+}
+
+function formFullName() {
+  return fullNameFromParts(form.value.lastName, form.value.firstName)
+}
+
+function displayValue(value) {
+  const text = String(value ?? '').trim()
+  return text || '—'
+}
+
+function genderLabel(value) {
+  const found = GENDER_OPTIONS.find((o) => o.value === value)
+  return found ? found.label : displayValue(value)
+}
+
+function studentAddressLine() {
+  const parts = [form.value.houseNumber, form.value.street, form.value.ward, form.value.province]
+    .map((value) => String(value || '').trim())
+    .filter(Boolean)
+  return parts.length ? parts.join(', ') : '—'
+}
+
+function currentAddressLine() {
+  return form.value.hamlet ? displayValue(form.value.hamlet) : studentAddressLine()
+}
+
 function openCreate() {
   if (!canManageStudents.value) return
-  resetAll()
-  classChangeEffectiveDate.value = todayISODate()
-  drawerOpen.value = true
+  router.push({ name: 'StudentCreate' })
+}
+
+function goToStudentEdit() {
+  if (!editingId.value) return
+  const id = editingId.value
+  closeDrawer()
+  router.push({ name: 'StudentDetail', params: { id } })
 }
 
 function openStudentDetail(row) {
@@ -197,6 +261,8 @@ function openStudentDetail(row) {
   viewingStudent.value = row
   form.value = {
     name: row.name,
+    lastName: row.lastName || splitFullName(row.name).lastName,
+    firstName: row.firstName || splitFullName(row.name).firstName,
     classId: row.classId != null ? String(row.classId) : '',
     grade: row.grade || '',
     email: row.email || '',
@@ -208,6 +274,8 @@ function openStudentDetail(row) {
     phone: row.phone || '',
     nationality: row.nationality || '',
     religion: row.religion || '',
+    houseNumber: row.houseNumber || '',
+    street: row.street || '',
     province: row.province || '',
     ward: row.ward || '',
     hamlet: row.hamlet || '',
@@ -232,6 +300,7 @@ function openStudentDetail(row) {
     idIssuedPlace: row.idIssuedPlace || '',
     idIssuedDate: row.idIssuedDate || '',
     area: row.area || '',
+    bhytNumber: row.bhytNumber || '',
     disabilityType: row.disabilityType || '',
     policyBeneficiary: row.policyBeneficiary || '',
     eyeDisease: row.eyeDisease || '',
@@ -370,14 +439,17 @@ async function load() {
 
 async function save() {
   formErr.value = ''
-  if (!form.value.name?.trim()) {
+  const fullName = formFullName()
+  if (!fullName) {
     formErr.value = 'Name is required'
     return
   }
   saving.value = true
   try {
     const payload = {
-      name: form.value.name.trim(),
+      name: fullName,
+      lastName: form.value.lastName,
+      firstName: form.value.firstName,
       grade: form.value.grade,
       email: form.value.email,
       dateOfBirth: form.value.dateOfBirth,
@@ -389,6 +461,8 @@ async function save() {
       phone: form.value.phone,
       nationality: form.value.nationality,
       religion: form.value.religion,
+      houseNumber: form.value.houseNumber,
+      street: form.value.street,
       province: form.value.province,
       ward: form.value.ward,
       hamlet: form.value.hamlet,
@@ -413,6 +487,7 @@ async function save() {
       idIssuedPlace: form.value.idIssuedPlace,
       idIssuedDate: form.value.idIssuedDate,
       area: form.value.area,
+      bhytNumber: form.value.bhytNumber,
       disabilityType: form.value.disabilityType,
       policyBeneficiary: form.value.policyBeneficiary,
       eyeDisease: form.value.eyeDisease,
@@ -659,33 +734,32 @@ defineExpose({ load })
               <table class="table align-items-center panel-data-table table-hover mb-0">
                 <thead>
                   <tr>
-                    <th scope="col">Học sinh</th>
+                    <th scope="col">Avatar</th>
+                    <th scope="col">Tên</th>
                     <th scope="col">Lớp</th>
                     <th scope="col">Ghi chú</th>
-                    <th scope="col">Email</th>
-                    <th scope="col">Ngày sinh</th>
-                    <th scope="col">Ngày nhập học</th>
+                    <th scope="col">SĐT ba</th>
+                    <th scope="col">SĐT mẹ</th>
+                    <th scope="col">Giới tính</th>
                     <th scope="col">Trạng thái</th>
                   </tr>
                 </thead>
                 <tbody>
                   <tr v-for="s in pagedItems" :key="s.id" class="cursor-pointer" @click="openStudentDetail(s)">
                     <td>
-                      <div class="d-flex px-2 py-1 align-items-center">
-                        <img
-                          :key="`${s.id}-${s.avatar}-${s.gender}`"
-                          :src="studentAvatarSrc(s)"
-                          class="avatar student-avatar-table me-3 rounded-circle object-fit-cover bg-light"
-                          width="54"
-                          height="54"
-                          alt=""
-                          referrerpolicy="no-referrer"
-                          @error="onStudentImgError($event, s)"
-                        />
-                        <div class="d-flex flex-column justify-content-center">
-                          <h6 class="mb-0 text-sm panel-primary-text">{{ s.name }}</h6>
-                        </div>
-                      </div>
+                      <img
+                        :key="`${s.id}-${s.avatar}-${s.gender}`"
+                        :src="studentAvatarSrc(s)"
+                        class="avatar student-avatar-table rounded-circle object-fit-cover bg-light"
+                        width="54"
+                        height="54"
+                        alt=""
+                        referrerpolicy="no-referrer"
+                        @error="onStudentImgError($event, s)"
+                      />
+                    </td>
+                    <td>
+                      <h6 class="mb-0 text-sm panel-primary-text">{{ s.name }}</h6>
                     </td>
                     <td>
                       <p class="mb-0 text-xs font-weight-bold">{{ s.className || '—' }}</p>
@@ -694,13 +768,13 @@ defineExpose({ load })
                       <p class="mb-0 text-xs text-secondary">{{ s.grade || '—' }}</p>
                     </td>
                     <td>
-                      <p class="mb-0 text-xs text-secondary">{{ s.email || '—' }}</p>
+                      <p class="mb-0 text-xs text-secondary">{{ s.fatherPhone || '—' }}</p>
                     </td>
                     <td>
-                      <p class="mb-0 text-xs text-secondary">{{ s.dateOfBirth || '—' }}</p>
+                      <p class="mb-0 text-xs text-secondary">{{ s.motherPhone || '—' }}</p>
                     </td>
                     <td>
-                      <p class="mb-0 text-xs text-secondary">{{ s.joinDate || '—' }}</p>
+                      <p class="mb-0 text-xs text-secondary">{{ s.gender === 'female' ? 'Bé gái' : 'Bé trai' }}</p>
                     </td>
                     <td class="align-middle text-sm">
                       <span class="badge badge-sm text-white" :class="statusBadgeClass(s.status)">
@@ -709,7 +783,7 @@ defineExpose({ load })
                     </td>
                   </tr>
                   <tr v-if="!filteredItems.length" class="panel-table-empty">
-                    <td colspan="7">{{ items.length ? 'Không có học sinh phù hợp bộ lọc.' : 'Chưa có học sinh nào.' }}</td>
+                    <td colspan="8">{{ items.length ? 'Không có học sinh phù hợp bộ lọc.' : 'Chưa có học sinh nào.' }}</td>
                   </tr>
                 </tbody>
               </table>
@@ -770,13 +844,55 @@ defineExpose({ load })
     <!-- Right sidebar drawer -->
     <Transition name="drawer-slide">
       <aside v-if="drawerOpen" class="drawer-panel">
-        <div class="drawer-header">
-          <h5 class="drawer-title mb-0">{{ editingId ? form.name || 'Học sinh' : 'Thêm học sinh' }}</h5>
+        <div v-if="editingId" class="student-view-header">
+          <button type="button" class="btn-close student-view-close" aria-label="Close" @click="closeDrawer"></button>
+          <div class="student-view-identity">
+            <div class="student-view-avatar-wrap">
+              <img
+                :key="`${form.avatar}-${form.gender}`"
+                :src="formAvatarSrc()"
+                alt=""
+                class="student-view-avatar"
+                referrerpolicy="no-referrer"
+                @error="onFormAvatarImgError"
+              />
+              <span class="student-view-camera"><i class="ni ni-camera-compact"></i></span>
+            </div>
+            <div class="student-view-heading">
+              <div class="student-view-title-row">
+                <h5 class="student-view-name">{{ formFullName() || 'Học sinh' }}</h5>
+                <span class="student-view-gender-dot" :class="`student-view-gender-dot--${form.gender}`"></span>
+                <span class="badge student-view-status" :class="statusBadgeClass(form.status)">{{ statusLabel(form.status) }}</span>
+              </div>
+              <p class="student-view-dob">{{ displayValue(form.dateOfBirth) }}</p>
+              <div class="student-view-actions">
+                <button
+                  v-if="canManageStudents"
+                  type="button"
+                  class="btn btn-sm btn-outline-primary mb-0 student-view-action"
+                  @click="goToStudentEdit"
+                >
+                  <i class="ni ni-ruler-pencil me-1"></i> Sửa thông tin
+                </button>
+                <button
+                  v-if="canManageStudents"
+                  type="button"
+                  class="btn btn-sm btn-outline-secondary mb-0 student-view-action"
+                  @click="goToStudentEdit"
+                >
+                  Chuyển trạng thái
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div v-else class="drawer-header">
+          <h5 class="drawer-title mb-0">{{ editingId ? formFullName() || 'Học sinh' : 'Thêm học sinh' }}</h5>
           <button type="button" class="btn-close" aria-label="Close" @click="closeDrawer"></button>
         </div>
 
         <!-- Tabs (only when editing) -->
-        <ul v-if="editingId" class="drawer-tabs nav nav-tabs px-3 mb-0" role="tablist">
+        <ul v-if="editingId" class="drawer-tabs student-view-tabs nav nav-tabs px-3 mb-0" role="tablist">
           <li class="nav-item" role="presentation">
             <button
               class="nav-link"
@@ -784,7 +900,7 @@ defineExpose({ load })
               type="button"
               @click="switchDetailTab('info')"
             >
-              <i class="ni ni-single-02 me-1"></i> Thông tin
+              Thông tin
             </button>
           </li>
           <li class="nav-item" role="presentation">
@@ -794,7 +910,27 @@ defineExpose({ load })
               type="button"
               @click="switchDetailTab('history')"
             >
-              <i class="ni ni-bullet-list-67 me-1"></i> Lịch sử lớp
+              Lịch sử trạng thái
+            </button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button
+              class="nav-link"
+              :class="{ active: detailTab === 'parent' }"
+              type="button"
+              @click="switchDetailTab('parent')"
+            >
+              Tài khoản phụ huynh
+            </button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button
+              class="nav-link"
+              :class="{ active: detailTab === 'note' }"
+              type="button"
+              @click="switchDetailTab('note')"
+            >
+              Ghi chú
             </button>
           </li>
           <li class="nav-item" role="presentation">
@@ -804,27 +940,223 @@ defineExpose({ load })
               type="button"
               @click="switchDetailTab('attendance')"
             >
-              <i class="ni ni-calendar-grid-61 me-1"></i> Điểm danh
+              Điểm danh
+            </button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button
+              class="nav-link"
+              :class="{ active: detailTab === 'review' }"
+              type="button"
+              @click="switchDetailTab('review')"
+            >
+              Nhận xét
+            </button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button
+              class="nav-link"
+              :class="{ active: detailTab === 'files' }"
+              type="button"
+              @click="switchDetailTab('files')"
+            >
+              Hồ sơ đính kèm
             </button>
           </li>
         </ul>
 
         <!-- ====== INFO TAB ====== -->
-        <form v-show="detailTab === 'info'" class="drawer-body-form" @submit.prevent="save">
+        <div v-if="editingId" v-show="detailTab === 'info'" class="drawer-body-form student-view-pane">
+          <div class="drawer-body student-view-body">
+            <section class="student-view-card">
+              <h6>Thông tin chung</h6>
+              <div class="student-view-two-cols">
+                <div class="student-info-list">
+                  <div class="student-info-row">
+                    <span>Họ tên mẹ</span>
+                    <strong>{{ displayValue(form.motherName) }}</strong>
+                  </div>
+                  <div class="student-info-row">
+                    <span>Ngày sinh</span>
+                    <strong>{{ displayValue(form.motherBirthDate) }}</strong>
+                  </div>
+                  <div class="student-info-row">
+                    <span>Số điện thoại</span>
+                    <strong>{{ displayValue(form.motherPhone) }}</strong>
+                  </div>
+                  <div class="student-info-row">
+                    <span>Email</span>
+                    <strong>{{ displayValue(form.motherEmail) }}</strong>
+                  </div>
+                  <div class="student-info-row">
+                    <span>Căn cước công dân</span>
+                    <strong>{{ displayValue(form.motherIdNumber) }}</strong>
+                  </div>
+                  <div class="student-info-row">
+                    <span>Nghề nghiệp</span>
+                    <strong>{{ displayValue(form.motherOccupation) }}</strong>
+                  </div>
+                </div>
+                <div class="student-info-list">
+                  <div class="student-info-row">
+                    <span>Họ tên bố</span>
+                    <strong>{{ displayValue(form.fatherName) }}</strong>
+                  </div>
+                  <div class="student-info-row">
+                    <span>Ngày sinh</span>
+                    <strong>{{ displayValue(form.fatherBirthDate) }}</strong>
+                  </div>
+                  <div class="student-info-row">
+                    <span>Số điện thoại</span>
+                    <strong>{{ displayValue(form.fatherPhone) }}</strong>
+                  </div>
+                  <div class="student-info-row">
+                    <span>Email</span>
+                    <strong>{{ displayValue(form.fatherEmail) }}</strong>
+                  </div>
+                  <div class="student-info-row">
+                    <span>Căn cước công dân</span>
+                    <strong>{{ displayValue(form.fatherIdNumber) }}</strong>
+                  </div>
+                  <div class="student-info-row">
+                    <span>Nghề nghiệp</span>
+                    <strong>{{ displayValue(form.fatherOccupation) }}</strong>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <section class="student-view-card">
+              <h6>Thông tin địa chỉ</h6>
+              <div class="student-info-list student-info-list--wide">
+                <div class="student-info-row">
+                  <span>Địa chỉ thường trú</span>
+                  <strong>{{ studentAddressLine() }}</strong>
+                </div>
+                <div class="student-info-row">
+                  <span>Địa chỉ hiện tại</span>
+                  <strong>{{ currentAddressLine() }}</strong>
+                </div>
+              </div>
+            </section>
+
+            <section class="student-view-card">
+              <h6>Thông tin phục vụ CSDLQG ngành Giáo dục</h6>
+              <div class="student-view-two-cols">
+                <div class="student-info-list">
+                  <div class="student-info-row">
+                    <span>Quốc tịch</span>
+                    <strong>{{ displayValue(form.nationality) }}</strong>
+                  </div>
+                  <div class="student-info-row">
+                    <span>Tôn giáo</span>
+                    <strong>{{ displayValue(form.religion) }}</strong>
+                  </div>
+                  <div class="student-info-row">
+                    <span>Số điện thoại</span>
+                    <strong>{{ displayValue(form.phone) }}</strong>
+                  </div>
+                  <div class="student-info-row">
+                    <span>Tỉnh/Thành phố</span>
+                    <strong>{{ displayValue(form.province) }}</strong>
+                  </div>
+                  <div class="student-info-row">
+                    <span>Xã/Phường</span>
+                    <strong>{{ displayValue(form.ward) }}</strong>
+                  </div>
+                  <div class="student-info-row">
+                    <span>Tổ/Thôn/Xóm</span>
+                    <strong>{{ displayValue(form.hamlet) }}</strong>
+                  </div>
+                  <div class="student-info-row">
+                    <span>Nơi sinh</span>
+                    <strong>{{ displayValue(form.birthPlace) }}</strong>
+                  </div>
+                  <div class="student-info-row">
+                    <span>Năm sinh bố</span>
+                    <strong>{{ displayValue(form.fatherBirthYear) }}</strong>
+                  </div>
+                  <div class="student-info-row">
+                    <span>Năm sinh mẹ</span>
+                    <strong>{{ displayValue(form.motherBirthYear) }}</strong>
+                  </div>
+                </div>
+                <div class="student-info-list">
+                  <div class="student-info-row">
+                    <span>Giới tính</span>
+                    <strong>{{ genderLabel(form.gender) }}</strong>
+                  </div>
+                  <div class="student-info-row">
+                    <span>Số CMND/TCC</span>
+                    <strong>{{ displayValue(form.idNumber) }}</strong>
+                  </div>
+                  <div class="student-info-row">
+                    <span>Nơi cấp</span>
+                    <strong>{{ displayValue(form.idIssuedPlace) }}</strong>
+                  </div>
+                  <div class="student-info-row">
+                    <span>Ngày cấp</span>
+                    <strong>{{ displayValue(form.idIssuedDate) }}</strong>
+                  </div>
+                  <div class="student-info-row">
+                    <span>Số nhà</span>
+                    <strong>{{ displayValue(form.houseNumber) }}</strong>
+                  </div>
+                  <div class="student-info-row">
+                    <span>Mã số thẻ BHYT</span>
+                    <strong>{{ displayValue(form.bhytNumber) }}</strong>
+                  </div>
+                  <div class="student-info-row">
+                    <span>Loại khuyết tật</span>
+                    <strong>{{ displayValue(form.disabilityType) }}</strong>
+                  </div>
+                  <div class="student-info-row">
+                    <span>Đối tượng chính sách</span>
+                    <strong>{{ displayValue(form.policyBeneficiary) }}</strong>
+                  </div>
+                  <div class="student-info-row">
+                    <span>Bệnh về mắt</span>
+                    <strong>{{ displayValue(form.eyeDisease) }}</strong>
+                  </div>
+                </div>
+              </div>
+
+              <div class="student-view-checkboxes">
+                <label><input type="checkbox" disabled /> Miễn học phí</label>
+                <label><input type="checkbox" disabled /> Học sinh tuyển mới</label>
+                <label><input type="checkbox" disabled /> Giảm học phí</label>
+                <label><input type="checkbox" disabled /> Học 2 buổi/ngày</label>
+              </div>
+            </section>
+          </div>
+        </div>
+
+        <form v-if="false" v-show="detailTab === 'info'" class="drawer-body-form" @submit.prevent="isViewingExistingStudent ? undefined : save()">
           <div class="drawer-body">
             <argon-alert v-if="formErr && detailTab === 'info'" color="danger" icon="ni ni-fat-remove">
               {{ formErr }}
             </argon-alert>
+            <fieldset class="student-form-fieldset" :disabled="isViewingExistingStudent">
             <p class="text-sm text-uppercase text-muted">Thông tin học sinh</p>
             <div class="row student-detail-grid">
-              <div class="col-12">
-                <label for="student-name" class="form-control-label">Họ tên *</label>
+              <div class="col-8">
+                <label for="student-last-name" class="form-control-label">Họ *</label>
                 <argon-input
-                  id="student-name"
-                  v-model="form.name"
-                  placeholder="Họ và tên"
-                  name="name"
-                  autocomplete="name"
+                  id="student-last-name"
+                  v-model="form.lastName"
+                  placeholder="VD: Nguyễn Văn"
+                  name="lastName"
+                  autocomplete="family-name"
+                />
+              </div>
+              <div class="col-4">
+                <label for="student-first-name" class="form-control-label">Tên *</label>
+                <argon-input
+                  id="student-first-name"
+                  v-model="form.firstName"
+                  placeholder="VD: An"
+                  name="firstName"
+                  autocomplete="given-name"
                 />
               </div>
               <div class="col-12">
@@ -966,16 +1298,29 @@ defineExpose({ load })
                 <label class="form-control-label">Quê quán</label>
               </div>
               <div class="col-6">
+                <label for="student-house-number" class="form-control-label text-xs">Số nhà</label>
+                <argon-input id="student-house-number" v-model="form.houseNumber" placeholder="Số nhà" name="houseNumber" />
+              </div>
+              <div class="col-6">
+                <label for="student-street" class="form-control-label text-xs">Đường</label>
+                <argon-input id="student-street" v-model="form.street" placeholder="Đường" name="street" />
+              </div>
+              <div class="col-6">
                 <label for="student-province" class="form-control-label text-xs">Tỉnh/Thành phố</label>
-                <argon-input id="student-province" v-model="form.province" placeholder="Tỉnh/Thành phố" name="province" />
+                <searchable-dropdown
+                  v-model="form.province"
+                  :options="provinces"
+                  placeholder="Gõ để tìm tỉnh/thành phố"
+                />
               </div>
               <div class="col-6">
                 <label for="student-ward" class="form-control-label text-xs">Xã/Phường</label>
-                <argon-input id="student-ward" v-model="form.ward" placeholder="Xã/Phường" name="ward" />
-              </div>
-              <div class="col-12">
-                <label for="student-hamlet" class="form-control-label text-xs">Tổ/Thôn/Xóm</label>
-                <argon-input id="student-hamlet" v-model="form.hamlet" placeholder="Tổ/Thôn/Xóm" name="hamlet" />
+                <searchable-dropdown
+                  v-model="form.ward"
+                  :options="wardOptions"
+                  :disabled="!selectedProvince"
+                  :placeholder="selectedProvince ? 'Gõ để tìm xã/phường' : 'Chọn tỉnh/thành trước'"
+                />
               </div>
               <div class="col-6">
                 <label for="student-father-by" class="form-control-label">Năm sinh bố</label>
@@ -1063,8 +1408,12 @@ defineExpose({ load })
                 <argon-input id="student-idplace" v-model="form.idIssuedPlace" placeholder="Nơi cấp CMND/TCC" name="idIssuedPlace" />
               </div>
               <div class="col-6">
-                <label for="student-area" class="form-control-label">Khu vực</label>
-                <argon-input id="student-area" v-model="form.area" placeholder="Khu vực" name="area" />
+                <label for="student-area" class="form-control-label">Số nhà</label>
+                <argon-input id="student-area" v-model="form.houseNumber" placeholder="Số nhà" name="houseNumber" />
+              </div>
+              <div class="col-6">
+                <label for="student-bhyt-number" class="form-control-label">Mã số thẻ BHYT</label>
+                <argon-input id="student-bhyt-number" v-model="form.bhytNumber" placeholder="Mã số thẻ BHYT" name="bhytNumber" />
               </div>
               <div class="col-6">
                 <label for="student-disability" class="form-control-label">Loại khuyết tật</label>
@@ -1079,42 +1428,25 @@ defineExpose({ load })
                 <argon-input id="student-eyedisease" v-model="form.eyeDisease" placeholder="Không / Loại…" name="eyeDisease" />
               </div>
             </div>
-
-            <!-- Guardian Section -->
-            <p class="text-sm text-uppercase text-muted mt-3">Thông tin người giám hộ</p>
-            <div class="row student-detail-grid">
-              <div class="col-12">
-                <label for="student-guardian-name" class="form-control-label">Họ tên người giám hộ</label>
-                <argon-input id="student-guardian-name" v-model="form.guardianName" placeholder="Họ tên" name="guardianName" />
-              </div>
-              <div class="col-6">
-                <label for="student-guardian-occ" class="form-control-label">Nghề nghiệp</label>
-                <argon-input id="student-guardian-occ" v-model="form.guardianOccupation" placeholder="Nghề nghiệp" name="guardianOccupation" />
-              </div>
-              <div class="col-6">
-                <label for="student-guardian-by" class="form-control-label">Năm sinh</label>
-                <argon-input id="student-guardian-by" v-model="form.guardianBirthYear" placeholder="VD: 1980" name="guardianBirthYear" />
-              </div>
-            </div>
+            </fieldset>
           </div>
           <div class="drawer-footer">
+            <argon-button color="secondary" variant="outline" size="sm" type="button" :disabled="saving" @click="closeDrawer">
+              {{ editingId ? 'Đóng' : 'Hủy' }}
+            </argon-button>
             <argon-button
               v-if="editingId && canManageStudents"
-              color="danger"
-              variant="outline"
-              type="button"
+              color="primary"
+              variant="gradient"
               size="sm"
+              type="button"
               :disabled="saving"
-              class="me-auto"
-              @click="remove"
+              @click="goToStudentEdit"
             >
-              Xóa
-            </argon-button>
-            <argon-button color="secondary" variant="outline" size="sm" type="button" :disabled="saving" @click="closeDrawer">
-              Hủy
+              <i class="ni ni-ruler-pencil me-1"></i> Sửa
             </argon-button>
             <argon-button
-              v-if="editingId || canManageStudents"
+              v-if="!editingId && canManageStudents"
               color="primary"
               variant="gradient"
               size="sm"
@@ -1125,6 +1457,52 @@ defineExpose({ load })
             </argon-button>
           </div>
         </form>
+
+        <div v-if="editingId" v-show="detailTab === 'parent'" class="drawer-body-form student-view-pane">
+          <div class="drawer-body student-view-body">
+            <section class="student-view-card">
+              <h6>Tài khoản phụ huynh</h6>
+              <p class="student-view-note">Thông tin đăng nhập luôn đồng nhất với số điện thoại/email khai báo ở trên.</p>
+              <div class="student-info-list student-info-list--wide">
+                <div class="student-info-row">
+                  <span>Mẹ</span>
+                  <strong>{{ displayValue(form.motherLogin || form.motherPhone || form.motherEmail) }}</strong>
+                </div>
+                <div class="student-info-row">
+                  <span>Bố</span>
+                  <strong>{{ displayValue(form.fatherLogin || form.fatherPhone || form.fatherEmail) }}</strong>
+                </div>
+              </div>
+            </section>
+          </div>
+        </div>
+
+        <div v-if="editingId" v-show="detailTab === 'note'" class="drawer-body-form student-view-pane">
+          <div class="drawer-body student-view-body">
+            <section class="student-view-card">
+              <h6>Ghi chú</h6>
+              <p class="student-view-empty">{{ displayValue(form.grade) }}</p>
+            </section>
+          </div>
+        </div>
+
+        <div v-if="editingId" v-show="detailTab === 'review'" class="drawer-body-form student-view-pane">
+          <div class="drawer-body student-view-body">
+            <section class="student-view-card">
+              <h6>Nhận xét</h6>
+              <p class="student-view-empty">Chưa có nhận xét.</p>
+            </section>
+          </div>
+        </div>
+
+        <div v-if="editingId" v-show="detailTab === 'files'" class="drawer-body-form student-view-pane">
+          <div class="drawer-body student-view-body">
+            <section class="student-view-card">
+              <h6>Hồ sơ đính kèm</h6>
+              <p class="student-view-empty">Chưa có hồ sơ đính kèm.</p>
+            </section>
+          </div>
+        </div>
 
         <!-- ====== HISTORY TAB ====== -->
         <div v-if="editingId" v-show="detailTab === 'history'" class="drawer-body-form">
@@ -1354,6 +1732,26 @@ defineExpose({ load })
   letter-spacing: 0.08em;
 }
 
+.student-form-fieldset {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.student-form-fieldset:disabled {
+  cursor: default;
+}
+
+.student-form-fieldset:disabled :deep(.form-control),
+.student-form-fieldset:disabled :deep(.form-select),
+.student-form-fieldset:disabled select.form-control,
+.student-form-fieldset:disabled textarea.form-control {
+  color: #344767;
+  background-color: #f8fafc;
+  opacity: 1;
+}
+
 .drawer-body > .text-sm.text-uppercase.text-muted:first-of-type {
   margin-top: 0;
 }
@@ -1481,6 +1879,252 @@ defineExpose({ load })
   flex-shrink: 0;
   border: 4px solid #ffffff;
   box-shadow: 0 12px 28px rgba(15, 23, 42, 0.14);
+}
+
+.student-view-header {
+  position: relative;
+  padding: 1.4rem 1.5rem 1rem;
+  border-bottom: 1px solid #e5e7eb;
+  background: #ffffff;
+  flex-shrink: 0;
+}
+
+.student-view-close {
+  position: absolute;
+  top: 0.85rem;
+  right: 1rem;
+  z-index: 1;
+}
+
+.student-view-identity {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  min-width: 0;
+  padding-right: 2.5rem;
+}
+
+.student-view-avatar-wrap {
+  position: relative;
+  width: 7.25rem;
+  height: 7.25rem;
+  flex: 0 0 auto;
+}
+
+.student-view-avatar {
+  width: 100%;
+  height: 100%;
+  border-radius: 999px;
+  object-fit: cover;
+  background: #f8fafc;
+}
+
+.student-view-camera {
+  position: absolute;
+  right: 0.35rem;
+  bottom: 0.65rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.65rem;
+  height: 1.65rem;
+  border: 3px solid #ffffff;
+  border-radius: 999px;
+  color: #10b981;
+  background: #c6f6e7;
+  font-size: 0.7rem;
+}
+
+.student-view-heading {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.student-view-title-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.student-view-name {
+  margin: 0;
+  color: #344767;
+  font-size: 1.15rem;
+  font-weight: 800;
+  line-height: 1.25;
+}
+
+.student-view-gender-dot {
+  width: 0.7rem;
+  height: 0.7rem;
+  border-radius: 999px;
+  background: #93c5fd;
+}
+
+.student-view-gender-dot--female {
+  background: #fecdd3;
+}
+
+.student-view-status {
+  border-radius: 0.35rem;
+  padding: 0.35rem 0.65rem;
+  text-transform: none;
+}
+
+.student-view-dob {
+  margin: 0.45rem 0 0.8rem;
+  color: #67748e;
+  font-size: 0.92rem;
+  font-weight: 600;
+}
+
+.student-view-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.student-view-action {
+  min-height: 2.2rem;
+  border-radius: 0.45rem;
+  font-weight: 700;
+}
+
+.student-view-tabs {
+  gap: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+  overflow-x: auto;
+  flex-wrap: nowrap;
+  border-bottom: 1px solid #d9e2ec;
+  background: #ffffff;
+}
+
+.student-view-tabs .nav-link {
+  white-space: nowrap;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  color: #67748e;
+  padding: 0.85rem 0.9rem;
+  font-size: 0.8rem;
+}
+
+.student-view-tabs .nav-link:hover {
+  border-color: transparent;
+  border-bottom-color: #99f6e4;
+  background: transparent;
+  color: #0f766e;
+}
+
+.student-view-tabs .nav-link.active {
+  color: #10b981;
+  border-bottom-color: #10b981;
+  background: transparent;
+  box-shadow: none;
+}
+
+.student-view-body {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  background: #ffffff;
+  padding-top: 1.1rem;
+}
+
+.student-view-card {
+  padding: 1rem;
+  border: 1px solid #dfe7ef;
+  border-radius: 0.8rem;
+  background: #ffffff;
+}
+
+.student-view-card h6 {
+  margin: 0 0 0.9rem;
+  color: #344767;
+  font-size: 1rem;
+  font-weight: 800;
+}
+
+.student-view-two-cols {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 1rem;
+}
+
+.student-info-list {
+  display: grid;
+  gap: 0.65rem;
+  min-width: 0;
+}
+
+.student-info-list + .student-info-list {
+  padding-left: 1rem;
+  border-left: 1px solid #e5e7eb;
+}
+
+.student-info-list--wide + .student-info-list--wide,
+.student-info-list--wide {
+  padding-left: 0;
+  border-left: 0;
+}
+
+.student-info-list--wide .student-info-row {
+  grid-template-columns: minmax(9.5rem, max-content) minmax(0, 1fr);
+}
+
+.student-info-row {
+  display: grid;
+  grid-template-columns: minmax(7.5rem, 0.7fr) minmax(0, 1fr);
+  gap: 0.6rem;
+  align-items: start;
+  color: #344767;
+  font-size: 0.86rem;
+  line-height: 1.35;
+}
+
+.student-info-row span {
+  font-weight: 700;
+}
+
+.student-info-row strong {
+  min-width: 0;
+  color: #344767;
+  font-weight: 600;
+  word-break: break-word;
+}
+
+.student-view-checkboxes {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.9rem 1.4rem;
+  margin-top: 1.4rem;
+}
+
+.student-view-checkboxes label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  margin: 0;
+  color: #344767;
+  font-size: 0.86rem;
+  font-weight: 600;
+}
+
+.student-view-checkboxes input {
+  width: 1rem;
+  height: 1rem;
+}
+
+.student-view-note,
+.student-view-empty {
+  margin: 0;
+  color: #67748e;
+  font-size: 0.9rem;
+  line-height: 1.6;
 }
 
 /* Class history */
@@ -1713,6 +2357,41 @@ defineExpose({ load })
 
   .drawer-tabs .nav-link {
     white-space: nowrap;
+  }
+
+  .student-view-header {
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+
+  .student-view-identity {
+    align-items: flex-start;
+    gap: 0.8rem;
+  }
+
+  .student-view-avatar-wrap {
+    width: 5.25rem;
+    height: 5.25rem;
+  }
+
+  .student-view-two-cols {
+    grid-template-columns: 1fr;
+  }
+
+  .student-info-list + .student-info-list {
+    padding-left: 0;
+    padding-top: 0.85rem;
+    border-left: 0;
+    border-top: 1px solid #e5e7eb;
+  }
+
+  .student-info-row {
+    grid-template-columns: 1fr;
+    gap: 0.2rem;
+  }
+
+  .student-view-checkboxes {
+    grid-template-columns: 1fr;
   }
 }
 

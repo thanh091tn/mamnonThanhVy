@@ -14,6 +14,14 @@ const formErr = ref('')
 const editingId = ref(null)
 const saving = ref(false)
 const modalEl = ref(null)
+const attendanceSummary = ref(null)
+const attendanceSummaryLoading = ref(false)
+const attendanceSummaryErr = ref('')
+const attendanceMonth = ref(new Date().toISOString().slice(0, 7))
+const classDetailTab = ref('info')
+const studentAttendanceRows = ref([])
+const studentAttendanceLoading = ref(false)
+const studentAttendanceErr = ref('')
 
 const PAGE_SIZE = 10
 const currentPage = ref(1)
@@ -48,6 +56,11 @@ function getModal() {
 function resetForm() {
   editingId.value = null
   form.value = { name: '', level: '', room: '', teacherIds: [] }
+  attendanceSummary.value = null
+  attendanceSummaryErr.value = ''
+  classDetailTab.value = 'info'
+  studentAttendanceRows.value = []
+  studentAttendanceErr.value = ''
 }
 
 function onModalHidden() {
@@ -76,6 +89,14 @@ function openEdit(row) {
   }
   formErr.value = ''
   getModal()?.show()
+  loadAttendanceSummary(row.id)
+}
+
+function switchClassDetailTab(tab) {
+  classDetailTab.value = tab
+  if (tab === 'attendance' && editingId.value && !studentAttendanceRows.value.length && !studentAttendanceLoading.value) {
+    loadStudentAttendanceSummary()
+  }
 }
 
 function buildPayload() {
@@ -108,6 +129,49 @@ async function load() {
   } finally {
     loading.value = false
   }
+}
+
+async function loadAttendanceSummary(classId = editingId.value) {
+  if (!classId) return
+  const [year, month] = String(attendanceMonth.value || '').split('-')
+  if (!year || !month) return
+  attendanceSummaryLoading.value = true
+  attendanceSummaryErr.value = ''
+  try {
+    const { data } = await api.get(`/attendance/students/classes/${classId}/month-summary`, {
+      params: { year: Number(year), month: Number(month) },
+    })
+    attendanceSummary.value = data
+  } catch (e) {
+    attendanceSummary.value = null
+    attendanceSummaryErr.value = e.response?.data?.error || e.message || 'Không tải được thống kê điểm danh'
+  } finally {
+    attendanceSummaryLoading.value = false
+  }
+}
+
+async function loadStudentAttendanceSummary(classId = editingId.value) {
+  if (!classId) return
+  const [year, month] = String(attendanceMonth.value || '').split('-')
+  if (!year || !month) return
+  studentAttendanceLoading.value = true
+  studentAttendanceErr.value = ''
+  try {
+    const { data } = await api.get(`/attendance/students/classes/${classId}/student-month-summary`, {
+      params: { year: Number(year), month: Number(month) },
+    })
+    studentAttendanceRows.value = Array.isArray(data?.students) ? data.students : []
+  } catch (e) {
+    studentAttendanceRows.value = []
+    studentAttendanceErr.value = e.response?.data?.error || e.message || 'Không tải được điểm danh từng học sinh'
+  } finally {
+    studentAttendanceLoading.value = false
+  }
+}
+
+function loadAttendanceTabData() {
+  loadAttendanceSummary()
+  loadStudentAttendanceSummary()
 }
 
 async function save() {
@@ -295,7 +359,7 @@ defineExpose({ load })
       aria-labelledby="classes-form-modal-title"
       aria-hidden="true"
     >
-      <div class="modal-dialog modal-dialog-centered modal-lg">
+      <div class="modal-dialog modal-dialog-centered modal-xl">
         <div class="modal-content">
           <div class="modal-header">
             <h5 id="classes-form-modal-title" class="modal-title">
@@ -313,49 +377,171 @@ defineExpose({ load })
               <argon-alert v-if="formErr" color="danger" icon="ni ni-fat-remove">
                 {{ formErr }}
               </argon-alert>
-              <p class="text-sm text-uppercase text-muted">Thông tin lớp học</p>
-              <div class="row">
-                <div class="col-md-6">
-                  <label for="class-name" class="form-control-label">Tên lớp *</label>
-                  <argon-input
-                    id="class-name"
-                    v-model="form.name"
-                    placeholder="e.g. Lớp mầm 3A"
-                    name="name"
-                    autocomplete="off"
-                  />
-                </div>
-                <div class="col-md-6">
-                  <label for="class-level" class="form-control-label">Cấp / nhóm tuổi</label>
-                  <argon-input
-                    id="class-level"
-                    v-model="form.level"
-                    placeholder="VD: Mầm non 3–4 tuổi"
-                    name="level"
-                  />
-                </div>
-                <div class="col-md-6">
-                  <label for="class-room" class="form-control-label">Phòng</label>
-                  <argon-input id="class-room" v-model="form.room" placeholder="VD: A12" name="room" />
-                </div>
-                <div class="col-md-6">
-                  <label class="form-control-label">Giáo viên phụ trách</label>
-                  <div class="class-teacher-checklist">
-                    <label
-                      v-for="t in teachers"
-                      :key="t.id"
-                      class="class-teacher-option"
-                    >
-                      <input
-                        v-model="form.teacherIds"
-                        type="checkbox"
-                        :value="String(t.id)"
-                      />
-                      <span>{{ t.name }}{{ t.phone ? ` (${t.phone})` : t.subject ? ` (${t.subject})` : '' }}</span>
-                    </label>
-                    <div v-if="!teachers.length" class="class-teacher-empty">
-                      Chưa có giáo viên để chọn.
+              <ul v-if="editingId" class="class-detail-tabs nav nav-tabs mb-3" role="tablist">
+                <li class="nav-item" role="presentation">
+                  <button
+                    class="nav-link"
+                    :class="{ active: classDetailTab === 'info' }"
+                    type="button"
+                    @click="switchClassDetailTab('info')"
+                  >
+                    Thông tin lớp học
+                  </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                  <button
+                    class="nav-link"
+                    :class="{ active: classDetailTab === 'attendance' }"
+                    type="button"
+                    @click="switchClassDetailTab('attendance')"
+                  >
+                    Điểm danh học sinh
+                  </button>
+                </li>
+              </ul>
+
+              <div v-show="!editingId || classDetailTab === 'info'">
+                <p class="text-sm text-uppercase text-muted">Thông tin lớp học</p>
+                <div class="row">
+                  <div class="col-md-6">
+                    <label for="class-name" class="form-control-label">Tên lớp *</label>
+                    <argon-input
+                      id="class-name"
+                      v-model="form.name"
+                      placeholder="e.g. Lớp mầm 3A"
+                      name="name"
+                      autocomplete="off"
+                    />
+                  </div>
+                  <div class="col-md-6">
+                    <label for="class-level" class="form-control-label">Cấp / nhóm tuổi</label>
+                    <argon-input
+                      id="class-level"
+                      v-model="form.level"
+                      placeholder="VD: Mầm non 3–4 tuổi"
+                      name="level"
+                    />
+                  </div>
+                  <div class="col-md-6">
+                    <label for="class-room" class="form-control-label">Phòng</label>
+                    <argon-input id="class-room" v-model="form.room" placeholder="VD: A12" name="room" />
+                  </div>
+                  <div class="col-md-6">
+                    <label class="form-control-label">Giáo viên phụ trách</label>
+                    <div class="class-teacher-checklist">
+                      <label
+                        v-for="t in teachers"
+                        :key="t.id"
+                        class="class-teacher-option"
+                      >
+                        <input
+                          v-model="form.teacherIds"
+                          type="checkbox"
+                          :value="String(t.id)"
+                        />
+                        <span>{{ t.name }}{{ t.phone ? ` (${t.phone})` : t.subject ? ` (${t.subject})` : '' }}</span>
+                      </label>
+                      <div v-if="!teachers.length" class="class-teacher-empty">
+                        Chưa có giáo viên để chọn.
+                      </div>
                     </div>
+                  </div>
+                </div>
+              </div>
+
+              <div v-if="editingId" v-show="classDetailTab === 'attendance'" class="class-attendance-summary mt-2">
+                <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
+                  <div>
+                    <p class="mb-0 text-sm text-uppercase text-muted">Điểm danh tháng</p>
+                    <p class="mb-0 text-xs text-secondary">Tổng hợp điểm danh của lớp và từng học sinh trong tháng đã chọn</p>
+                  </div>
+                  <input
+                    v-model="attendanceMonth"
+                    type="month"
+                    class="form-control form-control-sm class-attendance-month"
+                    @change="loadAttendanceTabData"
+                  />
+                </div>
+                <argon-alert v-if="attendanceSummaryErr" color="danger" icon="ni ni-fat-remove">
+                  {{ attendanceSummaryErr }}
+                </argon-alert>
+                <argon-alert v-if="studentAttendanceErr" color="danger" icon="ni ni-fat-remove">
+                  {{ studentAttendanceErr }}
+                </argon-alert>
+                <div v-if="attendanceSummaryLoading" class="py-3 text-center text-sm text-secondary">
+                  Đang tải thống kê...
+                </div>
+                <div v-else-if="attendanceSummary" class="class-attendance-grid">
+                  <div class="class-attendance-stat">
+                    <span>Sĩ số</span>
+                    <strong>{{ attendanceSummary.studentCount }}</strong>
+                  </div>
+                  <div class="class-attendance-stat stat-present">
+                    <span>Đi học</span>
+                    <strong>{{ attendanceSummary.present }}</strong>
+                  </div>
+                  <div class="class-attendance-stat stat-absent">
+                    <span>Nghỉ</span>
+                    <strong>{{ attendanceSummary.absent }}</strong>
+                  </div>
+                  <div class="class-attendance-stat stat-late">
+                    <span>Trễ</span>
+                    <strong>{{ attendanceSummary.late }}</strong>
+                  </div>
+                  <div class="class-attendance-stat stat-excused">
+                    <span>Có phép</span>
+                    <strong>{{ attendanceSummary.excused }}</strong>
+                  </div>
+                  <div class="class-attendance-stat">
+                    <span>Chưa ghi nhận</span>
+                    <strong>{{ attendanceSummary.noRecord }}</strong>
+                  </div>
+                </div>
+
+                <div class="student-attendance-panel mt-3">
+                  <div class="student-attendance-heading">
+                    <div>
+                      <h6 class="mb-1">Điểm danh từng học sinh</h6>
+                      <p class="mb-0 text-xs text-secondary">Mỗi dòng là tổng điểm danh của một học sinh trong tháng.</p>
+                    </div>
+                  </div>
+                  <div v-if="studentAttendanceLoading" class="py-4 text-center text-sm text-secondary">
+                    Đang tải danh sách học sinh...
+                  </div>
+                  <div v-else class="table-responsive student-attendance-table-wrap">
+                    <table class="table align-items-center mb-0 student-attendance-table">
+                      <thead>
+                        <tr>
+                          <th scope="col">Học sinh</th>
+                          <th scope="col">Tổng ghi nhận</th>
+                          <th scope="col">Đi học</th>
+                          <th scope="col">Nghỉ</th>
+                          <th scope="col">Trễ</th>
+                          <th scope="col">Có phép</th>
+                          <th scope="col">Chưa ghi nhận</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr v-for="row in studentAttendanceRows" :key="row.studentId">
+                          <td>
+                            <div class="student-attendance-name">
+                              <span>{{ row.studentName }}</span>
+                            </div>
+                          </td>
+                          <td>{{ row.totalRecords }}</td>
+                          <td class="stat-present-text">{{ row.present }}</td>
+                          <td class="stat-absent-text">{{ row.absent }}</td>
+                          <td class="stat-late-text">{{ row.late }}</td>
+                          <td class="stat-excused-text">{{ row.excused }}</td>
+                          <td>{{ row.noRecord }}</td>
+                        </tr>
+                        <tr v-if="!studentAttendanceRows.length">
+                          <td colspan="7" class="text-center text-sm text-secondary py-4">
+                            Chưa có học sinh trong lớp này.
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
                   </div>
                 </div>
               </div>
@@ -418,6 +604,147 @@ defineExpose({ load })
 .class-teacher-empty {
   color: #8392ab;
   font-size: 0.82rem;
+}
+
+.class-detail-tabs {
+  gap: 0.35rem;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.class-detail-tabs .nav-link {
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  color: #67748e;
+  font-size: 0.84rem;
+  font-weight: 800;
+  background: transparent;
+}
+
+.class-detail-tabs .nav-link.active {
+  color: #0f766e;
+  border-bottom-color: #10b981;
+  background: transparent;
+}
+
+.class-attendance-summary {
+  padding: 1rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.85rem;
+  background: #f8fafc;
+}
+
+.class-attendance-month {
+  width: 11rem;
+}
+
+.class-attendance-grid {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 0.65rem;
+}
+
+.class-attendance-stat {
+  min-height: 4.8rem;
+  padding: 0.75rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.75rem;
+  background: #ffffff;
+}
+
+.class-attendance-stat span {
+  display: block;
+  color: #67748e;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.class-attendance-stat strong {
+  display: block;
+  margin-top: 0.35rem;
+  color: #1f2a44;
+  font-size: 1.25rem;
+}
+
+.stat-present strong { color: #2dce89; }
+.stat-absent strong { color: #f5365c; }
+.stat-late strong { color: #fb6340; }
+.stat-excused strong { color: #11cdef; }
+
+.student-attendance-panel {
+  overflow: hidden;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.85rem;
+  background: #ffffff;
+}
+
+.student-attendance-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.9rem 1rem;
+  border-bottom: 1px solid #e2e8f0;
+  background: #ffffff;
+}
+
+.student-attendance-heading h6 {
+  color: #1f2a44;
+  font-weight: 850;
+}
+
+.student-attendance-table-wrap {
+  max-height: 380px;
+  overflow: auto;
+}
+
+.student-attendance-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding: 0.65rem 0.75rem;
+  color: #67748e;
+  font-size: 0.68rem;
+  font-weight: 800;
+  white-space: nowrap;
+  background: #f8fafc;
+}
+
+.student-attendance-table tbody td {
+  padding: 0.65rem 0.75rem;
+  color: #344767;
+  font-size: 0.82rem;
+  font-weight: 700;
+  vertical-align: middle;
+  border-bottom: 1px solid #f1f3f5;
+}
+
+.student-attendance-name {
+  min-width: 10rem;
+  color: #1f2a44;
+  font-weight: 850;
+}
+
+.stat-present-text { color: #2dce89 !important; }
+.stat-absent-text { color: #f5365c !important; }
+.stat-late-text { color: #fb6340 !important; }
+.stat-excused-text { color: #11cdef !important; }
+
+@media (max-width: 991.98px) {
+  .class-attendance-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 575.98px) {
+  .class-attendance-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .class-attendance-month {
+    width: 100%;
+  }
 }
 </style>
 

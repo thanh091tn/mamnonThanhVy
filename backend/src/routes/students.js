@@ -24,15 +24,15 @@ function classIdsDiffer(a, b) {
 }
 
 const studentSelect = `
-  SELECT s.id, s.name, s.grade, s.email, s.date_of_birth, s.class_id,
+  SELECT s.id, s.name, s.last_name, s.first_name, s.grade, s.email, s.date_of_birth, s.class_id,
          s.avatar, s.join_date, s.status, s.gender,
-         s.phone, s.nationality, s.religion, s.province, s.ward, s.hamlet,
+         s.phone, s.nationality, s.religion, s.province, s.ward, s.house_number, s.street, s.hamlet,
          s.birth_place, s.father_birth_year, s.mother_birth_year,
          s.father_name, s.father_birth_date, s.father_phone, s.father_email,
          s.father_login, s.father_id_number, s.father_occupation,
          s.mother_name, s.mother_birth_date, s.mother_phone, s.mother_email,
          s.mother_login, s.mother_id_number, s.mother_occupation,
-         s.id_number, s.id_issued_place, s.id_issued_date, s.area,
+         s.id_number, s.id_issued_place, s.id_issued_date, s.area, s.bhyt_number,
          s.disability_type, s.policy_beneficiary, s.eye_disease,
          s.guardian_name, s.guardian_occupation, s.guardian_birth_year,
          c.name AS class_name
@@ -158,11 +158,37 @@ function str(v) {
   return v != null ? String(v).trim() : "";
 }
 
+function splitFullName(value) {
+  const full = str(value).replace(/\s+/g, " ");
+  if (!full) return { lastName: "", firstName: "" };
+  const parts = full.split(" ");
+  if (parts.length === 1) return { lastName: "", firstName: parts[0] };
+  return {
+    lastName: parts.slice(0, -1).join(" "),
+    firstName: parts[parts.length - 1],
+  };
+}
+
+function normalizePersonName({ name, lastName, firstName }, fallbackName = "") {
+  const cleanLastName = str(lastName);
+  const cleanFirstName = str(firstName);
+  if (cleanLastName || cleanFirstName) {
+    return {
+      name: [cleanLastName, cleanFirstName].filter(Boolean).join(" "),
+      lastName: cleanLastName,
+      firstName: cleanFirstName,
+    };
+  }
+  const fullName = str(name || fallbackName).replace(/\s+/g, " ");
+  return { name: fullName, ...splitFullName(fullName) };
+}
+
 router.post("/", async (req, res, next) => {
   try {
     const b = req.body || {};
-    const { name, grade, email, dateOfBirth, classId, avatar, joinDate, status, gender } = b;
-    if (!name || typeof name !== "string" || !name.trim()) {
+    const { name, lastName, firstName, grade, email, dateOfBirth, classId, avatar, joinDate, status, gender } = b;
+    const personName = normalizePersonName({ name, lastName, firstName });
+    if (!personName.name) {
       return res.status(400).json({ error: "name is required" });
     }
     const cid = await resolveClassId(classId);
@@ -186,20 +212,22 @@ router.post("/", async (req, res, next) => {
       await client.query("BEGIN");
       const r = await client.query(
         `INSERT INTO students (
-           name, grade, email, date_of_birth, class_id, avatar, join_date, status, gender,
-           phone, nationality, religion, province, ward, hamlet,
+           name, last_name, first_name, grade, email, date_of_birth, class_id, avatar, join_date, status, gender,
+           phone, nationality, religion, province, ward, house_number, street, hamlet,
            birth_place, father_birth_year, mother_birth_year,
            father_name, father_birth_date, father_phone, father_email,
            father_login, father_id_number, father_occupation,
            mother_name, mother_birth_date, mother_phone, mother_email,
            mother_login, mother_id_number, mother_occupation,
-           id_number, id_issued_place, id_issued_date, area,
+           id_number, id_issued_place, id_issued_date, area, bhyt_number,
            disability_type, policy_beneficiary, eye_disease,
            guardian_name, guardian_occupation, guardian_birth_year
-         ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$35,$36,$37,$38,$39,$40,$41,$42)
+         ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$35,$36,$37,$38,$39,$40,$41,$42,$43,$44,$45,$46,$47)
           RETURNING id`,
         [
-          name.trim(),
+          personName.name,
+          personName.lastName,
+          personName.firstName,
           str(grade),
           str(email),
           normalizeDateInput(dateOfBirth),
@@ -209,13 +237,13 @@ router.post("/", async (req, res, next) => {
           st,
           gen,
           str(b.phone), str(b.nationality), str(b.religion),
-          str(b.province), str(b.ward), str(b.hamlet),
+          str(b.province), str(b.ward), str(b.houseNumber), str(b.street), str(b.hamlet),
           str(b.birthPlace), str(b.fatherBirthYear), str(b.motherBirthYear),
           str(b.fatherName), normalizeDateInput(b.fatherBirthDate), str(b.fatherPhone), str(b.fatherEmail),
           str(b.fatherLogin), str(b.fatherIdNumber), str(b.fatherOccupation),
           str(b.motherName), normalizeDateInput(b.motherBirthDate), str(b.motherPhone), str(b.motherEmail),
           str(b.motherLogin), str(b.motherIdNumber), str(b.motherOccupation),
-          str(b.idNumber), str(b.idIssuedPlace), normalizeDateInput(b.idIssuedDate), str(b.area),
+          str(b.idNumber), str(b.idIssuedPlace), normalizeDateInput(b.idIssuedDate), str(b.area), str(b.bhytNumber),
           str(b.disabilityType), str(b.policyBeneficiary), str(b.eyeDisease),
           str(b.guardianName), str(b.guardianOccupation), str(b.guardianBirthYear),
         ]
@@ -249,6 +277,7 @@ router.put("/:id", async (req, res, next) => {
     const b = req.body || {};
     const {
       name, grade, email, dateOfBirth, classId, avatar, joinDate, status, gender,
+      lastName, firstName,
       classChangeEffectiveDate, classChangeNote,
     } = b;
 
@@ -265,14 +294,19 @@ router.put("/:id", async (req, res, next) => {
       }
       const cur = sel.rows[0];
 
-      let nextName = cur.name;
-      if (name != null) {
-        if (typeof name !== "string" || !name.trim()) {
-          await client.query("ROLLBACK");
-          return res.status(400).json({ error: "name must be a non-empty string" });
-        }
-        nextName = name.trim();
+      const personName =
+        name != null || lastName != null || firstName != null
+          ? normalizePersonName({ name, lastName, firstName }, cur.name)
+          : {
+              name: cur.name,
+              lastName: cur.last_name ?? "",
+              firstName: cur.first_name ?? "",
+            };
+      if (!personName.name) {
+        await client.query("ROLLBACK");
+        return res.status(400).json({ error: "name must be a non-empty string" });
       }
+      const nextName = personName.name;
       const nextGrade = grade != null ? String(grade).trim() : cur.grade;
       const nextEmail = email != null ? String(email).trim() : cur.email;
       const nextDob =
@@ -361,23 +395,23 @@ router.put("/:id", async (req, res, next) => {
 
       await client.query(
         `UPDATE students SET
-           name=$1, grade=$2, email=$3, date_of_birth=$4, class_id=$5,
-           avatar=$6, join_date=$7, status=$8, gender=$9,
-           phone=$10, nationality=$11, religion=$12, province=$13, ward=$14, hamlet=$15,
-           birth_place=$16, father_birth_year=$17, mother_birth_year=$18,
-           father_name=$19, father_birth_date=$20, father_phone=$21, father_email=$22,
-           father_login=$23, father_id_number=$24, father_occupation=$25,
-           mother_name=$26, mother_birth_date=$27, mother_phone=$28, mother_email=$29,
-           mother_login=$30, mother_id_number=$31, mother_occupation=$32,
-           id_number=$33, id_issued_place=$34, id_issued_date=$35, area=$36,
-           disability_type=$37, policy_beneficiary=$38, eye_disease=$39,
-           guardian_name=$40, guardian_occupation=$41, guardian_birth_year=$42
-         WHERE id = $43`,
+           name=$1, last_name=$2, first_name=$3, grade=$4, email=$5, date_of_birth=$6, class_id=$7,
+           avatar=$8, join_date=$9, status=$10, gender=$11,
+           phone=$12, nationality=$13, religion=$14, province=$15, ward=$16, house_number=$17, street=$18, hamlet=$19,
+           birth_place=$20, father_birth_year=$21, mother_birth_year=$22,
+           father_name=$23, father_birth_date=$24, father_phone=$25, father_email=$26,
+           father_login=$27, father_id_number=$28, father_occupation=$29,
+           mother_name=$30, mother_birth_date=$31, mother_phone=$32, mother_email=$33,
+           mother_login=$34, mother_id_number=$35, mother_occupation=$36,
+           id_number=$37, id_issued_place=$38, id_issued_date=$39, area=$40, bhyt_number=$41,
+           disability_type=$42, policy_beneficiary=$43, eye_disease=$44,
+           guardian_name=$45, guardian_occupation=$46, guardian_birth_year=$47
+         WHERE id = $48`,
         [
-          nextName, nextGrade, nextEmail, nextDob, nextClassId,
+          nextName, personName.lastName, personName.firstName, nextGrade, nextEmail, nextDob, nextClassId,
           nextAvatar, nextJoin, nextStatus, nextGender,
           upd("phone"), upd("nationality"), upd("religion"),
-          upd("province"), upd("ward"), upd("hamlet"),
+          upd("province"), upd("ward"), updSnake("houseNumber", "house_number"), upd("street"), upd("hamlet"),
           updSnake("birthPlace", "birth_place"),
           updSnake("fatherBirthYear", "father_birth_year"),
           updSnake("motherBirthYear", "mother_birth_year"),
@@ -399,6 +433,7 @@ router.put("/:id", async (req, res, next) => {
           updSnake("idIssuedPlace", "id_issued_place"),
           b.idIssuedDate !== undefined ? normalizeDateInput(b.idIssuedDate) : cur.id_issued_date,
           upd("area"),
+          updSnake("bhytNumber", "bhyt_number"),
           updSnake("disabilityType", "disability_type"),
           updSnake("policyBeneficiary", "policy_beneficiary"),
           updSnake("eyeDisease", "eye_disease"),

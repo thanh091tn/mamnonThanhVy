@@ -4,6 +4,7 @@ import { useStore } from 'vuex'
 import StudentsPanel from './StudentsPanel.vue'
 import TeachersPanel from './TeachersPanel.vue'
 import ClassesPanel from './ClassesPanel.vue'
+import ClassAttendancePanel from './ClassAttendancePanel.vue'
 
 const store = useStore()
 const activeTab = ref('students')
@@ -28,6 +29,12 @@ const allTabs = [
     icon: 'ni ni-books',
     meta: 'Tổ chức lớp và số lượng học sinh',
   },
+  {
+    key: 'attendance',
+    label: 'Điểm danh',
+    icon: 'ni ni-calendar-grid-61',
+    meta: 'Theo dõi tháng theo lớp và từng học sinh',
+  },
 ]
 
 const tabs = computed(() =>
@@ -49,7 +56,7 @@ watch(tabs, (nextTabs) => {
           <span class="school-eyebrow">School Hub</span>
           <h4 class="school-title mb-1">Quản lý trường học</h4>
           <p class="school-subtitle mb-0">
-            Chuyển nhanh giữa học sinh, giáo viên và lớp học trong cùng một không gian làm việc.
+            Chuyển nhanh giữa học sinh, giáo viên, lớp học và điểm danh trong cùng một không gian làm việc.
           </p>
         </div>
 
@@ -85,6 +92,7 @@ watch(tabs, (nextTabs) => {
     <StudentsPanel v-show="activeTab === 'students'" />
     <TeachersPanel v-if="isAdmin" v-show="activeTab === 'teachers'" />
     <ClassesPanel v-if="isAdmin" v-show="activeTab === 'classes'" />
+    <ClassAttendancePanel v-if="isAdmin" v-show="activeTab === 'attendance'" />
   </div>
 </template>
 

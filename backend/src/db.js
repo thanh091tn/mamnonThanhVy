@@ -106,6 +106,8 @@ export async function initDb() {
     await client.query(`
       ALTER TABLE teachers ADD COLUMN IF NOT EXISTS gender VARCHAR(20) DEFAULT 'male';
     `);
+    await client.query(`ALTER TABLE teachers ADD COLUMN IF NOT EXISTS last_name TEXT DEFAULT '';`);
+    await client.query(`ALTER TABLE teachers ADD COLUMN IF NOT EXISTS first_name TEXT DEFAULT '';`);
     await client.query(`
       INSERT INTO teacher_roles (name)
       SELECT DISTINCT TRIM(subject)
@@ -171,11 +173,15 @@ export async function initDb() {
     await client.query(`
       ALTER TABLE students ADD COLUMN IF NOT EXISTS gender VARCHAR(20) DEFAULT 'male';
     `);
+    await client.query(`ALTER TABLE students ADD COLUMN IF NOT EXISTS last_name TEXT DEFAULT '';`);
+    await client.query(`ALTER TABLE students ADD COLUMN IF NOT EXISTS first_name TEXT DEFAULT '';`);
     await client.query(`ALTER TABLE students ADD COLUMN IF NOT EXISTS phone VARCHAR(100) DEFAULT '';`);
     await client.query(`ALTER TABLE students ADD COLUMN IF NOT EXISTS nationality TEXT DEFAULT '';`);
     await client.query(`ALTER TABLE students ADD COLUMN IF NOT EXISTS religion TEXT DEFAULT '';`);
     await client.query(`ALTER TABLE students ADD COLUMN IF NOT EXISTS province TEXT DEFAULT '';`);
     await client.query(`ALTER TABLE students ADD COLUMN IF NOT EXISTS ward TEXT DEFAULT '';`);
+    await client.query(`ALTER TABLE students ADD COLUMN IF NOT EXISTS house_number TEXT DEFAULT '';`);
+    await client.query(`ALTER TABLE students ADD COLUMN IF NOT EXISTS street TEXT DEFAULT '';`);
     await client.query(`ALTER TABLE students ADD COLUMN IF NOT EXISTS hamlet TEXT DEFAULT '';`);
     await client.query(`ALTER TABLE students ADD COLUMN IF NOT EXISTS birth_place TEXT DEFAULT '';`);
     await client.query(`ALTER TABLE students ADD COLUMN IF NOT EXISTS father_birth_year VARCHAR(10) DEFAULT '';`);
@@ -198,6 +204,19 @@ export async function initDb() {
     await client.query(`ALTER TABLE students ADD COLUMN IF NOT EXISTS id_issued_place TEXT DEFAULT '';`);
     await client.query(`ALTER TABLE students ADD COLUMN IF NOT EXISTS id_issued_date DATE;`);
     await client.query(`ALTER TABLE students ADD COLUMN IF NOT EXISTS area TEXT DEFAULT '';`);
+    await client.query(`ALTER TABLE students ADD COLUMN IF NOT EXISTS bhyt_number VARCHAR(100) DEFAULT '';`);
+    await client.query(`
+      UPDATE students
+      SET house_number = area
+      WHERE COALESCE(NULLIF(TRIM(house_number), ''), '') = ''
+        AND COALESCE(NULLIF(TRIM(area), ''), '') <> ''
+    `);
+    await client.query(`
+      UPDATE students
+      SET bhyt_number = ''
+      WHERE COALESCE(NULLIF(TRIM(area), ''), '') <> ''
+        AND TRIM(COALESCE(bhyt_number, '')) = TRIM(area)
+    `);
     await client.query(`ALTER TABLE students ADD COLUMN IF NOT EXISTS disability_type TEXT DEFAULT '';`);
     await client.query(`ALTER TABLE students ADD COLUMN IF NOT EXISTS policy_beneficiary TEXT DEFAULT '';`);
     await client.query(`ALTER TABLE students ADD COLUMN IF NOT EXISTS eye_disease TEXT DEFAULT '';`);
@@ -286,6 +305,8 @@ export async function initDb() {
     `);
     await client.query(`ALTER TABLE users ALTER COLUMN email DROP NOT NULL;`);
     await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS phone VARCHAR(100) DEFAULT '';`);
+    await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS last_name TEXT DEFAULT '';`);
+    await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS first_name TEXT DEFAULT '';`);
     await client.query(`ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check;`);
     await client.query(`UPDATE users SET role = 'admin' WHERE role = 'manager';`);
     await client.query(`
@@ -778,6 +799,8 @@ export function mapStudentRow(row) {
   return {
     id: row.id,
     name: row.name,
+    lastName: row.last_name ?? "",
+    firstName: row.first_name ?? "",
     grade: row.grade ?? "",
     email: row.email ?? "",
     dateOfBirth: dateToApi(row.date_of_birth),
@@ -792,6 +815,8 @@ export function mapStudentRow(row) {
     religion: row.religion ?? "",
     province: row.province ?? "",
     ward: row.ward ?? "",
+    houseNumber: row.house_number ?? "",
+    street: row.street ?? "",
     hamlet: row.hamlet ?? "",
     birthPlace: row.birth_place ?? "",
     fatherBirthYear: row.father_birth_year ?? "",
@@ -814,6 +839,7 @@ export function mapStudentRow(row) {
     idIssuedPlace: row.id_issued_place ?? "",
     idIssuedDate: dateToApi(row.id_issued_date),
     area: row.area ?? "",
+    bhytNumber: row.bhyt_number ?? "",
     disabilityType: row.disability_type ?? "",
     policyBeneficiary: row.policy_beneficiary ?? "",
     eyeDisease: row.eye_disease ?? "",
@@ -850,6 +876,8 @@ export function mapTeacherRow(row) {
   return {
     id: row.id,
     name: row.name,
+    lastName: row.last_name ?? "",
+    firstName: row.first_name ?? "",
     email: row.email ?? "",
     phone: row.phone ?? "",
     roleId: row.role_id != null ? Number(row.role_id) : null,

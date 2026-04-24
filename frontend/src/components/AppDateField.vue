@@ -25,6 +25,10 @@ const props = defineProps({
     type: String,
     default: "",
   },
+  format: {
+    type: String,
+    default: "dd/MM/yyyy",
+  },
   disabled: {
     type: Boolean,
     default: false,
@@ -51,6 +55,15 @@ function dateToIso(value) {
   return `${y}-${m}-${d}`;
 }
 
+function formatPickerDate(value) {
+  if (!(value instanceof Date) || Number.isNaN(value.getTime())) return "";
+  const y = value.getFullYear();
+  const m = String(value.getMonth() + 1).padStart(2, "0");
+  const d = String(value.getDate()).padStart(2, "0");
+  if (props.format === "dd-MM-yyyy") return `${d}-${m}-${y}`;
+  return `${d}/${m}/${y}`;
+}
+
 const pickerValue = computed({
   get: () => isoToDate(props.modelValue),
   set: (value) => emit("update:modelValue", dateToIso(value)),
@@ -69,7 +82,7 @@ const maxDate = computed(() => isoToDate(props.max));
     :enable-time-picker="false"
     :auto-apply="true"
     :locale="vi"
-    format="dd/MM/yyyy"
+    :format="formatPickerDate"
     select-text="Chọn"
     cancel-text="Hủy"
     :placeholder="placeholder"

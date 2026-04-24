@@ -13,6 +13,7 @@ import FeePeriods from '../views/FeePeriods.vue'
 import FeePolicies from '../views/FeePolicies.vue'
 import FeeCollection from '../views/FeeCollection.vue'
 import FeeServices from '../views/FeeServices.vue'
+import StudentDetail from '../views/StudentDetail.vue'
 
 const routes = [
   {
@@ -30,6 +31,18 @@ const routes = [
     path: '/school',
     name: 'School',
     component: SchoolPanel,
+    meta: { requiresAuth: true },
+  },
+  {
+    path: '/students/create',
+    name: 'StudentCreate',
+    component: StudentDetail,
+    meta: { requiresAuth: true },
+  },
+  {
+    path: '/students/:id/detail',
+    name: 'StudentDetail',
+    component: StudentDetail,
     meta: { requiresAuth: true },
   },
   { path: '/students', redirect: '/school' },

@@ -47,6 +47,8 @@ const GENDER_OPTIONS = [
 
 const form = ref({
   name: '',
+  lastName: '',
+  firstName: '',
   email: '',
   phone: '',
   password: '',
@@ -59,8 +61,24 @@ const form = ref({
 
 function resetForm() {
   editingId.value = null
-  form.value = { name: '', email: '', phone: '', password: '', roleId: '', subject: '', address: '', status: 'active', gender: 'male' }
+  form.value = { name: '', lastName: '', firstName: '', email: '', phone: '', password: '', roleId: '', subject: '', address: '', status: 'active', gender: 'male' }
   newRoleName.value = ''
+}
+
+function splitFullName(value) {
+  const full = String(value || '').trim().replace(/\s+/g, ' ')
+  if (!full) return { lastName: '', firstName: '' }
+  const parts = full.split(' ')
+  if (parts.length === 1) return { lastName: '', firstName: parts[0] }
+  return { lastName: parts.slice(0, -1).join(' '), firstName: parts[parts.length - 1] }
+}
+
+function fullNameFromParts(lastName, firstName) {
+  return [lastName, firstName].map((v) => String(v || '').trim()).filter(Boolean).join(' ')
+}
+
+function formFullName() {
+  return fullNameFromParts(form.value.lastName, form.value.firstName)
 }
 
 function statusLabel(val) {
@@ -92,6 +110,8 @@ function openEdit(row) {
   editingId.value = row.id
   form.value = {
     name: row.name,
+    lastName: row.lastName || splitFullName(row.name).lastName,
+    firstName: row.firstName || splitFullName(row.name).firstName,
     email: row.email || '',
     phone: row.phone || '',
     password: '',
@@ -154,7 +174,8 @@ async function createRole() {
 
 async function save() {
   formErr.value = ''
-  if (!form.value.name?.trim()) {
+  const fullName = formFullName()
+  if (!fullName) {
     formErr.value = 'Vui lòng nhập họ tên'
     return
   }
@@ -173,7 +194,9 @@ async function save() {
   saving.value = true
   try {
     const payload = {
-      name: form.value.name.trim(),
+      name: fullName,
+      lastName: form.value.lastName,
+      firstName: form.value.firstName,
       email: form.value.email,
       phone: form.value.phone,
       roleId: form.value.roleId || null,
@@ -199,7 +222,7 @@ async function save() {
 
 async function remove() {
   if (!editingId.value) return
-  const name = form.value.name || 'this teacher'
+  const name = formFullName() || form.value.name || 'this teacher'
   if (!confirm(`Delete teacher "${name}"?`)) return
   try {
     await api.delete(`/teachers/${editingId.value}`)
@@ -353,7 +376,7 @@ defineExpose({ load })
     <Transition name="drawer-slide">
       <aside v-if="drawerOpen" class="drawer-panel">
         <div class="drawer-header">
-          <h5 class="drawer-title mb-0">{{ editingId ? form.name || 'Giáo viên' : 'Thêm giáo viên' }}</h5>
+          <h5 class="drawer-title mb-0">{{ editingId ? formFullName() || 'Giáo viên' : 'Thêm giáo viên' }}</h5>
           <button type="button" class="btn-close" aria-label="Close" @click="closeDrawer"></button>
         </div>
 
@@ -364,14 +387,24 @@ defineExpose({ load })
             </argon-alert>
             <p class="text-sm text-uppercase text-muted">Thông tin giáo viên</p>
             <div class="row">
-              <div class="col-12">
-                <label for="teacher-name" class="form-control-label">Họ tên *</label>
+              <div class="col-8">
+                <label for="teacher-last-name" class="form-control-label">Họ *</label>
                 <argon-input
-                  id="teacher-name"
-                  v-model="form.name"
-                  placeholder="Họ và tên"
-                  name="name"
-                  autocomplete="name"
+                  id="teacher-last-name"
+                  v-model="form.lastName"
+                  placeholder="VD: Nguyễn Văn"
+                  name="lastName"
+                  autocomplete="family-name"
+                />
+              </div>
+              <div class="col-4">
+                <label for="teacher-first-name" class="form-control-label">Tên *</label>
+                <argon-input
+                  id="teacher-first-name"
+                  v-model="form.firstName"
+                  placeholder="VD: An"
+                  name="firstName"
+                  autocomplete="given-name"
                 />
               </div>
               <div class="col-6">

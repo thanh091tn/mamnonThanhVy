@@ -10,6 +10,7 @@
     "db:create": "node src/create-db.js",
     "db:seed": "node src/seed.js",
     "db:deploy-reset-seed": "node src/run-sql-file.js ../scripts/deploy-reset-seed.sql",
+    "db:refresh-students": "node src/run-sql-file.js ../scripts/refresh-students.sql",
     "db:default-teacher-password": "node src/run-sql-file.js ../scripts/deploy-default-teacher-password.sql",
     "db:demo-teacher": "node src/seed-demo-teacher.js"
   },
@@ -23,6 +24,7 @@
     "express": "^4.21.2",
     "jsonwebtoken": "^9.0.2",
     "multer": "^1.4.5-lts.1",
-    "pg": "^8.13.1"
+    "pg": "^8.13.1",
+    "xlsx": "^0.18.5"
   }
 }

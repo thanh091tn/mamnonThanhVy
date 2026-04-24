@@ -101,18 +101,18 @@ async function seed() {
            grade, email, avatar,
            phone, nationality, religion, province, ward, hamlet,
            birth_place, father_birth_year, mother_birth_year,
-           id_number, id_issued_place, id_issued_date, area,
+           id_number, id_issued_place, id_issued_date, area, bhyt_number,
            disability_type, policy_beneficiary, eye_disease,
            guardian_name, guardian_occupation, guardian_birth_year
          ) VALUES (
-           $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28
+           $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29
          ) RETURNING id`,
         [
           s.name, s.gender, s.dob, classIds[s.classIdx], joinDates[i], "active",
           "", "", "",
           s.phone, s.nationality, s.religion || "", s.province, s.ward, s.hamlet || "",
           s.birthPlace, s.fatherBY, s.motherBY,
-          "", "", null, "",
+          "", "", null, "", "",
           "", "", "",
           s.guardianName, s.guardianOcc, s.guardianBY,
         ]
