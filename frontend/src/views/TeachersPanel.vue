@@ -22,6 +22,9 @@ const pagedItems = computed(() => {
   const start = (currentPage.value - 1) * PAGE_SIZE
   return items.value.slice(start, start + PAGE_SIZE)
 })
+const activeTeachersCount = computed(() => items.value.filter((t) => (t.status || 'active') === 'active').length)
+const leaveTeachersCount = computed(() => items.value.filter((t) => (t.status || 'active') === 'leave').length)
+const roleCount = computed(() => new Set(items.value.map((t) => t.subject).filter(Boolean)).size)
 
 function goToPage(page) {
   currentPage.value = Math.max(1, Math.min(page, totalPages.value))
@@ -251,16 +254,35 @@ defineExpose({ load })
 </script>
 
 <template>
-  <div class="py-4 container-fluid page-fill">
+  <div class="py-4 container-fluid page-fill teacher-page">
     <div class="row">
       <div class="col-12">
-        <div class="card">
-          <div class="card-header d-flex flex-wrap align-items-center gap-2 pb-0">
-            <div class="flex-grow-1">
+        <div class="card teacher-list-card">
+          <div class="card-header teacher-list-header">
+            <div class="teacher-list-title">
+              <span class="teacher-list-eyebrow">Nhân sự</span>
               <h6>Danh sách giáo viên</h6>
-              <p class="mb-2 text-sm text-secondary">Quản lý hồ sơ giáo viên</p>
+              <p class="mb-0 text-sm text-secondary">Quản lý hồ sơ, vai trò sử dụng và trạng thái làm việc của giáo viên.</p>
             </div>
-            <argon-button color="primary" variant="gradient" type="button" @click="openCreate">
+            <div class="teacher-list-stats">
+              <div class="teacher-stat-card">
+                <span>Tổng</span>
+                <strong>{{ items.length }}</strong>
+              </div>
+              <div class="teacher-stat-card teacher-stat-card--active">
+                <span>Đang dạy</span>
+                <strong>{{ activeTeachersCount }}</strong>
+              </div>
+              <div class="teacher-stat-card teacher-stat-card--leave">
+                <span>Tạm nghỉ</span>
+                <strong>{{ leaveTeachersCount }}</strong>
+              </div>
+              <div class="teacher-stat-card teacher-stat-card--role">
+                <span>Vai trò</span>
+                <strong>{{ roleCount }}</strong>
+              </div>
+            </div>
+            <argon-button color="primary" variant="gradient" type="button" class="teacher-add-btn" @click="openCreate">
               Thêm giáo viên
             </argon-button>
           </div>
@@ -531,6 +553,115 @@ defineExpose({ load })
   cursor: pointer;
 }
 
+.teacher-page {
+  padding-top: 1rem !important;
+}
+
+.teacher-list-card {
+  overflow: hidden;
+  border: 1px solid #e5edf6;
+  background: linear-gradient(180deg, #ffffff 0%, #fbfdff 100%);
+  box-shadow: 0 1.35rem 2.8rem -2.2rem rgba(15, 23, 42, 0.42);
+}
+
+.teacher-list-card .card-body {
+  padding-bottom: 0 !important;
+}
+
+.teacher-list-card .panel-table-wrap {
+  margin: 0;
+  border-right: 0;
+  border-bottom: 0;
+  border-left: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.teacher-list-card .panel-data-table {
+  min-width: 880px;
+}
+
+.teacher-list-header {
+  display: grid;
+  grid-template-columns: minmax(15rem, 1fr) auto auto;
+  align-items: center;
+  gap: 0.9rem;
+  padding: 1rem 1.35rem 0.9rem;
+  border-bottom: 1px solid #edf2f7;
+  background:
+    radial-gradient(circle at top left, rgba(94, 114, 228, 0.14), transparent 30%),
+    linear-gradient(135deg, #ffffff 0%, #f8fcff 54%, #f2f5ff 100%);
+}
+
+.teacher-list-title h6 {
+  margin: 0 0 0.15rem;
+  color: #1f2a44;
+  font-size: 1.05rem;
+  font-weight: 900;
+}
+
+.teacher-list-eyebrow {
+  display: inline-flex;
+  margin-bottom: 0.2rem;
+  color: #3559d8;
+  font-size: 0.68rem;
+  font-weight: 850;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.teacher-list-stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(4.6rem, 1fr));
+  gap: 0.45rem;
+}
+
+.teacher-stat-card {
+  min-width: 4.6rem;
+  padding: 0.55rem 0.65rem;
+  border: 1px solid #e5edf6;
+  border-radius: 0.8rem;
+  background: rgba(255, 255, 255, 0.84);
+  box-shadow: 0 0.65rem 1.35rem -1.2rem rgba(15, 23, 42, 0.34);
+}
+
+.teacher-stat-card span {
+  display: block;
+  color: #64748b;
+  font-size: 0.64rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.teacher-stat-card strong {
+  display: block;
+  color: #1f2a44;
+  font-size: 1.05rem;
+  font-weight: 900;
+  line-height: 1.15;
+}
+
+.teacher-stat-card--active {
+  border-color: rgba(45, 206, 137, 0.22);
+  background: rgba(236, 253, 245, 0.9);
+}
+
+.teacher-stat-card--leave {
+  border-color: rgba(251, 99, 64, 0.22);
+  background: rgba(255, 247, 237, 0.92);
+}
+
+.teacher-stat-card--role {
+  border-color: rgba(94, 114, 228, 0.22);
+  background: rgba(238, 242, 255, 0.92);
+}
+
+.teacher-add-btn {
+  white-space: nowrap;
+  box-shadow: 0 0.8rem 1.5rem -1rem rgba(94, 114, 228, 0.72);
+}
+
 /* ===== Drawer ===== */
 .drawer-backdrop {
   position: fixed;
@@ -692,6 +823,19 @@ defineExpose({ load })
 }
 
 @media (max-width: 768px) {
+  .teacher-list-header {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+  }
+
+  .teacher-list-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .teacher-add-btn {
+    justify-self: flex-start;
+  }
+
   .drawer-panel {
     width: 100vw;
     max-width: 100vw;

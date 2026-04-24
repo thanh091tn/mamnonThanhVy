@@ -21,6 +21,10 @@ const loadErr = ref('')
 const selectedClass = computed(() =>
   classes.value.find((item) => String(item.id) === String(selectedClassId.value))
 )
+const attendanceModeLabel = computed(() => attendanceView.value === 'day' ? 'Theo ngày' : 'Theo tháng')
+const attendanceDateLabel = computed(() =>
+  attendanceView.value === 'day' ? formatDateDisplay(selectedDate.value) : formatMonthDisplay(selectedMonth.value)
+)
 
 const monthOptions = Array.from({ length: 12 }, (_, index) => {
   const value = String(index + 1).padStart(2, '0')
@@ -159,14 +163,29 @@ defineExpose({ loadClasses, loadAttendance })
 </script>
 
 <template>
-  <div class="py-4 container-fluid page-fill">
+  <div class="py-4 container-fluid page-fill attendance-page">
     <div class="row">
       <div class="col-12">
         <div class="card attendance-page-card">
-          <div class="card-header d-flex flex-wrap align-items-center gap-3 pb-0">
-            <div class="flex-grow-1">
+          <div class="card-header attendance-page-header">
+            <div class="attendance-title-block">
+              <span class="attendance-eyebrow">Điểm danh</span>
               <h6>Điểm danh theo lớp</h6>
-              <p class="mb-2 text-sm text-secondary">Xem điểm danh theo ngày hoặc tổng hợp theo tháng cho từng lớp.</p>
+              <p class="mb-0 text-sm text-secondary">Xem nhanh tình hình đi học theo ngày hoặc tổng hợp theo tháng cho từng lớp.</p>
+            </div>
+            <div class="attendance-quick-stats">
+              <div class="attendance-quick-card">
+                <span>Lớp</span>
+                <strong>{{ selectedClass?.name || '—' }}</strong>
+              </div>
+              <div class="attendance-quick-card attendance-quick-card--mode">
+                <span>Chế độ</span>
+                <strong>{{ attendanceModeLabel }}</strong>
+              </div>
+              <div class="attendance-quick-card attendance-quick-card--date">
+                <span>Thời gian</span>
+                <strong>{{ attendanceDateLabel }}</strong>
+              </div>
             </div>
             <div class="attendance-filters">
               <select v-model="selectedClassId" class="form-control form-control-sm attendance-class-select" :disabled="loadingClasses">
@@ -373,11 +392,99 @@ defineExpose({ loadClasses, loadAttendance })
   object-fit: cover;
 }
 
+.attendance-page {
+  padding-top: 1rem !important;
+}
+
 .attendance-page-card {
+  overflow: hidden;
   min-height: 0;
+  border: 1px solid #e5edf6;
+  background: linear-gradient(180deg, #ffffff 0%, #fbfdff 100%);
+  box-shadow: 0 1.35rem 2.8rem -2.2rem rgba(15, 23, 42, 0.42);
+}
+
+.attendance-page-header {
+  display: grid;
+  grid-template-columns: minmax(15rem, 1fr) auto;
+  align-items: center;
+  gap: 0.9rem;
+  padding: 1rem 1.35rem 0.9rem;
+  border-bottom: 1px solid #edf2f7;
+  background:
+    radial-gradient(circle at top left, rgba(17, 205, 239, 0.16), transparent 30%),
+    linear-gradient(135deg, #ffffff 0%, #f8fcff 54%, #edfaff 100%);
+}
+
+.attendance-title-block h6 {
+  margin: 0 0 0.15rem;
+  color: #1f2a44;
+  font-size: 1.05rem;
+  font-weight: 900;
+}
+
+.attendance-eyebrow {
+  display: inline-flex;
+  margin-bottom: 0.2rem;
+  color: #0284c7;
+  font-size: 0.68rem;
+  font-weight: 850;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.attendance-quick-stats {
+  display: grid;
+  grid-template-columns: minmax(7rem, auto) minmax(6rem, auto) minmax(7rem, auto);
+  gap: 0.45rem;
+}
+
+.attendance-quick-card {
+  min-width: 6rem;
+  max-width: 11rem;
+  padding: 0.55rem 0.65rem;
+  border: 1px solid #e5edf6;
+  border-radius: 0.8rem;
+  background: rgba(255, 255, 255, 0.84);
+  box-shadow: 0 0.65rem 1.35rem -1.2rem rgba(15, 23, 42, 0.34);
+}
+
+.attendance-quick-card span {
+  display: block;
+  color: #64748b;
+  font-size: 0.64rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.attendance-quick-card strong {
+  display: block;
+  overflow: hidden;
+  color: #1f2a44;
+  font-size: 0.9rem;
+  font-weight: 900;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.attendance-quick-card--mode {
+  border-color: rgba(20, 184, 166, 0.22);
+  background: rgba(240, 253, 250, 0.92);
+}
+
+.attendance-quick-card--date {
+  border-color: rgba(17, 205, 239, 0.22);
+  background: rgba(240, 249, 255, 0.92);
+}
+
+.attendance-page-card .card-body {
+  padding: 1.1rem 1.35rem 1.35rem;
 }
 
 .attendance-filters {
+  grid-column: 1 / -1;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -385,13 +492,16 @@ defineExpose({ loadClasses, loadAttendance })
 }
 
 .attendance-class-select {
-  width: 16.75rem;
+  width: min(18rem, 100%);
   height: 2.9rem;
-  border-radius: 0.65rem;
+  border: 1px solid #dbe4f0;
+  border-radius: 0.9rem;
+  background: #ffffff;
   font-size: 0.9rem;
   font-weight: 700;
   text-align: center;
   text-align-last: center;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
 }
 
 .attendance-date-input {
@@ -431,7 +541,9 @@ defineExpose({ loadClasses, loadAttendance })
 .attendance-month-select,
 .attendance-year-select {
   height: 2.9rem;
-  border-radius: 0.65rem;
+  border: 1px solid #dbe4f0;
+  border-radius: 0.9rem;
+  background: #ffffff;
   font-size: 0.9rem;
   font-weight: 800;
   text-align: center;
@@ -487,6 +599,7 @@ defineExpose({ loadClasses, loadAttendance })
   border-radius: 0.75rem;
   background: #f8fafc;
   color: #344767;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7);
 }
 
 .attendance-context-label {
@@ -554,6 +667,7 @@ defineExpose({ loadClasses, loadAttendance })
   border: 1px solid #e2e8f0;
   border-radius: 0.85rem;
   background: #ffffff;
+  box-shadow: 0 1rem 2rem -1.6rem rgba(15, 23, 42, 0.32);
 }
 
 .student-month-header {
@@ -613,12 +727,25 @@ defineExpose({ loadClasses, loadAttendance })
 }
 
 @media (max-width: 991.98px) {
+  .attendance-page-header {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+  }
+
+  .attendance-quick-stats {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
   .attendance-summary-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
 
 @media (max-width: 575.98px) {
+  .attendance-quick-stats {
+    grid-template-columns: 1fr;
+  }
+
   .attendance-filters,
   .attendance-class-select,
   .attendance-date-input,

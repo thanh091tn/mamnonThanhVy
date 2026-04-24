@@ -40,6 +40,14 @@ const studentSelect = `
   LEFT JOIN classes c ON c.id = s.class_id
 `;
 
+const studentNameOrder = `
+  ORDER BY
+    NULLIF(TRIM(s.first_name), '') NULLS LAST,
+    NULLIF(TRIM(s.last_name), '') NULLS LAST,
+    NULLIF(TRIM(s.name), '') NULLS LAST,
+    s.id
+`;
+
 async function resolveClassId(raw) {
   if (raw == null || raw === "") return null;
   const id = Number(raw);
@@ -111,7 +119,7 @@ router.get("/", async (req, res, next) => {
         )
       `;
     }
-    const r = await pool.query(`${studentSelect} ${where} ORDER BY s.id`, params);
+    const r = await pool.query(`${studentSelect} ${where} ${studentNameOrder}`, params);
     res.json(r.rows.map(mapStudentRow));
   } catch (e) {
     next(e);

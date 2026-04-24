@@ -36,6 +36,16 @@ const pagedItems = computed(() => {
   const start = (currentPage.value - 1) * PAGE_SIZE
   return items.value.slice(start, start + PAGE_SIZE)
 })
+const assignedClassesCount = computed(() => items.value.filter((c) => c.teacherName || Number(c.teacherId || 0) > 0 || (Array.isArray(c.teacherIds) && c.teacherIds.length)).length)
+const teacherAssignmentCount = computed(() => {
+  const ids = new Set()
+  for (const c of items.value) {
+    if (Array.isArray(c.teacherIds)) c.teacherIds.forEach((id) => ids.add(String(id)))
+    else if (c.teacherId != null) ids.add(String(c.teacherId))
+  }
+  return ids.size
+})
+const roomCount = computed(() => new Set(items.value.map((c) => c.room).filter(Boolean)).size)
 
 function goToPage(page) {
   currentPage.value = Math.max(1, Math.min(page, totalPages.value))
@@ -230,16 +240,35 @@ defineExpose({ load })
 </script>
 
 <template>
-  <div class="py-4 container-fluid page-fill">
+  <div class="py-4 container-fluid page-fill classes-page">
     <div class="row">
       <div class="col-12">
-        <div class="card">
-          <div class="card-header d-flex flex-wrap align-items-center gap-2 pb-0">
-            <div class="flex-grow-1">
+        <div class="card class-list-card">
+          <div class="card-header class-list-header">
+            <div class="class-list-title">
+              <span class="class-list-eyebrow">Tổ chức lớp</span>
               <h6>Danh sách lớp</h6>
-              <p class="mb-2 text-sm text-secondary">Quản lý lớp học và giáo viên chủ nhiệm</p>
+              <p class="mb-0 text-sm text-secondary">Theo dõi lớp học, phòng học và giáo viên phụ trách trong một bảng gọn hơn.</p>
             </div>
-            <argon-button color="primary" variant="gradient" type="button" @click="openCreate">
+            <div class="class-list-stats">
+              <div class="class-stat-card">
+                <span>Tổng lớp</span>
+                <strong>{{ items.length }}</strong>
+              </div>
+              <div class="class-stat-card class-stat-card--assigned">
+                <span>Có GV</span>
+                <strong>{{ assignedClassesCount }}</strong>
+              </div>
+              <div class="class-stat-card class-stat-card--teacher">
+                <span>GV phân công</span>
+                <strong>{{ teacherAssignmentCount }}</strong>
+              </div>
+              <div class="class-stat-card class-stat-card--room">
+                <span>Phòng</span>
+                <strong>{{ roomCount }}</strong>
+              </div>
+            </div>
+            <argon-button color="primary" variant="gradient" type="button" class="class-add-btn" @click="openCreate">
               Thêm lớp
             </argon-button>
           </div>
@@ -573,6 +602,115 @@ defineExpose({ load })
 </template>
 
 <style scoped>
+.classes-page {
+  padding-top: 1rem !important;
+}
+
+.class-list-card {
+  overflow: hidden;
+  border: 1px solid #e5edf6;
+  background: linear-gradient(180deg, #ffffff 0%, #fbfdff 100%);
+  box-shadow: 0 1.35rem 2.8rem -2.2rem rgba(15, 23, 42, 0.42);
+}
+
+.class-list-card .card-body {
+  padding-bottom: 0 !important;
+}
+
+.class-list-card .panel-table-wrap {
+  margin: 0;
+  border-right: 0;
+  border-bottom: 0;
+  border-left: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.class-list-card .panel-data-table {
+  min-width: 760px;
+}
+
+.class-list-header {
+  display: grid;
+  grid-template-columns: minmax(15rem, 1fr) auto auto;
+  align-items: center;
+  gap: 0.9rem;
+  padding: 1rem 1.35rem 0.9rem;
+  border-bottom: 1px solid #edf2f7;
+  background:
+    radial-gradient(circle at top left, rgba(251, 99, 64, 0.14), transparent 30%),
+    linear-gradient(135deg, #ffffff 0%, #fffbf7 54%, #fff3ed 100%);
+}
+
+.class-list-title h6 {
+  margin: 0 0 0.15rem;
+  color: #1f2a44;
+  font-size: 1.05rem;
+  font-weight: 900;
+}
+
+.class-list-eyebrow {
+  display: inline-flex;
+  margin-bottom: 0.2rem;
+  color: #c2410c;
+  font-size: 0.68rem;
+  font-weight: 850;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.class-list-stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(4.8rem, 1fr));
+  gap: 0.45rem;
+}
+
+.class-stat-card {
+  min-width: 4.8rem;
+  padding: 0.55rem 0.65rem;
+  border: 1px solid #e5edf6;
+  border-radius: 0.8rem;
+  background: rgba(255, 255, 255, 0.84);
+  box-shadow: 0 0.65rem 1.35rem -1.2rem rgba(15, 23, 42, 0.34);
+}
+
+.class-stat-card span {
+  display: block;
+  color: #64748b;
+  font-size: 0.64rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.class-stat-card strong {
+  display: block;
+  color: #1f2a44;
+  font-size: 1.05rem;
+  font-weight: 900;
+  line-height: 1.15;
+}
+
+.class-stat-card--assigned {
+  border-color: rgba(45, 206, 137, 0.22);
+  background: rgba(236, 253, 245, 0.9);
+}
+
+.class-stat-card--teacher {
+  border-color: rgba(94, 114, 228, 0.22);
+  background: rgba(238, 242, 255, 0.92);
+}
+
+.class-stat-card--room {
+  border-color: rgba(251, 99, 64, 0.22);
+  background: rgba(255, 247, 237, 0.92);
+}
+
+.class-add-btn {
+  white-space: nowrap;
+  box-shadow: 0 0.8rem 1.5rem -1rem rgba(94, 114, 228, 0.72);
+}
+
 .class-teacher-checklist {
   display: flex;
   flex-direction: column;
@@ -732,6 +870,19 @@ defineExpose({ load })
 .stat-excused-text { color: #11cdef !important; }
 
 @media (max-width: 991.98px) {
+  .class-list-header {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+  }
+
+  .class-list-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .class-add-btn {
+    justify-self: flex-start;
+  }
+
   .class-attendance-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }

@@ -36,6 +36,27 @@ const loading = ref(false)
 const filterStatuses = ref([])
 const filterClassId = ref(null)
 
+function namePartsForSort(row) {
+  const full = String(row?.name || '').trim().replace(/\s+/g, ' ')
+  const parts = full ? full.split(' ') : []
+  return {
+    firstName: String(row?.firstName || parts[parts.length - 1] || '').trim(),
+    lastName: String(row?.lastName || parts.slice(0, -1).join(' ') || '').trim(),
+    fullName: full,
+  }
+}
+
+function compareStudentByFirstName(a, b) {
+  const left = namePartsForSort(a)
+  const right = namePartsForSort(b)
+  return (
+    left.firstName.localeCompare(right.firstName, 'vi', { sensitivity: 'base' }) ||
+    left.lastName.localeCompare(right.lastName, 'vi', { sensitivity: 'base' }) ||
+    left.fullName.localeCompare(right.fullName, 'vi', { sensitivity: 'base' }) ||
+    Number(a.id || 0) - Number(b.id || 0)
+  )
+}
+
 const filteredItems = computed(() => {
   let list = items.value
   if (filterStatuses.value.length) {
@@ -44,8 +65,12 @@ const filteredItems = computed(() => {
   if (filterClassId.value != null) {
     list = list.filter((s) => s.classId === filterClassId.value)
   }
-  return list
+  return [...list].sort(compareStudentByFirstName)
 })
+
+const activeStudentsCount = computed(() => items.value.filter((s) => (s.status || 'active') === 'active').length)
+const femaleStudentsCount = computed(() => items.value.filter((s) => s.gender === 'female').length)
+const maleStudentsCount = computed(() => items.value.filter((s) => s.gender !== 'female').length)
 
 const PAGE_SIZE = 10
 const currentPage = ref(1)
@@ -668,11 +693,14 @@ defineExpose({ load })
 </script>
 
 <template>
-  <div class="py-4 container-fluid page-fill">
+  <div class="py-4 container-fluid page-fill students-page">
     <div :class="studentsLayoutClass">
       <!-- LEFT FILTER SIDEBAR -->
-      <div :class="filterSidebarClass">
-        <h6 class="tw-m-0 tw-text-[0.85rem] tw-font-bold tw-text-[#344767]">Bộ lọc</h6>
+      <div :class="filterSidebarClass" class="student-filter-panel">
+        <div class="student-filter-heading">
+          <span class="student-filter-kicker">Bộ lọc</span>
+          <strong>{{ filteredItems.length }} học sinh</strong>
+        </div>
 
         <div :class="filterSectionClass">
           <span class="tw-mb-[0.15rem] tw-text-[0.7rem] tw-font-bold tw-uppercase tw-tracking-[0.04em] tw-text-[#8392ab]">Trạng thái</span>
@@ -712,13 +740,34 @@ defineExpose({ load })
       </div>
 
       <!-- STUDENT TABLE CARD -->
-      <div class="card tw-min-w-0 tw-flex-1">
-        <div class="card-header d-flex flex-wrap align-items-center gap-2 pb-0">
-          <div class="flex-grow-1">
+      <div class="card tw-min-w-0 tw-flex-1 student-list-card">
+        <div class="card-header student-list-header">
+          <div class="student-list-title">
+            <span class="student-list-eyebrow">Hồ sơ học sinh</span>
             <h6>Danh sách học sinh</h6>
-            <p class="mb-2 text-sm text-secondary">Quản lý hồ sơ học sinh</p>
+            <p class="mb-0 text-sm text-secondary">
+              Sắp xếp theo tên gọi, rồi mới đến họ để dễ dò danh sách trong lớp.
+            </p>
           </div>
-          <argon-button v-if="canManageStudents" color="primary" variant="gradient" type="button" @click="openCreate">
+          <div class="student-list-stats">
+            <div class="student-stat-card">
+              <span>Tổng</span>
+              <strong>{{ items.length }}</strong>
+            </div>
+            <div class="student-stat-card student-stat-card--active">
+              <span>Đang học</span>
+              <strong>{{ activeStudentsCount }}</strong>
+            </div>
+            <div class="student-stat-card student-stat-card--girl">
+              <span>Bé gái</span>
+              <strong>{{ femaleStudentsCount }}</strong>
+            </div>
+            <div class="student-stat-card student-stat-card--boy">
+              <span>Bé trai</span>
+              <strong>{{ maleStudentsCount }}</strong>
+            </div>
+          </div>
+          <argon-button v-if="canManageStudents" color="primary" variant="gradient" type="button" class="student-add-btn" @click="openCreate">
             Thêm học sinh
           </argon-button>
         </div>
@@ -759,7 +808,10 @@ defineExpose({ load })
                       />
                     </td>
                     <td>
-                      <h6 class="mb-0 text-sm panel-primary-text">{{ s.name }}</h6>
+                      <div class="student-name-cell">
+                        <h6 class="mb-0 text-sm panel-primary-text">{{ s.name }}</h6>
+                        <span>{{ namePartsForSort(s).firstName ? `Tên: ${namePartsForSort(s).firstName}` : 'Chưa tách tên' }}</span>
+                      </div>
                     </td>
                     <td>
                       <p class="mb-0 text-xs font-weight-bold">{{ s.className || '—' }}</p>
@@ -1599,6 +1651,159 @@ defineExpose({ load })
   cursor: pointer;
 }
 
+.students-page {
+  padding-top: 1rem !important;
+}
+
+.student-filter-panel {
+  position: relative;
+  border: 1px solid rgba(15, 118, 110, 0.12);
+  background:
+    linear-gradient(180deg, rgba(240, 253, 250, 0.86), rgba(255, 255, 255, 0.98) 42%),
+    radial-gradient(circle at top left, rgba(45, 212, 191, 0.16), transparent 38%) !important;
+  box-shadow: 0 1.1rem 2rem -1.7rem rgba(15, 23, 42, 0.3) !important;
+}
+
+.student-filter-heading {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid rgba(15, 118, 110, 0.1);
+}
+
+.student-filter-kicker {
+  color: #0f766e;
+  font-size: 0.68rem;
+  font-weight: 850;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.student-filter-heading strong {
+  color: #1f2a44;
+  font-size: 1.05rem;
+  font-weight: 900;
+}
+
+.student-list-card {
+  overflow: hidden;
+  border: 1px solid #e5edf6;
+  background:
+    linear-gradient(180deg, #ffffff 0%, #fbfdff 100%);
+  box-shadow: 0 1.35rem 2.8rem -2.2rem rgba(15, 23, 42, 0.42);
+}
+
+.student-list-card .card-body {
+  padding-bottom: 0 !important;
+}
+
+.student-list-card .panel-table-wrap {
+  margin: 0;
+  border-right: 0;
+  border-bottom: 0;
+  border-left: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.student-list-card .panel-data-table {
+  min-width: 920px;
+}
+
+.student-list-header {
+  display: grid;
+  grid-template-columns: minmax(15rem, 1fr) auto auto;
+  align-items: center;
+  gap: 0.9rem;
+  padding: 1rem 1.35rem 0.9rem;
+  border-bottom: 1px solid #edf2f7;
+  background:
+    radial-gradient(circle at top left, rgba(20, 184, 166, 0.14), transparent 30%),
+    linear-gradient(135deg, #ffffff 0%, #f8fcff 54%, #eefdf8 100%);
+}
+
+.student-list-title h6 {
+  margin: 0 0 0.15rem;
+  color: #1f2a44;
+  font-size: 1.05rem;
+  font-weight: 900;
+}
+
+.student-list-eyebrow {
+  display: inline-flex;
+  margin-bottom: 0.2rem;
+  color: #0f766e;
+  font-size: 0.68rem;
+  font-weight: 850;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.student-list-stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(4.6rem, 1fr));
+  gap: 0.45rem;
+}
+
+.student-stat-card {
+  min-width: 4.6rem;
+  padding: 0.55rem 0.65rem;
+  border: 1px solid #e5edf6;
+  border-radius: 0.8rem;
+  background: rgba(255, 255, 255, 0.82);
+  box-shadow: 0 0.65rem 1.35rem -1.2rem rgba(15, 23, 42, 0.34);
+}
+
+.student-stat-card span {
+  display: block;
+  color: #64748b;
+  font-size: 0.64rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.student-stat-card strong {
+  display: block;
+  color: #1f2a44;
+  font-size: 1.05rem;
+  font-weight: 900;
+  line-height: 1.15;
+}
+
+.student-stat-card--active {
+  border-color: rgba(45, 206, 137, 0.22);
+  background: rgba(236, 253, 245, 0.9);
+}
+
+.student-stat-card--girl {
+  border-color: rgba(244, 114, 182, 0.22);
+  background: rgba(253, 242, 248, 0.9);
+}
+
+.student-stat-card--boy {
+  border-color: rgba(59, 130, 246, 0.22);
+  background: rgba(239, 246, 255, 0.9);
+}
+
+.student-add-btn {
+  white-space: nowrap;
+  box-shadow: 0 0.8rem 1.5rem -1rem rgba(94, 114, 228, 0.72);
+}
+
+.student-name-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 0.18rem;
+}
+
+.student-name-cell span {
+  color: #0f766e;
+  font-size: 0.68rem;
+  font-weight: 800;
+}
+
 /* ===== Drawer ===== */
 .drawer-backdrop {
   position: fixed;
@@ -2336,6 +2541,23 @@ defineExpose({ load })
 .att-dot--none    { background: #e9ecef; }
 
 @media (max-width: 900px) {
+  .student-list-header {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+  }
+
+  .student-list-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .student-add-btn {
+    justify-self: flex-start;
+  }
+
+  .student-filter-panel {
+    max-height: none;
+  }
+
   .drawer-panel {
     width: 100vw;
     max-width: 100vw;
