@@ -34,14 +34,40 @@ const GENDER_OPTIONS = [
 const EXTRA_FIELDS_DEFAULTS = {
   phone: '', nationality: '', religion: '', houseNumber: '', street: '', province: '', ward: '', hamlet: '',
   birthPlace: '', fatherBirthYear: '', motherBirthYear: '',
+  birthAddress: '', birthWard: '', birthProvince: '',
+  hometownWard: '', hometownProvince: '',
+  birthRegistrationWard: '', birthRegistrationDistrict: '', birthRegistrationProvince: '',
+  birthRegistrationNewWard: '', birthRegistrationNewProvince: '', studentIdIssuedDate: '',
   fatherName: '', fatherBirthDate: '', fatherPhone: '', fatherEmail: '',
-  fatherLogin: '', fatherIdNumber: '', fatherOccupation: '',
+  fatherLogin: '', fatherIdNumber: '', fatherIdIssuedDate: '', fatherEducation: '', fatherOccupation: '',
   motherName: '', motherBirthDate: '', motherPhone: '', motherEmail: '',
-  motherLogin: '', motherIdNumber: '', motherOccupation: '',
+  motherLogin: '', motherIdNumber: '', motherIdIssuedDate: '', motherEducation: '', motherOccupation: '',
   idNumber: '', idIssuedPlace: '', idIssuedDate: '', area: '', bhytNumber: '',
+  householdHouseNumber: '', householdStreet: '', householdWard: '', householdProvince: '', householdAddress: '',
+  docHouseholdRegistration: '', docParentId: '', docBirthCertificate: '', docStudentIdForm: '',
+  docHealthCheck: '', docResidenceConfirmation: '', docBirthCertificateCopy: '',
+  doc2HouseholdRegistration: '', doc2ParentId: '', doc2BirthCertificate: '', doc2StudentIdForm: '',
+  doc2HealthCheck: '', doc2ResidenceConfirmation: '', doc2BirthCertificate04: '',
   disabilityType: '', policyBeneficiary: '', eyeDisease: '',
   guardianName: '', guardianOccupation: '', guardianBirthYear: '',
 }
+
+const DOC_FIELDS = [
+  ['docHouseholdRegistration', 'Hồ sơ HK'],
+  ['docParentId', 'Hồ sơ CCCD'],
+  ['docBirthCertificate', 'Hồ sơ KS'],
+  ['docStudentIdForm', 'Hồ sơ ĐNH'],
+  ['docHealthCheck', 'Hồ sơ KSK'],
+  ['docResidenceConfirmation', 'Hồ sơ ĐTTL/DTTL'],
+  ['docBirthCertificateCopy', 'Hồ sơ KS bản sao'],
+  ['doc2HouseholdRegistration', 'Hồ sơ 2 - HK'],
+  ['doc2ParentId', 'Hồ sơ 2 - CCCD'],
+  ['doc2BirthCertificate', 'Hồ sơ 2 - KS'],
+  ['doc2StudentIdForm', 'Hồ sơ 2 - ĐNH'],
+  ['doc2HealthCheck', 'Hồ sơ 2 - KSK'],
+  ['doc2ResidenceConfirmation', 'Hồ sơ 2 - ĐTTL/DTTL'],
+  ['doc2BirthCertificate04', 'Hồ sơ 2 - KS 04'],
+]
 
 const form = ref({
   name: '',
@@ -82,6 +108,8 @@ const classIsChanging = computed(() => {
 
 const selectedProvince = computed(() => findProvinceByName(form.value.province))
 const wardOptions = computed(() => wardsForProvinceName(form.value.province))
+const selectedHouseholdProvince = computed(() => findProvinceByName(form.value.householdProvince))
+const householdWardOptions = computed(() => wardsForProvinceName(form.value.householdProvince))
 
 function permanentAddressText() {
   const parts = [form.value.houseNumber, form.value.street, form.value.ward, form.value.province]
@@ -99,6 +127,15 @@ watch(
   (province) => {
     if (form.value.ward && !hasWardInProvince(province, form.value.ward)) {
       form.value.ward = ''
+    }
+  }
+)
+
+watch(
+  () => form.value.householdProvince,
+  (province) => {
+    if (form.value.householdWard && !hasWardInProvince(province, form.value.householdWard)) {
+      form.value.householdWard = ''
     }
   }
 )
@@ -276,6 +313,7 @@ function buildPayload() {
     guardianName: form.value.guardianName,
     guardianOccupation: form.value.guardianOccupation,
     guardianBirthYear: form.value.guardianBirthYear,
+    ...Object.fromEntries(Object.keys(EXTRA_FIELDS_DEFAULTS).map((key) => [key, form.value[key]])),
   }
 }
 
@@ -427,6 +465,10 @@ onMounted(async () => {
                 <argon-input v-model="form.idNumber" placeholder="Nhập mã học sinh" name="idNumber" />
               </div>
               <div class="field">
+                <label>Ngày cấp SĐD</label>
+                <app-date-field v-model="form.studentIdIssuedDate" name="studentIdIssuedDate" />
+              </div>
+              <div class="field">
                 <label>Số định danh cá nhân</label>
                 <argon-input v-model="form.phone" placeholder="Nhập số định danh cá nhân" name="phone" />
               </div>
@@ -435,16 +477,8 @@ onMounted(async () => {
                 <argon-input v-model="form.nationality" placeholder="Chọn dân tộc" name="nationality" />
               </div>
               <div class="field">
-                <label>Số nhà</label>
-                <argon-input v-model="form.houseNumber" placeholder="Nhập số nhà" name="houseNumber" />
-              </div>
-              <div class="field">
                 <label>Mã số thẻ BHYT</label>
                 <argon-input v-model="form.bhytNumber" placeholder="Nhập mã số thẻ BHYT" name="bhytNumber" />
-              </div>
-              <div class="field">
-                <label>Nơi đăng ký khám chữa bệnh ban đầu</label>
-                <argon-input v-model="form.idIssuedPlace" placeholder="Nhập nơi đăng ký khám chữa bệnh ban đầu" name="idIssuedPlace" />
               </div>
             </div>
           </section>
@@ -500,6 +534,8 @@ onMounted(async () => {
               <div class="field"><label>Số điện thoại mẹ</label><argon-input v-model="form.motherPhone" placeholder="Nhập số điện thoại mẹ" name="motherPhone" /></div>
               <div class="field"><label>Email mẹ</label><argon-input v-model="form.motherEmail" type="email" placeholder="Nhập email mẹ" name="motherEmail" /></div>
               <div class="field"><label>Căn cước công dân mẹ</label><argon-input v-model="form.motherIdNumber" placeholder="Nhập căn cước công dân mẹ" name="motherIdNumber" /></div>
+              <div class="field"><label>Ngày cấp CCCD mẹ</label><app-date-field v-model="form.motherIdIssuedDate" name="motherIdIssuedDate" /></div>
+              <div class="field"><label>Trình độ mẹ</label><argon-input v-model="form.motherEducation" placeholder="VD: ĐH, CĐ, 12/12" name="motherEducation" /></div>
               <div class="field"><label>Nghề nghiệp mẹ</label><argon-input v-model="form.motherOccupation" placeholder="Nhập nghề nghiệp mẹ" name="motherOccupation" /></div>
             </div>
 
@@ -510,27 +546,47 @@ onMounted(async () => {
               <div class="field"><label>Số điện thoại bố</label><argon-input v-model="form.fatherPhone" placeholder="Nhập số điện thoại bố" name="fatherPhone" /></div>
               <div class="field"><label>Email bố</label><argon-input v-model="form.fatherEmail" type="email" placeholder="Nhập email bố" name="fatherEmail" /></div>
               <div class="field"><label>Căn cước công dân bố</label><argon-input v-model="form.fatherIdNumber" placeholder="Nhập căn cước công dân bố" name="fatherIdNumber" /></div>
+              <div class="field"><label>Ngày cấp CCCD bố</label><app-date-field v-model="form.fatherIdIssuedDate" name="fatherIdIssuedDate" /></div>
+              <div class="field"><label>Trình độ bố</label><argon-input v-model="form.fatherEducation" placeholder="VD: ĐH, CĐ, 12/12" name="fatherEducation" /></div>
               <div class="field"><label>Nghề nghiệp bố</label><argon-input v-model="form.fatherOccupation" placeholder="Nhập nghề nghiệp bố" name="fatherOccupation" /></div>
             </div>
           </section>
 
           <section id="parent-account" class="profile-card profile-card-mint">
-            <h6 class="profile-section-title">Tài khoản phụ huynh</h6>
+            <h6 class="profile-section-title">Thông tin phụ huynh</h6>
             <p class="profile-muted">Thông tin đăng nhập luôn đồng nhất với Số điện thoại/email khai báo ở trên</p>
             <div class="account-table">
               <div class="account-head">Danh xưng</div>
               <div class="account-head">Thông tin đăng nhập</div>
               <div>Mẹ</div>
-              <argon-input v-model="form.motherLogin" placeholder="Nhập số điện thoại/email" name="motherLogin" />
+              <argon-input v-model="form.motherLogin" placeholder="Nhập số điện thoại" name="motherLogin" />
               <div>Bố</div>
-              <argon-input v-model="form.fatherLogin" placeholder="Nhập số điện thoại/email" name="fatherLogin" />
+              <argon-input v-model="form.fatherLogin" placeholder="Nhập số điện thoại" name="fatherLogin" />
             </div>
           </section>
 
           <section id="address-info" class="profile-card profile-card-address">
             <h6 class="profile-section-title">Thông tin địa chỉ</h6>
+            <p class="profile-subtitle">Hộ khẩu</p>
+            <div class="profile-grid profile-grid-4 address-group">
+              <div class="field"><label>Số nhà</label><argon-input v-model="form.householdHouseNumber" placeholder="Số nhà hộ khẩu" name="householdHouseNumber" /></div>
+              <div class="field"><label>Đường</label><argon-input v-model="form.householdStreet" placeholder="Đường hộ khẩu" name="householdStreet" /></div>
+              <div class="field">
+                <label>Tỉnh/Thành phố</label>
+                <searchable-dropdown v-model="form.householdProvince" :options="provinces" placeholder="Chọn Tỉnh/Thành phố" />
+              </div>
+              <div class="field">
+                <label>Phường/Xã</label>
+                <searchable-dropdown
+                  v-model="form.householdWard"
+                  :options="householdWardOptions"
+                  :disabled="!selectedHouseholdProvince"
+                  :placeholder="selectedHouseholdProvince ? 'Chọn Xã/Phường' : 'Chọn tỉnh trước'"
+                />
+              </div>
+            </div>
             <p class="profile-subtitle">Địa chỉ thường trú</p>
-            <div class="profile-grid profile-grid-4">
+            <div class="profile-grid profile-grid-4 address-group">
               <div class="field"><label>Số nhà</label><argon-input v-model="form.houseNumber" placeholder="Nhập số nhà" name="houseNumber" /></div>
               <div class="field"><label>Đường/Thôn/Xóm</label><argon-input v-model="form.street" placeholder="Nhập Đường/Thôn/Xóm" name="street" /></div>
               <div class="field">
@@ -538,7 +594,7 @@ onMounted(async () => {
                 <searchable-dropdown v-model="form.province" :options="provinces" placeholder="Chọn Tỉnh/Thành phố" />
               </div>
               <div class="field">
-                <label>Xã/Phường</label>
+                <label>Phường/Xã</label>
                 <searchable-dropdown
                   v-model="form.ward"
                   :options="wardOptions"
@@ -555,6 +611,7 @@ onMounted(async () => {
               </label>
             </div>
             <argon-input
+              class="address-current-input"
               v-model="form.hamlet"
               placeholder="Nhập địa chỉ hiện tại"
               name="hamlet"
@@ -568,10 +625,30 @@ onMounted(async () => {
               <div class="field"><label>Quốc tịch</label><argon-input v-model="form.nationality" placeholder="VD: Việt Nam" name="nationality" /></div>
               <div class="field"><label>Tôn giáo</label><argon-input v-model="form.religion" placeholder="VD: Không" name="religion" /></div>
               <div class="field"><label>Nơi sinh</label><argon-input v-model="form.birthPlace" placeholder="Nơi sinh" name="birthPlace" /></div>
+              <div class="field"><label>Địa chỉ nơi sinh</label><argon-input v-model="form.birthAddress" placeholder="Địa chỉ nơi sinh" name="birthAddress" /></div>
+              <div class="field"><label>Phường nơi sinh</label><argon-input v-model="form.birthWard" placeholder="Phường/Xã nơi sinh" name="birthWard" /></div>
+              <div class="field"><label>Tỉnh/TP nơi sinh</label><argon-input v-model="form.birthProvince" placeholder="Tỉnh/TP nơi sinh" name="birthProvince" /></div>
+              <div class="field"><label>Quê quán - Phường/Xã</label><argon-input v-model="form.hometownWard" placeholder="Quê quán phường/xã" name="hometownWard" /></div>
+              <div class="field"><label>Quê quán - Tỉnh/TP</label><argon-input v-model="form.hometownProvince" placeholder="Quê quán tỉnh/TP" name="hometownProvince" /></div>
+              <div class="field"><label>Khai sinh - Phường/Xã</label><argon-input v-model="form.birthRegistrationWard" placeholder="Nơi khai sinh phường/xã" name="birthRegistrationWard" /></div>
+              <div class="field"><label>Khai sinh - Quận/Huyện</label><argon-input v-model="form.birthRegistrationDistrict" placeholder="Nơi khai sinh quận/huyện" name="birthRegistrationDistrict" /></div>
+              <div class="field"><label>Khai sinh - Tỉnh/TP</label><argon-input v-model="form.birthRegistrationProvince" placeholder="Nơi khai sinh tỉnh/TP" name="birthRegistrationProvince" /></div>
+              <div class="field"><label>Khai sinh mới - Phường/Xã</label><argon-input v-model="form.birthRegistrationNewWard" placeholder="Nơi khai sinh mới phường/xã" name="birthRegistrationNewWard" /></div>
+              <div class="field"><label>Khai sinh mới - Tỉnh/TP</label><argon-input v-model="form.birthRegistrationNewProvince" placeholder="Nơi khai sinh mới tỉnh/TP" name="birthRegistrationNewProvince" /></div>
               <div class="field"><label>Ngày cấp giấy tờ</label><app-date-field v-model="form.idIssuedDate" name="idIssuedDate" /></div>
               <div class="field"><label>Loại khuyết tật</label><argon-input v-model="form.disabilityType" name="disabilityType" /></div>
               <div class="field"><label>Đối tượng chính sách</label><argon-input v-model="form.policyBeneficiary" name="policyBeneficiary" /></div>
               <div class="field"><label>Bệnh về mắt</label><argon-input v-model="form.eyeDisease" name="eyeDisease" /></div>
+            </div>
+          </section>
+
+          <section id="document-info" class="profile-card" style="display: none;">
+            <h6 class="profile-section-title">Hồ sơ học sinh</h6>
+            <div class="profile-grid profile-grid-4">
+              <div v-for="[field, label] in DOC_FIELDS" :key="field" class="field">
+                <label>{{ label }}</label>
+                <argon-input v-model="form[field]" placeholder="VD: x, 2, ghi chú" :name="field" />
+              </div>
             </div>
           </section>
 
@@ -626,7 +703,7 @@ onMounted(async () => {
 
 .profile-shell {
   display: grid;
-  grid-template-columns: 13.75rem minmax(0, 1fr);
+  grid-template-columns: 14.75rem minmax(0, 1fr);
   gap: 1.25rem;
   padding: 0.9rem 1rem 1.5rem;
 }
@@ -636,16 +713,18 @@ onMounted(async () => {
   top: 4.1rem;
   align-self: start;
   min-height: calc(100vh - 5rem);
-  padding: 0.9rem;
-  border-radius: 0.9rem;
+  padding: 1.25rem 1rem;
+  border: 1px solid #eef2f7;
+  border-radius: 0.85rem;
   background: #ffffff;
+  box-shadow: 0 0.5rem 1.25rem rgba(31, 42, 68, 0.04);
 }
 
 .profile-avatar-wrap {
   position: relative;
-  width: 6.9rem;
-  height: 6.9rem;
-  margin: 0 auto 1rem;
+  width: 6.25rem;
+  height: 6.25rem;
+  margin: 0 auto 1.25rem;
 }
 
 .profile-avatar {
@@ -658,18 +737,19 @@ onMounted(async () => {
 
 .profile-avatar-edit {
   position: absolute;
-  right: 0.2rem;
-  bottom: 0.2rem;
+  right: -0.1rem;
+  bottom: 0.45rem;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 1.6rem;
-  height: 1.6rem;
-  border: 2px solid #ffffff;
+  width: 1.8rem;
+  height: 1.8rem;
+  border: 3px solid #ffffff;
   border-radius: 999px;
-  background: #bfeedd;
+  background: #8ee2c4;
   color: #08956f;
   cursor: pointer;
+  box-shadow: 0 0.25rem 0.65rem rgba(15, 118, 110, 0.18);
 }
 
 .profile-avatar-edit input {
@@ -689,18 +769,21 @@ onMounted(async () => {
 .profile-nav {
   display: flex;
   flex-direction: column;
-  gap: 0.35rem;
+  gap: 0.45rem;
 }
 
 .profile-nav a {
   display: flex;
   align-items: center;
-  min-height: 2.55rem;
-  padding: 0.65rem 0.8rem;
+  min-height: 2.45rem;
+  padding: 0.62rem 0.9rem;
   border-radius: 0.35rem;
   color: #1f2a44;
-  font-size: 0.83rem;
-  font-weight: 750;
+  font-size: 0.84rem;
+  font-weight: 800;
+  line-height: 1.28;
+  text-decoration: none;
+  overflow-wrap: anywhere;
 }
 
 .profile-nav a:hover,
@@ -763,7 +846,9 @@ onMounted(async () => {
 }
 
 .profile-card-address {
-  padding-bottom: 0.75rem;
+  padding: 0.95rem 1rem 1rem;
+  border-color: #cfe8f6;
+  background: #f8fbff;
 }
 
 .profile-card-header {
@@ -789,11 +874,45 @@ onMounted(async () => {
 }
 
 .profile-card-address .profile-subtitle {
-  margin-bottom: 0.5rem;
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.45rem;
+  margin: 0 0 0.5rem;
+  padding: 0.2rem 0.55rem;
+  border-radius: 0.35rem;
+  background: #e8f5ff;
+  color: #126a8f;
+  font-size: 0.78rem;
+  letter-spacing: 0;
 }
 
 .profile-card-address .profile-grid {
-  gap: 0.65rem;
+  gap: 0.55rem 0.65rem;
+}
+
+.address-group {
+  margin-bottom: 0.75rem;
+  padding: 0.7rem 0.8rem;
+  border: 1px solid #d9eaf7;
+  border-radius: 0.65rem;
+  background: #ffffff;
+}
+
+.address-group + .profile-subtitle {
+  margin-top: 0.15rem;
+}
+
+.profile-card-address .field label {
+  color: #385468;
+  font-size: 0.74rem;
+  margin-bottom: 0.32rem;
+}
+
+.profile-card-address :deep(.form-control),
+.profile-card-address select.form-control {
+  min-height: 2.25rem;
+  border-color: #d7e6f2;
+  background-color: #fbfdff;
 }
 
 .profile-card-address :deep(.mb-3),
@@ -912,7 +1031,12 @@ textarea.form-control:focus {
   align-items: center;
   justify-content: space-between;
   gap: 0.75rem;
-  margin: 0.7rem 0 0.45rem;
+  margin: 0.05rem 0 0;
+  padding: 0.7rem 0.8rem 0.5rem;
+  border: 1px solid #d9eaf7;
+  border-bottom: 0;
+  border-radius: 0.65rem 0.65rem 0 0;
+  background: #ffffff;
 }
 
 .address-current-header .profile-subtitle {
@@ -923,6 +1047,15 @@ textarea.form-control:focus {
   width: 1rem;
   height: 1rem;
   accent-color: #12b886;
+}
+
+.address-current-input {
+  display: block;
+  padding: 0 0.8rem 0.75rem;
+  border: 1px solid #d9eaf7;
+  border-top: 0;
+  border-radius: 0 0 0.65rem 0.65rem;
+  background: #ffffff;
 }
 
 :global(html) {

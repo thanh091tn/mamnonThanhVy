@@ -11,6 +11,7 @@
     "db:seed": "node src/seed.js",
     "db:deploy-reset-seed": "node src/run-sql-file.js ../scripts/deploy-reset-seed.sql",
     "db:refresh-students": "node src/run-sql-file.js ../scripts/refresh-students.sql",
+    "db:refresh-students-data-hs": "node src/run-sql-file.js ../scripts/refresh-students-data-hs.sql",
     "db:default-teacher-password": "node src/run-sql-file.js ../scripts/deploy-default-teacher-password.sql",
     "db:demo-teacher": "node src/seed-demo-teacher.js"
   },

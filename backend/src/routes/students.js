@@ -27,12 +27,21 @@ const studentSelect = `
   SELECT s.id, s.name, s.last_name, s.first_name, s.grade, s.email, s.date_of_birth, s.class_id,
          s.avatar, s.join_date, s.status, s.gender,
          s.phone, s.nationality, s.religion, s.province, s.ward, s.house_number, s.street, s.hamlet,
-         s.birth_place, s.father_birth_year, s.mother_birth_year,
+         s.birth_place, s.birth_address, s.birth_ward, s.birth_province,
+         s.hometown_ward, s.hometown_province,
+         s.birth_registration_ward, s.birth_registration_district, s.birth_registration_province,
+         s.birth_registration_new_ward, s.birth_registration_new_province, s.student_id_issued_date,
+         s.father_birth_year, s.mother_birth_year,
          s.father_name, s.father_birth_date, s.father_phone, s.father_email,
-         s.father_login, s.father_id_number, s.father_occupation,
+         s.father_login, s.father_id_number, s.father_id_issued_date, s.father_education, s.father_occupation,
          s.mother_name, s.mother_birth_date, s.mother_phone, s.mother_email,
-         s.mother_login, s.mother_id_number, s.mother_occupation,
+         s.mother_login, s.mother_id_number, s.mother_id_issued_date, s.mother_education, s.mother_occupation,
          s.id_number, s.id_issued_place, s.id_issued_date, s.area, s.bhyt_number,
+         s.household_house_number, s.household_street, s.household_ward, s.household_province, s.household_address,
+         s.doc_household_registration, s.doc_parent_id, s.doc_birth_certificate, s.doc_student_id_form,
+         s.doc_health_check, s.doc_residence_confirmation, s.doc_birth_certificate_copy,
+         s.doc2_household_registration, s.doc2_parent_id, s.doc2_birth_certificate, s.doc2_student_id_form,
+         s.doc2_health_check, s.doc2_residence_confirmation, s.doc2_birth_certificate_04,
          s.disability_type, s.policy_beneficiary, s.eye_disease,
          s.guardian_name, s.guardian_occupation, s.guardian_birth_year,
          c.name AS class_name
@@ -191,6 +200,56 @@ function normalizePersonName({ name, lastName, firstName }, fallbackName = "") {
   return { name: fullName, ...splitFullName(fullName) };
 }
 
+const studentExtraFieldMap = [
+  ["birthAddress", "birth_address"],
+  ["birthWard", "birth_ward"],
+  ["birthProvince", "birth_province"],
+  ["hometownWard", "hometown_ward"],
+  ["hometownProvince", "hometown_province"],
+  ["birthRegistrationWard", "birth_registration_ward"],
+  ["birthRegistrationDistrict", "birth_registration_district"],
+  ["birthRegistrationProvince", "birth_registration_province"],
+  ["birthRegistrationNewWard", "birth_registration_new_ward"],
+  ["birthRegistrationNewProvince", "birth_registration_new_province"],
+  ["studentIdIssuedDate", "student_id_issued_date", "date"],
+  ["motherIdIssuedDate", "mother_id_issued_date", "date"],
+  ["motherEducation", "mother_education"],
+  ["fatherIdIssuedDate", "father_id_issued_date", "date"],
+  ["fatherEducation", "father_education"],
+  ["householdHouseNumber", "household_house_number"],
+  ["householdStreet", "household_street"],
+  ["householdWard", "household_ward"],
+  ["householdProvince", "household_province"],
+  ["householdAddress", "household_address"],
+  ["docHouseholdRegistration", "doc_household_registration"],
+  ["docParentId", "doc_parent_id"],
+  ["docBirthCertificate", "doc_birth_certificate"],
+  ["docStudentIdForm", "doc_student_id_form"],
+  ["docHealthCheck", "doc_health_check"],
+  ["docResidenceConfirmation", "doc_residence_confirmation"],
+  ["docBirthCertificateCopy", "doc_birth_certificate_copy"],
+  ["doc2HouseholdRegistration", "doc2_household_registration"],
+  ["doc2ParentId", "doc2_parent_id"],
+  ["doc2BirthCertificate", "doc2_birth_certificate"],
+  ["doc2StudentIdForm", "doc2_student_id_form"],
+  ["doc2HealthCheck", "doc2_health_check"],
+  ["doc2ResidenceConfirmation", "doc2_residence_confirmation"],
+  ["doc2BirthCertificate04", "doc2_birth_certificate_04"],
+];
+
+async function updateStudentExtraFields(client, studentId, body) {
+  const sets = [];
+  const values = [];
+  for (const [camel, snake, type] of studentExtraFieldMap) {
+    if (body[camel] === undefined) continue;
+    values.push(type === "date" ? normalizeDateInput(body[camel]) : str(body[camel]));
+    sets.push(`${snake} = $${values.length}`);
+  }
+  if (!sets.length) return;
+  values.push(studentId);
+  await client.query(`UPDATE students SET ${sets.join(", ")} WHERE id = $${values.length}`, values);
+}
+
 router.post("/", async (req, res, next) => {
   try {
     const b = req.body || {};
@@ -257,6 +316,7 @@ router.post("/", async (req, res, next) => {
         ]
       );
       const newId = r.rows[0].id;
+      await updateStudentExtraFields(client, newId, b);
       if (class_id != null) {
         const eff = normalizeDateInput(joinDate);
         await client.query(
@@ -451,6 +511,7 @@ router.put("/:id", async (req, res, next) => {
           id,
         ]
       );
+      await updateStudentExtraFields(client, id, b);
       await client.query("COMMIT");
     } catch (e) {
       await client.query("ROLLBACK");

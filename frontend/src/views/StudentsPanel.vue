@@ -30,6 +30,23 @@ const GENDER_OPTIONS = [
   { value: 'female', label: 'Bé gái' },
 ]
 
+const DOC_FIELDS = [
+  ['docHouseholdRegistration', 'Hồ sơ HK'],
+  ['docParentId', 'Hồ sơ CCCD'],
+  ['docBirthCertificate', 'Hồ sơ KS'],
+  ['docStudentIdForm', 'Hồ sơ ĐNH'],
+  ['docHealthCheck', 'Hồ sơ KSK'],
+  ['docResidenceConfirmation', 'Hồ sơ ĐTTL/DTTL'],
+  ['docBirthCertificateCopy', 'Hồ sơ KS bản sao'],
+  ['doc2HouseholdRegistration', 'Hồ sơ 2 - HK'],
+  ['doc2ParentId', 'Hồ sơ 2 - CCCD'],
+  ['doc2BirthCertificate', 'Hồ sơ 2 - KS'],
+  ['doc2StudentIdForm', 'Hồ sơ 2 - ĐNH'],
+  ['doc2HealthCheck', 'Hồ sơ 2 - KSK'],
+  ['doc2ResidenceConfirmation', 'Hồ sơ 2 - ĐTTL/DTTL'],
+  ['doc2BirthCertificate04', 'Hồ sơ 2 - KS 04'],
+]
+
 const items = ref([])
 const classOptions = ref([])
 const loading = ref(false)
@@ -137,6 +154,17 @@ const form = ref({
   ward: '',
   hamlet: '',
   birthPlace: '',
+  birthAddress: '',
+  birthWard: '',
+  birthProvince: '',
+  hometownWard: '',
+  hometownProvince: '',
+  birthRegistrationWard: '',
+  birthRegistrationDistrict: '',
+  birthRegistrationProvince: '',
+  birthRegistrationNewWard: '',
+  birthRegistrationNewProvince: '',
+  studentIdIssuedDate: '',
   fatherBirthYear: '',
   motherBirthYear: '',
   fatherName: '',
@@ -145,6 +173,8 @@ const form = ref({
   fatherEmail: '',
   fatherLogin: '',
   fatherIdNumber: '',
+  fatherIdIssuedDate: '',
+  fatherEducation: '',
   fatherOccupation: '',
   motherName: '',
   motherBirthDate: '',
@@ -152,12 +182,33 @@ const form = ref({
   motherEmail: '',
   motherLogin: '',
   motherIdNumber: '',
+  motherIdIssuedDate: '',
+  motherEducation: '',
   motherOccupation: '',
   idNumber: '',
   idIssuedPlace: '',
   idIssuedDate: '',
   area: '',
   bhytNumber: '',
+  householdHouseNumber: '',
+  householdStreet: '',
+  householdWard: '',
+  householdProvince: '',
+  householdAddress: '',
+  docHouseholdRegistration: '',
+  docParentId: '',
+  docBirthCertificate: '',
+  docStudentIdForm: '',
+  docHealthCheck: '',
+  docResidenceConfirmation: '',
+  docBirthCertificateCopy: '',
+  doc2HouseholdRegistration: '',
+  doc2ParentId: '',
+  doc2BirthCertificate: '',
+  doc2StudentIdForm: '',
+  doc2HealthCheck: '',
+  doc2ResidenceConfirmation: '',
+  doc2BirthCertificate04: '',
   disabilityType: '',
   policyBeneficiary: '',
   eyeDisease: '',
@@ -213,11 +264,20 @@ function resetAll() {
 const EXTRA_FIELDS_DEFAULTS = {
   phone: '', nationality: '', religion: '', houseNumber: '', street: '', province: '', ward: '', hamlet: '',
   birthPlace: '', fatherBirthYear: '', motherBirthYear: '',
+  birthAddress: '', birthWard: '', birthProvince: '',
+  hometownWard: '', hometownProvince: '',
+  birthRegistrationWard: '', birthRegistrationDistrict: '', birthRegistrationProvince: '',
+  birthRegistrationNewWard: '', birthRegistrationNewProvince: '', studentIdIssuedDate: '',
   fatherName: '', fatherBirthDate: '', fatherPhone: '', fatherEmail: '',
-  fatherLogin: '', fatherIdNumber: '', fatherOccupation: '',
+  fatherLogin: '', fatherIdNumber: '', fatherIdIssuedDate: '', fatherEducation: '', fatherOccupation: '',
   motherName: '', motherBirthDate: '', motherPhone: '', motherEmail: '',
-  motherLogin: '', motherIdNumber: '', motherOccupation: '',
+  motherLogin: '', motherIdNumber: '', motherIdIssuedDate: '', motherEducation: '', motherOccupation: '',
   idNumber: '', idIssuedPlace: '', idIssuedDate: '', area: '', bhytNumber: '',
+  householdHouseNumber: '', householdStreet: '', householdWard: '', householdProvince: '', householdAddress: '',
+  docHouseholdRegistration: '', docParentId: '', docBirthCertificate: '', docStudentIdForm: '',
+  docHealthCheck: '', docResidenceConfirmation: '', docBirthCertificateCopy: '',
+  doc2HouseholdRegistration: '', doc2ParentId: '', doc2BirthCertificate: '', doc2StudentIdForm: '',
+  doc2HealthCheck: '', doc2ResidenceConfirmation: '', doc2BirthCertificate04: '',
   disabilityType: '', policyBeneficiary: '', eyeDisease: '',
   guardianName: '', guardianOccupation: '', guardianBirthYear: '',
 }
@@ -332,6 +392,7 @@ function openStudentDetail(row) {
     guardianName: row.guardianName || '',
     guardianOccupation: row.guardianOccupation || '',
     guardianBirthYear: row.guardianBirthYear || '',
+    ...Object.fromEntries(Object.keys(EXTRA_FIELDS_DEFAULTS).map((key) => [key, row[key] || ''])),
   }
   initialClassIdSnapshot.value =
     form.value.classId === '' ? '' : String(form.value.classId)
@@ -519,6 +580,7 @@ async function save() {
       guardianName: form.value.guardianName,
       guardianOccupation: form.value.guardianOccupation,
       guardianBirthYear: form.value.guardianBirthYear,
+      ...Object.fromEntries(Object.keys(EXTRA_FIELDS_DEFAULTS).map((key) => [key, form.value[key]])),
     }
     if (editingId.value) {
       if (classIsChanging.value) {
@@ -1045,6 +1107,14 @@ defineExpose({ load })
                     <strong>{{ displayValue(form.motherIdNumber) }}</strong>
                   </div>
                   <div class="student-info-row">
+                    <span>Ngày cấp CCCD</span>
+                    <strong>{{ displayValue(form.motherIdIssuedDate) }}</strong>
+                  </div>
+                  <div class="student-info-row">
+                    <span>Trình độ</span>
+                    <strong>{{ displayValue(form.motherEducation) }}</strong>
+                  </div>
+                  <div class="student-info-row">
                     <span>Nghề nghiệp</span>
                     <strong>{{ displayValue(form.motherOccupation) }}</strong>
                   </div>
@@ -1069,6 +1139,14 @@ defineExpose({ load })
                   <div class="student-info-row">
                     <span>Căn cước công dân</span>
                     <strong>{{ displayValue(form.fatherIdNumber) }}</strong>
+                  </div>
+                  <div class="student-info-row">
+                    <span>Ngày cấp CCCD</span>
+                    <strong>{{ displayValue(form.fatherIdIssuedDate) }}</strong>
+                  </div>
+                  <div class="student-info-row">
+                    <span>Trình độ</span>
+                    <strong>{{ displayValue(form.fatherEducation) }}</strong>
                   </div>
                   <div class="student-info-row">
                     <span>Nghề nghiệp</span>
@@ -1125,6 +1203,22 @@ defineExpose({ load })
                     <strong>{{ displayValue(form.birthPlace) }}</strong>
                   </div>
                   <div class="student-info-row">
+                    <span>Địa chỉ nơi sinh</span>
+                    <strong>{{ displayValue(form.birthAddress) }}</strong>
+                  </div>
+                  <div class="student-info-row">
+                    <span>Phường nơi sinh</span>
+                    <strong>{{ displayValue(form.birthWard) }}</strong>
+                  </div>
+                  <div class="student-info-row">
+                    <span>Tỉnh/TP nơi sinh</span>
+                    <strong>{{ displayValue(form.birthProvince) }}</strong>
+                  </div>
+                  <div class="student-info-row">
+                    <span>Quê quán</span>
+                    <strong>{{ displayValue([form.hometownWard, form.hometownProvince].filter(Boolean).join(', ')) }}</strong>
+                  </div>
+                  <div class="student-info-row">
                     <span>Năm sinh bố</span>
                     <strong>{{ displayValue(form.fatherBirthYear) }}</strong>
                   </div>
@@ -1141,6 +1235,18 @@ defineExpose({ load })
                   <div class="student-info-row">
                     <span>Số CMND/TCC</span>
                     <strong>{{ displayValue(form.idNumber) }}</strong>
+                  </div>
+                  <div class="student-info-row">
+                    <span>Ngày cấp SĐD</span>
+                    <strong>{{ displayValue(form.studentIdIssuedDate) }}</strong>
+                  </div>
+                  <div class="student-info-row">
+                    <span>Nơi khai sinh</span>
+                    <strong>{{ displayValue([form.birthRegistrationWard, form.birthRegistrationDistrict, form.birthRegistrationProvince].filter(Boolean).join(', ')) }}</strong>
+                  </div>
+                  <div class="student-info-row">
+                    <span>Nơi khai sinh mới</span>
+                    <strong>{{ displayValue([form.birthRegistrationNewWard, form.birthRegistrationNewProvince].filter(Boolean).join(', ')) }}</strong>
                   </div>
                   <div class="student-info-row">
                     <span>Nơi cấp</span>
@@ -1180,6 +1286,7 @@ defineExpose({ load })
                 <label><input type="checkbox" disabled /> Học 2 buổi/ngày</label>
               </div>
             </section>
+
           </div>
         </div>
 

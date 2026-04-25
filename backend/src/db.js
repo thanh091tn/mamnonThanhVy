@@ -184,6 +184,17 @@ export async function initDb() {
     await client.query(`ALTER TABLE students ADD COLUMN IF NOT EXISTS street TEXT DEFAULT '';`);
     await client.query(`ALTER TABLE students ADD COLUMN IF NOT EXISTS hamlet TEXT DEFAULT '';`);
     await client.query(`ALTER TABLE students ADD COLUMN IF NOT EXISTS birth_place TEXT DEFAULT '';`);
+    await client.query(`ALTER TABLE students ADD COLUMN IF NOT EXISTS birth_address TEXT DEFAULT '';`);
+    await client.query(`ALTER TABLE students ADD COLUMN IF NOT EXISTS birth_ward TEXT DEFAULT '';`);
+    await client.query(`ALTER TABLE students ADD COLUMN IF NOT EXISTS birth_province TEXT DEFAULT '';`);
+    await client.query(`ALTER TABLE students ADD COLUMN IF NOT EXISTS hometown_ward TEXT DEFAULT '';`);
+    await client.query(`ALTER TABLE students ADD COLUMN IF NOT EXISTS hometown_province TEXT DEFAULT '';`);
+    await client.query(`ALTER TABLE students ADD COLUMN IF NOT EXISTS birth_registration_ward TEXT DEFAULT '';`);
+    await client.query(`ALTER TABLE students ADD COLUMN IF NOT EXISTS birth_registration_district TEXT DEFAULT '';`);
+    await client.query(`ALTER TABLE students ADD COLUMN IF NOT EXISTS birth_registration_province TEXT DEFAULT '';`);
+    await client.query(`ALTER TABLE students ADD COLUMN IF NOT EXISTS birth_registration_new_ward TEXT DEFAULT '';`);
+    await client.query(`ALTER TABLE students ADD COLUMN IF NOT EXISTS birth_registration_new_province TEXT DEFAULT '';`);
+    await client.query(`ALTER TABLE students ADD COLUMN IF NOT EXISTS student_id_issued_date DATE;`);
     await client.query(`ALTER TABLE students ADD COLUMN IF NOT EXISTS father_birth_year VARCHAR(10) DEFAULT '';`);
     await client.query(`ALTER TABLE students ADD COLUMN IF NOT EXISTS mother_birth_year VARCHAR(10) DEFAULT '';`);
     await client.query(`ALTER TABLE students ADD COLUMN IF NOT EXISTS father_name TEXT DEFAULT '';`);
@@ -192,6 +203,8 @@ export async function initDb() {
     await client.query(`ALTER TABLE students ADD COLUMN IF NOT EXISTS father_email TEXT DEFAULT '';`);
     await client.query(`ALTER TABLE students ADD COLUMN IF NOT EXISTS father_login TEXT DEFAULT '';`);
     await client.query(`ALTER TABLE students ADD COLUMN IF NOT EXISTS father_id_number VARCHAR(50) DEFAULT '';`);
+    await client.query(`ALTER TABLE students ADD COLUMN IF NOT EXISTS father_id_issued_date DATE;`);
+    await client.query(`ALTER TABLE students ADD COLUMN IF NOT EXISTS father_education TEXT DEFAULT '';`);
     await client.query(`ALTER TABLE students ADD COLUMN IF NOT EXISTS father_occupation TEXT DEFAULT '';`);
     await client.query(`ALTER TABLE students ADD COLUMN IF NOT EXISTS mother_name TEXT DEFAULT '';`);
     await client.query(`ALTER TABLE students ADD COLUMN IF NOT EXISTS mother_birth_date DATE;`);
@@ -199,12 +212,33 @@ export async function initDb() {
     await client.query(`ALTER TABLE students ADD COLUMN IF NOT EXISTS mother_email TEXT DEFAULT '';`);
     await client.query(`ALTER TABLE students ADD COLUMN IF NOT EXISTS mother_login TEXT DEFAULT '';`);
     await client.query(`ALTER TABLE students ADD COLUMN IF NOT EXISTS mother_id_number VARCHAR(50) DEFAULT '';`);
+    await client.query(`ALTER TABLE students ADD COLUMN IF NOT EXISTS mother_id_issued_date DATE;`);
+    await client.query(`ALTER TABLE students ADD COLUMN IF NOT EXISTS mother_education TEXT DEFAULT '';`);
     await client.query(`ALTER TABLE students ADD COLUMN IF NOT EXISTS mother_occupation TEXT DEFAULT '';`);
     await client.query(`ALTER TABLE students ADD COLUMN IF NOT EXISTS id_number VARCHAR(50) DEFAULT '';`);
     await client.query(`ALTER TABLE students ADD COLUMN IF NOT EXISTS id_issued_place TEXT DEFAULT '';`);
     await client.query(`ALTER TABLE students ADD COLUMN IF NOT EXISTS id_issued_date DATE;`);
     await client.query(`ALTER TABLE students ADD COLUMN IF NOT EXISTS area TEXT DEFAULT '';`);
     await client.query(`ALTER TABLE students ADD COLUMN IF NOT EXISTS bhyt_number VARCHAR(100) DEFAULT '';`);
+    await client.query(`ALTER TABLE students ADD COLUMN IF NOT EXISTS household_house_number TEXT DEFAULT '';`);
+    await client.query(`ALTER TABLE students ADD COLUMN IF NOT EXISTS household_street TEXT DEFAULT '';`);
+    await client.query(`ALTER TABLE students ADD COLUMN IF NOT EXISTS household_ward TEXT DEFAULT '';`);
+    await client.query(`ALTER TABLE students ADD COLUMN IF NOT EXISTS household_province TEXT DEFAULT '';`);
+    await client.query(`ALTER TABLE students ADD COLUMN IF NOT EXISTS household_address TEXT DEFAULT '';`);
+    await client.query(`ALTER TABLE students ADD COLUMN IF NOT EXISTS doc_household_registration TEXT DEFAULT '';`);
+    await client.query(`ALTER TABLE students ADD COLUMN IF NOT EXISTS doc_parent_id TEXT DEFAULT '';`);
+    await client.query(`ALTER TABLE students ADD COLUMN IF NOT EXISTS doc_birth_certificate TEXT DEFAULT '';`);
+    await client.query(`ALTER TABLE students ADD COLUMN IF NOT EXISTS doc_student_id_form TEXT DEFAULT '';`);
+    await client.query(`ALTER TABLE students ADD COLUMN IF NOT EXISTS doc_health_check TEXT DEFAULT '';`);
+    await client.query(`ALTER TABLE students ADD COLUMN IF NOT EXISTS doc_residence_confirmation TEXT DEFAULT '';`);
+    await client.query(`ALTER TABLE students ADD COLUMN IF NOT EXISTS doc_birth_certificate_copy TEXT DEFAULT '';`);
+    await client.query(`ALTER TABLE students ADD COLUMN IF NOT EXISTS doc2_household_registration TEXT DEFAULT '';`);
+    await client.query(`ALTER TABLE students ADD COLUMN IF NOT EXISTS doc2_parent_id TEXT DEFAULT '';`);
+    await client.query(`ALTER TABLE students ADD COLUMN IF NOT EXISTS doc2_birth_certificate TEXT DEFAULT '';`);
+    await client.query(`ALTER TABLE students ADD COLUMN IF NOT EXISTS doc2_student_id_form TEXT DEFAULT '';`);
+    await client.query(`ALTER TABLE students ADD COLUMN IF NOT EXISTS doc2_health_check TEXT DEFAULT '';`);
+    await client.query(`ALTER TABLE students ADD COLUMN IF NOT EXISTS doc2_residence_confirmation TEXT DEFAULT '';`);
+    await client.query(`ALTER TABLE students ADD COLUMN IF NOT EXISTS doc2_birth_certificate_04 TEXT DEFAULT '';`);
     await client.query(`
       UPDATE students
       SET house_number = area
@@ -819,6 +853,17 @@ export function mapStudentRow(row) {
     street: row.street ?? "",
     hamlet: row.hamlet ?? "",
     birthPlace: row.birth_place ?? "",
+    birthAddress: row.birth_address ?? "",
+    birthWard: row.birth_ward ?? "",
+    birthProvince: row.birth_province ?? "",
+    hometownWard: row.hometown_ward ?? "",
+    hometownProvince: row.hometown_province ?? "",
+    birthRegistrationWard: row.birth_registration_ward ?? "",
+    birthRegistrationDistrict: row.birth_registration_district ?? "",
+    birthRegistrationProvince: row.birth_registration_province ?? "",
+    birthRegistrationNewWard: row.birth_registration_new_ward ?? "",
+    birthRegistrationNewProvince: row.birth_registration_new_province ?? "",
+    studentIdIssuedDate: dateToApi(row.student_id_issued_date),
     fatherBirthYear: row.father_birth_year ?? "",
     motherBirthYear: row.mother_birth_year ?? "",
     fatherName: row.father_name ?? "",
@@ -827,6 +872,8 @@ export function mapStudentRow(row) {
     fatherEmail: row.father_email ?? "",
     fatherLogin: row.father_login ?? "",
     fatherIdNumber: row.father_id_number ?? "",
+    fatherIdIssuedDate: dateToApi(row.father_id_issued_date),
+    fatherEducation: row.father_education ?? "",
     fatherOccupation: row.father_occupation ?? "",
     motherName: row.mother_name ?? "",
     motherBirthDate: dateToApi(row.mother_birth_date),
@@ -834,12 +881,33 @@ export function mapStudentRow(row) {
     motherEmail: row.mother_email ?? "",
     motherLogin: row.mother_login ?? "",
     motherIdNumber: row.mother_id_number ?? "",
+    motherIdIssuedDate: dateToApi(row.mother_id_issued_date),
+    motherEducation: row.mother_education ?? "",
     motherOccupation: row.mother_occupation ?? "",
     idNumber: row.id_number ?? "",
     idIssuedPlace: row.id_issued_place ?? "",
     idIssuedDate: dateToApi(row.id_issued_date),
     area: row.area ?? "",
     bhytNumber: row.bhyt_number ?? "",
+    householdHouseNumber: row.household_house_number ?? "",
+    householdStreet: row.household_street ?? "",
+    householdWard: row.household_ward ?? "",
+    householdProvince: row.household_province ?? "",
+    householdAddress: row.household_address ?? "",
+    docHouseholdRegistration: row.doc_household_registration ?? "",
+    docParentId: row.doc_parent_id ?? "",
+    docBirthCertificate: row.doc_birth_certificate ?? "",
+    docStudentIdForm: row.doc_student_id_form ?? "",
+    docHealthCheck: row.doc_health_check ?? "",
+    docResidenceConfirmation: row.doc_residence_confirmation ?? "",
+    docBirthCertificateCopy: row.doc_birth_certificate_copy ?? "",
+    doc2HouseholdRegistration: row.doc2_household_registration ?? "",
+    doc2ParentId: row.doc2_parent_id ?? "",
+    doc2BirthCertificate: row.doc2_birth_certificate ?? "",
+    doc2StudentIdForm: row.doc2_student_id_form ?? "",
+    doc2HealthCheck: row.doc2_health_check ?? "",
+    doc2ResidenceConfirmation: row.doc2_residence_confirmation ?? "",
+    doc2BirthCertificate04: row.doc2_birth_certificate_04 ?? "",
     disabilityType: row.disability_type ?? "",
     policyBeneficiary: row.policy_beneficiary ?? "",
     eyeDisease: row.eye_disease ?? "",
