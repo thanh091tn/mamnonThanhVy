@@ -334,6 +334,17 @@ INSERT INTO imported_students (student_id, excel_row, class_name, class_level, o
   (167, 168, 'Lá', '', '', 'Lâm Ngọc Hiên', 'Lâm Ngọc', 'Hiên', '', '2020-04-04'::date, NULL, 'active', 'male', '0939843293', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', NULL, '', '', NULL, '', '', 'Ngô Thị Bích Lụa', '1997', NULL, '0939843293', '', '0939843293', '068191000297', NULL, '', 'KD', 'Lâm Văn Quân', '1992', NULL, '0943009094', '', '0943009094', '091092009441', NULL, '', 'KD', '', '', '', '', '', '', '', 'x', 'x', '', '', '', '', '', '', '', '', '', ''),
   (168, 169, 'Lá', '', '58', 'Lê Ngọc Thiên Ý', 'Lê Ngọc Thiên', 'Ý', '', '2020-06-08'::date, NULL, 'active', 'male', '0938200787', '', '', '', '', '', '', '', 'BVĐK Khánh Hòa', '', '', '', '', '', 'Ninh An', 'Ninh Hòa', 'Khánh Hòa', '', '', '2020-06-22'::date, '056320003577', '', NULL, '', '', 'Nguyễn Thị Ngọc Anh', '1987', NULL, '0938200787', '', '0938200787', '056187005003', '2023-05-21'::date, 'ĐH', 'NVVP', 'Lê Xuân Long', '1987', NULL, '', '', '', '038087045716', '2022-08-03'::date, 'ĐH', 'NVVP', '', '', '', '', '', 'x', '2', 'x', 'x', 'x', '', 'x', 'x', 'x', 'x', '', '', '', '');
 
+UPDATE imported_students
+SET gender = CASE
+  WHEN student_id = ANY(ARRAY[
+    3,4,7,13,15,16,18,19,24,25,26,27,29,37,38,39,41,43,45,48,49,50,53,55,59,60,61,64,
+    70,71,73,74,78,79,82,84,85,86,87,90,91,92,96,97,98,99,101,103,104,112,114,115,
+    116,117,119,120,122,125,127,130,131,133,134,135,142,143,146,148,149,150,154,158,
+    159,160,162,165,166
+  ]::int[]) THEN 'female'
+  ELSE 'male'
+END;
+
 TRUNCATE TABLE
   discount_policy_students, fee_adjustments, fee_payments, student_attendance, student_class_history,
   student_fee_period_discounts, student_fee_period_items, student_fee_periods, student_service_subscriptions,

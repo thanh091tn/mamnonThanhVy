@@ -424,6 +424,7 @@ defineExpose({ load })
                     type="button"
                     @click="switchClassDetailTab('attendance')"
                   >
+                    <i class="ni ni-check-bold me-1"></i>
                     Điểm danh học sinh
                   </button>
                 </li>

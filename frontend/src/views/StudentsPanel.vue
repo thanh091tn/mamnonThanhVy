@@ -50,6 +50,9 @@ const DOC_FIELDS = [
 const items = ref([])
 const classOptions = ref([])
 const loading = ref(false)
+const exporting = ref(false)
+const exportButtonLabel = computed(() => exporting.value ? '\u0110ang t\u1ea3i...' : 'Xu\u1ea5t Excel')
+const createButtonLabel = computed(() => 'Th\u00eam h\u1ecdc sinh')
 const filterStatuses = ref([])
 const filterClassId = ref(null)
 
@@ -523,6 +526,38 @@ async function load() {
   }
 }
 
+function exportFileNameFromDisposition(disposition) {
+  const fallback = `danh-sach-hoc-sinh-theo-lop-${new Date().toISOString().slice(0, 10)}.xls`
+  const value = String(disposition || '')
+  const utf8Match = value.match(/filename\*=UTF-8''([^;]+)/i)
+  if (utf8Match) return decodeURIComponent(utf8Match[1])
+  const asciiMatch = value.match(/filename="?([^";]+)"?/i)
+  return asciiMatch ? asciiMatch[1] : fallback
+}
+
+async function exportStudentsByClass() {
+  exporting.value = true
+  loadErr.value = ''
+  try {
+    const response = await api.get('/students/export/classes', { responseType: 'blob' })
+    const blob = new Blob([response.data], {
+      type: response.headers['content-type'] || 'application/vnd.ms-excel',
+    })
+    const url = window.URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = exportFileNameFromDisposition(response.headers['content-disposition'])
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+    window.URL.revokeObjectURL(url)
+  } catch (e) {
+    loadErr.value = e.response?.data?.error || e.message || 'Export failed'
+  } finally {
+    exporting.value = false
+  }
+}
+
 async function save() {
   formErr.value = ''
   const fullName = formFullName()
@@ -829,9 +864,23 @@ defineExpose({ load })
               <strong>{{ maleStudentsCount }}</strong>
             </div>
           </div>
-          <argon-button v-if="canManageStudents" color="primary" variant="gradient" type="button" class="student-add-btn" @click="openCreate">
-            Thêm học sinh
-          </argon-button>
+          <div class="student-list-actions">
+            <argon-button
+              color="secondary"
+              variant="outline"
+              type="button"
+              class="student-action-btn student-export-btn"
+              :disabled="exporting"
+              @click="exportStudentsByClass"
+            >
+              <i class="ni ni-cloud-download-95 me-1"></i>
+              <span class="student-export-label">{{ exportButtonLabel }}</span>
+            </argon-button>
+            <argon-button v-if="canManageStudents" color="primary" variant="gradient" type="button" class="student-action-btn student-create-btn" @click="openCreate">
+              <i class="ni ni-fat-add me-1"></i>
+              <span class="student-create-label">{{ createButtonLabel }}</span>
+            </argon-button>
+          </div>
         </div>
         <div class="card-body px-0 pt-0 pb-2">
           <argon-alert v-if="loadErr" color="danger" icon="ni ni-fat-remove" class="mx-4 mt-3">
@@ -1054,6 +1103,7 @@ defineExpose({ load })
               type="button"
               @click="switchDetailTab('attendance')"
             >
+              <i class="ni ni-check-bold me-1"></i>
               Điểm danh
             </button>
           </li>
@@ -1820,10 +1870,10 @@ defineExpose({ load })
 
 .student-list-header {
   display: grid;
-  grid-template-columns: minmax(15rem, 1fr) auto auto;
-  align-items: center;
-  gap: 0.9rem;
-  padding: 1rem 1.35rem 0.9rem;
+  grid-template-columns: minmax(20rem, 1fr) auto auto;
+  align-items: start;
+  gap: 1rem;
+  padding: 1.1rem 1.35rem 1rem;
   border-bottom: 1px solid #edf2f7;
   background:
     radial-gradient(circle at top left, rgba(20, 184, 166, 0.14), transparent 30%),
@@ -1851,6 +1901,56 @@ defineExpose({ load })
   display: grid;
   grid-template-columns: repeat(4, minmax(4.6rem, 1fr));
   gap: 0.45rem;
+}
+
+.student-list-actions {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.55rem;
+}
+
+.student-list-actions :deep(.btn) {
+  margin-bottom: 0 !important;
+}
+
+.student-action-btn {
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+  min-width: 9rem;
+  min-height: 3rem;
+  margin: 0 !important;
+  padding: 0.72rem 1rem !important;
+  border-radius: 0.55rem !important;
+  font-size: 0.88rem;
+  font-weight: 850;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.student-export-btn {
+  border: 1px solid #16a34a !important;
+  background: linear-gradient(135deg, #16a34a 0%, #0f766e 100%) !important;
+  color: #ffffff !important;
+  box-shadow: 0 0.65rem 1.35rem -0.9rem rgba(22, 163, 74, 0.72);
+}
+
+.student-export-btn:hover:not(:disabled),
+.student-export-btn:focus:not(:disabled) {
+  border-color: #15803d !important;
+  background: linear-gradient(135deg, #22c55e 0%, #0d9488 100%) !important;
+  color: #ffffff !important;
+  box-shadow: 0 0.85rem 1.6rem -0.9rem rgba(22, 163, 74, 0.9);
+  transform: translateY(-1px);
+}
+
+.student-export-btn:disabled {
+  border-color: #86efac !important;
+  background: linear-gradient(135deg, #86efac 0%, #5eead4 100%) !important;
+  color: #f8fafc !important;
+  opacity: 0.78;
 }
 
 .student-stat-card {
@@ -1894,9 +1994,27 @@ defineExpose({ load })
   background: rgba(239, 246, 255, 0.9);
 }
 
-.student-add-btn {
-  white-space: nowrap;
-  box-shadow: 0 0.8rem 1.5rem -1rem rgba(94, 114, 228, 0.72);
+.student-create-btn {
+  border: 1px solid #4f46e5 !important;
+  background: linear-gradient(135deg, #6366f1 0%, #7c3aed 100%) !important;
+  color: #ffffff !important;
+  box-shadow: 0 0.85rem 1.6rem -0.95rem rgba(99, 102, 241, 0.85);
+  font-size: 0;
+}
+
+.student-create-btn:hover:not(:disabled),
+.student-create-btn:focus:not(:disabled) {
+  border-color: #4338ca !important;
+  background: linear-gradient(135deg, #818cf8 0%, #8b5cf6 100%) !important;
+  color: #ffffff !important;
+  box-shadow: 0 1rem 1.75rem -0.95rem rgba(99, 102, 241, 0.95);
+  transform: translateY(-1px);
+}
+
+.student-create-btn i,
+.student-create-label {
+  color: inherit;
+  font-size: 0.88rem;
 }
 
 .student-name-cell {
@@ -2657,8 +2775,13 @@ defineExpose({ load })
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .student-add-btn {
-    justify-self: flex-start;
+  .student-list-actions {
+    justify-content: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .student-action-btn {
+    flex: 1 1 10rem;
   }
 
   .student-filter-panel {

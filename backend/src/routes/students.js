@@ -10,6 +10,204 @@ import {
 
 const router = Router();
 
+const exportHeaderLabels = [
+  "STT",
+  "L\u1edbp",
+  "M\u00e3 h\u1ecdc sinh",
+  "H\u1ecd v\u00e0 t\u00ean",
+  "Gi\u1edbi t\u00ednh",
+  "Tr\u1ea1ng th\u00e1i",
+  "Ng\u00e0y sinh",
+  "D\u00e2n t\u1ed9c",
+  "M\u00e3 s\u1ed1 th\u1ebb BHYT",
+  "Ng\u00e0y nh\u1eadp h\u1ecdc",
+  "\u0110\u1ecba ch\u1ec9 chi ti\u1ebft",
+  "T\u1ec9nh/Th\u00e0nh ph\u1ed1(Theo \u0111\u1ecba ch\u1ec9 th\u01b0\u1eddng tr\u00fa)",
+  "X\u00e3/Ph\u01b0\u1eddng(Theo \u0111\u1ecba ch\u1ec9 th\u01b0\u1eddng tr\u00fa)",
+  "\u0110\u01b0\u1eddng/Th\u00f4n/X\u00f3m (Theo \u0111\u1ecba ch\u1ec9 th\u01b0\u1eddng tr\u00fa)",
+  "\u0110\u1ecba ch\u1ec9 hi\u1ec7n t\u1ea1i",
+  "S\u1ed1 \u0111\u1ecbnh danh c\u00e1 nh\u00e2n",
+  "H\u1ecd v\u00e0 t\u00ean m\u1eb9",
+  "Ng\u00e0y sinh m\u1eb9",
+  "S\u1ed1 \u0111i\u1ec7n tho\u1ea1i m\u1eb9",
+  "Email m\u1eb9",
+  "CCCD m\u1eb9",
+  "Ngh\u1ec1 nghi\u1ec7p m\u1eb9",
+  "H\u1ecd v\u00e0 t\u00ean b\u1ed1",
+  "Ng\u00e0y sinh b\u1ed1",
+  "S\u1ed1 \u0111i\u1ec7n tho\u1ea1i b\u1ed1",
+  "Email b\u1ed1",
+  "CCCD b\u1ed1",
+  "Ngh\u1ec1 nghi\u1ec7p b\u1ed1",
+];
+
+function cleanExportText(value) {
+  return String(value ?? "")
+    .replace(/\u00a0/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function formatExportDate(value) {
+  const text = cleanExportText(value);
+  if (!text) return "";
+  const m = text.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (m) return `${m[3]}/${m[2]}/${m[1]}`;
+  if (value instanceof Date) {
+    const day = String(value.getDate()).padStart(2, "0");
+    const month = String(value.getMonth() + 1).padStart(2, "0");
+    return `${day}/${month}/${value.getFullYear()}`;
+  }
+  return text;
+}
+
+function joinExportAddress(parts) {
+  return parts.map(cleanExportText).filter(Boolean).join(", ");
+}
+
+function exportGenderLabelText(gender) {
+  return gender === "female" ? "N\u1eef" : "Nam";
+}
+
+function exportStatusLabelText(status) {
+  const s = cleanExportText(status).toLowerCase();
+  if (s === "inactive") return "Ngh\u1ec9 h\u1ecdc";
+  if (s === "graduated") return "T\u1ed1t nghi\u1ec7p";
+  if (s === "leave") return "T\u1ea1m ngh\u1ec9";
+  return "\u0110ang h\u1ecdc";
+}
+
+function safeSheetName(name, usedNames) {
+  const base = (cleanExportText(name) || "Chưa phân lớp")
+    .replace(/[\[\]\*\/\\\?\:]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 31) || "Sheet";
+  let candidate = base;
+  let index = 2;
+  while (usedNames.has(candidate)) {
+    const suffix = ` (${index})`;
+    candidate = `${base.slice(0, 31 - suffix.length)}${suffix}`;
+    index += 1;
+  }
+  usedNames.add(candidate);
+  return candidate;
+}
+
+function buildStudentExportRow(student, index) {
+  const detailAddress = joinExportAddress([student.houseNumber, student.street]);
+  const permanentLine = joinExportAddress([student.street, student.hamlet]);
+  const currentAddress =
+    cleanExportText(student.householdAddress) ||
+    joinExportAddress([student.householdHouseNumber, student.householdStreet, student.householdWard, student.householdProvince]) ||
+    joinExportAddress([detailAddress, student.ward, student.province]);
+
+  return [
+    index + 1,
+    cleanExportText(student.className),
+    "",
+    cleanExportText(student.name),
+    exportGenderLabelText(student.gender),
+    exportStatusLabelText(student.status),
+    formatExportDate(student.dateOfBirth),
+    cleanExportText(student.nationality),
+    cleanExportText(student.bhytNumber),
+    formatExportDate(student.joinDate),
+    detailAddress,
+    cleanExportText(student.province),
+    cleanExportText(student.ward),
+    permanentLine,
+    currentAddress,
+    cleanExportText(student.idNumber),
+    cleanExportText(student.motherName),
+    formatExportDate(student.motherBirthDate),
+    cleanExportText(student.motherPhone),
+    cleanExportText(student.motherEmail),
+    cleanExportText(student.motherIdNumber),
+    cleanExportText(student.motherOccupation),
+    cleanExportText(student.fatherName),
+    formatExportDate(student.fatherBirthDate),
+    cleanExportText(student.fatherPhone),
+    cleanExportText(student.fatherEmail),
+    cleanExportText(student.fatherIdNumber),
+    cleanExportText(student.fatherOccupation),
+  ];
+}
+
+function escapeXml(value) {
+  return cleanExportText(value)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&apos;");
+}
+
+function excelXmlCell(value, styleId = "") {
+  const styleAttr = styleId ? ` ss:StyleID="${styleId}"` : "";
+  const text = escapeXml(value);
+  return `<Cell${styleAttr}><Data ss:Type="String">${text}</Data></Cell>`;
+}
+
+function excelXmlHeaderCell(value) {
+  return `<Cell ss:MergeDown="1" ss:StyleID="Header"><Data ss:Type="String">${escapeXml(value)}</Data></Cell>`;
+}
+
+function excelXmlWorksheet(name, students) {
+  const columns = exportHeaderLabels
+    .map((_, index) => {
+      if (index === 0) return '<Column ss:Width="42"/>';
+      if ([3, 14, 16, 22].includes(index)) return '<Column ss:Width="196"/>';
+      if ([4, 5].includes(index)) return '<Column ss:Width="98"/>';
+      return '<Column ss:Width="147"/>';
+    })
+    .join("");
+  const header = `<Row ss:Height="34">${exportHeaderLabels.map(excelXmlHeaderCell).join("")}</Row><Row ss:Height="34"></Row>`;
+  const body = students
+    .map((student, index) => `<Row>${buildStudentExportRow(student, index).map((value) => excelXmlCell(value)).join("")}</Row>`)
+    .join("");
+
+  return `
+    <Worksheet ss:Name="${escapeXml(name)}">
+      <Table>
+        ${columns}
+        ${header}
+        ${body}
+      </Table>
+    </Worksheet>`;
+}
+
+function buildStudentExportWorkbookXml(groups) {
+  const worksheets = groups.map((group) => excelXmlWorksheet(group.name, group.students)).join("");
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<?mso-application progid="Excel.Sheet"?>
+<Workbook
+  xmlns="urn:schemas-microsoft-com:office:spreadsheet"
+  xmlns:o="urn:schemas-microsoft-com:office:office"
+  xmlns:x="urn:schemas-microsoft-com:office:excel"
+  xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet"
+  xmlns:html="http://www.w3.org/TR/REC-html40">
+  <Styles>
+    <Style ss:ID="Default" ss:Name="Normal">
+      <Alignment ss:Vertical="Center"/>
+      <Font ss:FontName="Arial" ss:Size="10"/>
+    </Style>
+    <Style ss:ID="Header">
+      <Alignment ss:Horizontal="Center" ss:Vertical="Center" ss:WrapText="1"/>
+      <Font ss:FontName="Arial" ss:Size="10" ss:Bold="1" ss:Color="#1F2A44"/>
+      <Interior ss:Color="#FFF2CC" ss:Pattern="Solid"/>
+      <Borders>
+        <Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#D9E2F3"/>
+        <Border ss:Position="Left" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#D9E2F3"/>
+        <Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#D9E2F3"/>
+        <Border ss:Position="Top" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#D9E2F3"/>
+      </Borders>
+    </Style>
+  </Styles>
+  ${worksheets}
+</Workbook>`;
+}
+
 function normalizeHistoryNote(v) {
   if (v == null) return "";
   return String(v).trim().slice(0, 2000);
@@ -130,6 +328,72 @@ router.get("/", async (req, res, next) => {
     }
     const r = await pool.query(`${studentSelect} ${where} ${studentNameOrder}`, params);
     res.json(r.rows.map(mapStudentRow));
+  } catch (e) {
+    next(e);
+  }
+});
+
+router.get("/export/classes", async (req, res, next) => {
+  try {
+    const params = [];
+    let where = "";
+    if (req.user?.role === "teacher") {
+      if (req.user.teacherId == null) {
+        return res.status(403).json({ error: "Teacher is not assigned to any class" });
+      }
+      params.push(req.user.teacherId);
+      where = `
+        WHERE EXISTS (
+          SELECT 1
+          FROM class_teachers ct
+          WHERE ct.class_id = s.class_id AND ct.teacher_id = $1
+        )
+      `;
+    }
+
+    const classesResult = await pool.query(
+      `SELECT c.id, c.name
+       FROM classes c
+       ${req.user?.role === "teacher"
+         ? "WHERE EXISTS (SELECT 1 FROM class_teachers ct WHERE ct.class_id = c.id AND ct.teacher_id = $1)"
+         : ""}
+       ORDER BY c.id`,
+      params
+    );
+    const result = await pool.query(`${studentSelect} ${where} ${studentNameOrder}`, params);
+    const students = result.rows.map(mapStudentRow);
+    const groups = new Map();
+    for (const row of classesResult.rows) {
+      groups.set(`class:${row.id}`, {
+        name: row.name || "Chưa đặt tên lớp",
+        students: [],
+      });
+    }
+    for (const student of students) {
+      const key = student.classId != null ? `class:${student.classId}` : "unassigned";
+      if (!groups.has(key)) {
+        groups.set(key, {
+          name: student.className || "Chưa phân lớp",
+          students: [],
+        });
+      }
+      groups.get(key).students.push(student);
+    }
+    if (!groups.size) groups.set("all", { name: "Danh sách", students: [] });
+
+    const usedSheetNames = new Set();
+    const exportGroups = [...groups.values()]
+      .sort((a, b) => a.name.localeCompare(b.name, "vi"))
+      .map((group) => ({
+        name: safeSheetName(group.name, usedSheetNames),
+        students: group.students,
+      }));
+
+    const buffer = Buffer.from(`\ufeff${buildStudentExportWorkbookXml(exportGroups)}`, "utf8");
+    const today = new Date().toISOString().slice(0, 10);
+    res.setHeader("Content-Type", "application/vnd.ms-excel; charset=utf-8");
+    res.setHeader("Content-Disposition", `attachment; filename="danh-sach-hoc-sinh-theo-lop-${today}.xls"`);
+    res.send(buffer);
   } catch (e) {
     next(e);
   }
