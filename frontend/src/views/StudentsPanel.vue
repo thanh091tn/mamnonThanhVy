@@ -2425,7 +2425,6 @@ defineExpose({ load })
   gap: 0;
   padding-top: 0;
   padding-bottom: 0;
-  overflow-x: auto;
   flex-wrap: nowrap;
   border-bottom: 1px solid #d9e2ec;
   background: #ffffff;
