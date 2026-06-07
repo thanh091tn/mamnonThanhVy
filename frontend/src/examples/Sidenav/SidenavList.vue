@@ -114,6 +114,18 @@ const getRoute = () => route.path.split("/")[1];
         </sidenav-item>
       </li>
 
+      <li v-if="authUser?.role === 'admin'" class="nav-item">
+        <sidenav-item
+          to="/year-end-transition"
+          :class="getRoute() === 'year-end-transition' ? 'active' : ''"
+          :navText="isRTL ? 'Class Transfer' : 'Chuy\u1ec3n l\u1edbp'"
+        >
+          <template #icon>
+            <i class="ni ni-curved-next text-info text-sm"></i>
+          </template>
+        </sidenav-item>
+      </li>
+
       <li v-if="authUser?.role === 'admin'" class="nav-item sidenav-section-title">
         <h6
           class="text-xs text-uppercase font-weight-bolder mb-0"

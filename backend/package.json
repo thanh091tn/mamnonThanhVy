@@ -13,7 +13,8 @@
     "db:refresh-students": "node src/run-sql-file.js ../scripts/refresh-students.sql",
     "db:refresh-students-data-hs": "node src/run-sql-file.js ../scripts/refresh-students-data-hs.sql",
     "db:default-teacher-password": "node src/run-sql-file.js ../scripts/deploy-default-teacher-password.sql",
-    "db:demo-teacher": "node src/seed-demo-teacher.js"
+    "db:demo-teacher": "node src/seed-demo-teacher.js",
+    "db:setup-year-end-transition-prod": "node src/run-sql-file.js ../scripts/prod-setup-year-end-transition.sql"
   },
   "engines": {
     "node": ">=18"
@@ -23,6 +24,7 @@
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
+    "headroom-ai": "^0.22.4",
     "jsonwebtoken": "^9.0.2",
     "multer": "^1.4.5-lts.1",
     "pg": "^8.13.1",

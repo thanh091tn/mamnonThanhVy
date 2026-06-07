@@ -1,3 +1,5 @@
+@use "sass:math";
+
 // Base class
 //
 // Easily usable on <ul>, <ol>, or <div>.
@@ -167,7 +169,7 @@
     $list-group-variant-color: mix(
       $value,
       color-contrast($list-group-variant-bg),
-      abs($list-group-item-color-scale)
+      math.abs($list-group-item-color-scale)
     );
   }
 

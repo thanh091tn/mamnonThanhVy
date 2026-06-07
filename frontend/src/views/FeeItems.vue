@@ -1,47 +1,58 @@
 <script setup>
-import { computed, onMounted, ref } from "vue";
+import { computed, onMounted, ref, watch } from "vue";
 import { api } from "@/api/client.js";
 import ArgonAlert from "@/components/ArgonAlert.vue";
 import ArgonButton from "@/components/ArgonButton.vue";
 
-const CATEGORY_OPTIONS = [
-  { value: "fixed", label: "Cố định theo tháng" },
-  { value: "daily", label: "Theo ngày" },
-  { value: "service", label: "Theo đăng ký dịch vụ" },
-  { value: "one_time", label: "Một lần / theo kỳ" },
-  { value: "adjustment", label: "Điều chỉnh" },
-];
-
-const CALC_TYPE_OPTIONS = [
-  { value: "monthly_fixed", label: "Cố định theo tháng" },
-  { value: "attendance_days", label: "Theo ngày học thực tế" },
-  { value: "meal_days", label: "Theo ngày ăn" },
-  { value: "service_fixed", label: "Dịch vụ cố định" },
-  { value: "service_usage", label: "Dịch vụ theo số lượng" },
-  { value: "one_time", label: "Khoản một lần" },
-  { value: "manual", label: "Nhập tay/điều chỉnh" },
-];
-
-const PRORATION_OPTIONS = [
-  { value: "full_month", label: "Tính đủ tháng" },
-  { value: "half_month", label: "Theo nửa tháng" },
-  { value: "actual_days", label: "Theo số ngày thực tế" },
+const FEE_TYPE_OPTIONS = [
+  {
+    value: "monthly_fixed",
+    label: "Thu cố định hằng tháng",
+    category: "fixed",
+    unitName: "tháng",
+    description: "Dùng cho học phí, bán trú hoặc khoản thu cố định.",
+  },
+  {
+    value: "meal_days",
+    label: "Thu theo ngày ăn",
+    category: "daily",
+    unitName: "ngày",
+    description: "Số ngày lấy từ điểm danh chuyên cần.",
+  },
+  {
+    value: "attendance_days",
+    label: "Thu theo ngày học",
+    category: "daily",
+    unitName: "ngày",
+    description: "Số ngày lấy từ điểm danh đi học.",
+  },
+  {
+    value: "service_fixed",
+    label: "Dịch vụ đăng ký hằng tháng",
+    category: "service",
+    unitName: "tháng",
+    description: "Chỉ tính cho học sinh có đăng ký dịch vụ.",
+  },
+  {
+    value: "service_usage",
+    label: "Dịch vụ theo số lượng",
+    category: "service",
+    unitName: "lượt",
+    description: "Số lượng nhập tại màn đăng ký dịch vụ.",
+  },
+  {
+    value: "one_time",
+    label: "Thu một lần",
+    category: "one_time",
+    unitName: "lần",
+    description: "Dùng cho đồng phục, hồ sơ, sự kiện hoặc khoản phát sinh theo kỳ.",
+  },
 ];
 
 const SCOPE_OPTIONS = [
   { value: "all", label: "Toàn trường" },
   { value: "levels", label: "Theo khối/lứa tuổi" },
   { value: "classes", label: "Theo lớp" },
-];
-
-const WEEKDAY_OPTIONS = [
-  { value: 1, label: "T2" },
-  { value: 2, label: "T3" },
-  { value: 3, label: "T4" },
-  { value: 4, label: "T5" },
-  { value: 5, label: "T6" },
-  { value: 6, label: "T7" },
-  { value: 0, label: "CN" },
 ];
 
 const items = ref([]);
@@ -58,17 +69,8 @@ const searchQuery = ref("");
 const form = ref({
   code: "",
   name: "",
-  category: "fixed",
   calcType: "monthly_fixed",
-  billingCycle: "monthly",
-  chargeTiming: "advance",
-  quantityMode: "fixed",
   unitPrice: 0,
-  unitName: "tháng",
-  fixedQuantity: 1,
-  formulaType: "fixed_x_price_x_frequency",
-  frequencyMultiplier: 1,
-  chargeWeekdays: [1, 2, 3, 4, 5, 6],
   isOptional: false,
   active: true,
   scopeType: "all",
@@ -76,9 +78,12 @@ const form = ref({
   applyClassIds: [],
   effectiveStartMonth: "",
   effectiveEndMonth: "",
-  prorationMode: "full_month",
   description: "",
   sortOrder: 1,
+});
+
+const selectedFeeType = computed(() => {
+  return FEE_TYPE_OPTIONS.find((item) => item.value === form.value.calcType) || FEE_TYPE_OPTIONS[0];
 });
 
 const levelOptions = computed(() => {
@@ -100,11 +105,32 @@ function formatMoney(value) {
 }
 
 function categoryLabel(value) {
-  return CATEGORY_OPTIONS.find((item) => item.value === value)?.label || value;
+  return FEE_TYPE_OPTIONS.find((item) => item.category === value)?.label || value;
 }
 
 function calcTypeLabel(value) {
-  return CALC_TYPE_OPTIONS.find((item) => item.value === value)?.label || value;
+  return FEE_TYPE_OPTIONS.find((item) => item.value === value)?.label || value;
+}
+
+function typeDescription(value) {
+  return FEE_TYPE_OPTIONS.find((item) => item.value === value)?.description || "";
+}
+
+function getPayloadDefaults(calcType) {
+  const option = FEE_TYPE_OPTIONS.find((item) => item.value === calcType) || FEE_TYPE_OPTIONS[0];
+  const isDaily = calcType === "meal_days" || calcType === "attendance_days";
+  return {
+    category: option.category,
+    billingCycle: calcType === "one_time" ? "one_time" : "monthly",
+    chargeTiming: isDaily || calcType === "service_usage" ? "arrears" : "advance",
+    quantityMode: isDaily ? "actual_days" : "fixed",
+    unitName: option.unitName,
+    fixedQuantity: 1,
+    formulaType: isDaily ? "actual_days_x_price" : "fixed_x_price",
+    frequencyMultiplier: 1,
+    chargeWeekdays: [1, 2, 3, 4, 5, 6],
+    prorationMode: calcType === "monthly_fixed" || calcType === "service_fixed" ? "half_month" : "full_month",
+  };
 }
 
 function resetForm() {
@@ -112,17 +138,8 @@ function resetForm() {
   form.value = {
     code: "",
     name: "",
-    category: "fixed",
     calcType: "monthly_fixed",
-    billingCycle: "monthly",
-    chargeTiming: "advance",
-    quantityMode: "fixed",
     unitPrice: 0,
-    unitName: "tháng",
-    fixedQuantity: 1,
-    formulaType: "fixed_x_price_x_frequency",
-    frequencyMultiplier: 1,
-    chargeWeekdays: [1, 2, 3, 4, 5, 6],
     isOptional: false,
     active: true,
     scopeType: "all",
@@ -130,18 +147,10 @@ function resetForm() {
     applyClassIds: [],
     effectiveStartMonth: "",
     effectiveEndMonth: "",
-    prorationMode: "full_month",
     description: "",
     sortOrder: items.value.length + 1,
   };
   formErr.value = "";
-}
-
-function toggleWeekday(value) {
-  const selected = new Set(form.value.chargeWeekdays);
-  if (selected.has(value)) selected.delete(value);
-  else selected.add(value);
-  form.value.chargeWeekdays = [...selected].sort((a, b) => a - b);
 }
 
 async function loadMeta() {
@@ -158,17 +167,8 @@ function editItem(row) {
   form.value = {
     code: row.code || "",
     name: row.name || "",
-    category: row.category || "fixed",
     calcType: row.calcType || "monthly_fixed",
-    billingCycle: row.billingCycle || "monthly",
-    chargeTiming: row.chargeTiming || "advance",
-    quantityMode: row.quantityMode || "fixed",
     unitPrice: row.unitPrice || 0,
-    unitName: row.unitName || "tháng",
-    fixedQuantity: row.fixedQuantity || 1,
-    formulaType: row.formulaType || "fixed_x_price_x_frequency",
-    frequencyMultiplier: row.frequencyMultiplier || 1,
-    chargeWeekdays: row.chargeWeekdays?.length ? row.chargeWeekdays : [1, 2, 3, 4, 5, 6],
     isOptional: Boolean(row.isOptional),
     active: Boolean(row.active),
     scopeType: row.scopeType || "all",
@@ -176,7 +176,6 @@ function editItem(row) {
     applyClassIds: Array.isArray(row.applyClassIds) ? row.applyClassIds : [],
     effectiveStartMonth: row.effectiveStartMonth || "",
     effectiveEndMonth: row.effectiveEndMonth || "",
-    prorationMode: row.prorationMode || "full_month",
     description: row.description || "",
     sortOrder: row.sortOrder || 1,
   };
@@ -187,20 +186,21 @@ async function saveItem() {
   formErr.value = "";
   okMsg.value = "";
   try {
+    const defaults = getPayloadDefaults(form.value.calcType);
     const payload = {
       code: form.value.code,
       name: form.value.name,
-      category: form.value.category,
+      category: defaults.category,
       calcType: form.value.calcType,
-      billingCycle: form.value.billingCycle,
-      chargeTiming: form.value.chargeTiming,
-      quantityMode: form.value.quantityMode,
+      billingCycle: defaults.billingCycle,
+      chargeTiming: defaults.chargeTiming,
+      quantityMode: defaults.quantityMode,
       unitPrice: Number(form.value.unitPrice || 0),
-      unitName: form.value.unitName,
-      fixedQuantity: Number(form.value.fixedQuantity || 0),
-      formulaType: form.value.quantityMode === "actual_days" ? "actual_days_x_price" : form.value.formulaType,
-      frequencyMultiplier: Number(form.value.frequencyMultiplier || 1),
-      chargeWeekdays: form.value.chargeWeekdays,
+      unitName: defaults.unitName,
+      fixedQuantity: defaults.fixedQuantity,
+      formulaType: defaults.formulaType,
+      frequencyMultiplier: defaults.frequencyMultiplier,
+      chargeWeekdays: defaults.chargeWeekdays,
       isOptional: Boolean(form.value.isOptional),
       active: Boolean(form.value.active),
       scopeType: form.value.scopeType,
@@ -208,7 +208,7 @@ async function saveItem() {
       applyClassIds: form.value.applyClassIds,
       effectiveStartMonth: form.value.effectiveStartMonth || "",
       effectiveEndMonth: form.value.effectiveEndMonth || "",
-      prorationMode: form.value.prorationMode,
+      prorationMode: defaults.prorationMode,
       description: form.value.description,
       sortOrder: Number(form.value.sortOrder || 0),
     };
@@ -236,6 +236,15 @@ onMounted(async () => {
     loadErr.value = e.response?.data?.error || e.message || "Không tải được cấu hình khoản thu";
   }
 });
+
+watch(
+  () => form.value.calcType,
+  () => {
+    if (!form.value.description.trim()) {
+      form.value.description = selectedFeeType.value.description;
+    }
+  }
+);
 </script>
 
 <template>
@@ -245,7 +254,7 @@ onMounted(async () => {
         <span class="fee-eyebrow">Danh mục</span>
         <h4 class="fee-title mb-1">Danh mục khoản thu</h4>
         <p class="fee-subtitle mb-0">
-          Cấu hình nhóm khoản thu, cách tính, phạm vi áp dụng và quy tắc prorate để hệ thống tự tính đúng cho từng học sinh.
+          Quản lý khoản thu theo cách kế toán thường dùng: chọn loại khoản thu, nhập đơn giá và phạm vi áp dụng.
         </p>
       </div>
       <argon-button color="secondary" variant="outline" type="button" @click="resetForm">
@@ -265,7 +274,7 @@ onMounted(async () => {
         <div class="card fee-card">
           <div class="card-header pb-0">
             <h6 class="mb-1">{{ editingId ? "Cập nhật khoản thu" : "Tạo khoản thu" }}</h6>
-            <p class="text-sm text-secondary mb-0">Mỗi khoản thu nên đứng đúng bản chất: cố định, theo ngày, dịch vụ, một lần hoặc điều chỉnh.</p>
+            <p class="text-sm text-secondary mb-0">Các quy tắc kỹ thuật sẽ được hệ thống tự chọn theo loại khoản thu.</p>
           </div>
           <div class="card-body">
             <argon-alert v-if="formErr" color="danger" icon="ni ni-fat-remove" class="mb-3">
@@ -281,21 +290,14 @@ onMounted(async () => {
                 <label class="form-control-label">Tên khoản thu</label>
                 <input v-model="form.name" type="text" class="form-control" placeholder="Học phí chính khóa" />
               </div>
-              <div class="col-md-6">
-                <label class="form-control-label">Nhóm khoản thu</label>
-                <select v-model="form.category" class="form-select">
-                  <option v-for="option in CATEGORY_OPTIONS" :key="option.value" :value="option.value">
-                    {{ option.label }}
-                  </option>
-                </select>
-              </div>
-              <div class="col-md-6">
-                <label class="form-control-label">Cách tính</label>
+              <div class="col-12">
+                <label class="form-control-label">Loại khoản thu</label>
                 <select v-model="form.calcType" class="form-select">
-                  <option v-for="option in CALC_TYPE_OPTIONS" :key="option.value" :value="option.value">
+                  <option v-for="option in FEE_TYPE_OPTIONS" :key="option.value" :value="option.value">
                     {{ option.label }}
                   </option>
                 </select>
+                <div class="text-xs text-secondary mt-1">{{ typeDescription(form.calcType) }}</div>
               </div>
               <div class="col-md-6">
                 <label class="form-control-label">Đơn giá</label>
@@ -303,28 +305,12 @@ onMounted(async () => {
               </div>
               <div class="col-md-6">
                 <label class="form-control-label">Đơn vị</label>
-                <input v-model="form.unitName" type="text" class="form-control" placeholder="ngày / tháng / buổi" />
-              </div>
-              <div class="col-md-6">
-                <label class="form-control-label">Số lượng mặc định</label>
-                <input v-model="form.fixedQuantity" type="number" min="0" step="0.5" class="form-control" />
-              </div>
-              <div class="col-md-6">
-                <label class="form-control-label">Tần suất</label>
-                <input v-model="form.frequencyMultiplier" type="number" min="0" step="0.5" class="form-control" />
+                <div class="fee-readonly-field">{{ selectedFeeType.unitName }}</div>
               </div>
               <div class="col-md-6">
                 <label class="form-control-label">Phạm vi áp dụng</label>
                 <select v-model="form.scopeType" class="form-select">
                   <option v-for="option in SCOPE_OPTIONS" :key="option.value" :value="option.value">
-                    {{ option.label }}
-                  </option>
-                </select>
-              </div>
-              <div class="col-md-6">
-                <label class="form-control-label">Quy tắc prorate</label>
-                <select v-model="form.prorationMode" class="form-select">
-                  <option v-for="option in PRORATION_OPTIONS" :key="option.value" :value="option.value">
                     {{ option.label }}
                   </option>
                 </select>
@@ -360,24 +346,8 @@ onMounted(async () => {
               </div>
 
               <div class="col-12">
-                <label class="form-control-label">Ngày tính phí</label>
-                <div class="chip-list">
-                  <button
-                    v-for="day in WEEKDAY_OPTIONS"
-                    :key="day.value"
-                    type="button"
-                    class="weekday-chip"
-                    :class="{ 'weekday-chip--active': form.chargeWeekdays.includes(day.value) }"
-                    @click="toggleWeekday(day.value)"
-                  >
-                    {{ day.label }}
-                  </button>
-                </div>
-              </div>
-
-              <div class="col-12">
                 <label class="form-control-label">Mô tả / giải thích</label>
-                <textarea v-model="form.description" rows="3" class="form-control" placeholder="Ví dụ: tiền ăn lấy theo số ngày chuyên cần cuối tháng"></textarea>
+                <textarea v-model="form.description" rows="3" class="form-control" placeholder="Ví dụ: áp dụng cho học sinh bán trú từ tháng 05/2026"></textarea>
               </div>
             </div>
 
@@ -410,8 +380,8 @@ onMounted(async () => {
             <div class="row g-3">
               <div class="col-md-4">
                 <select v-model="categoryFilter" class="form-select">
-                  <option value="">Tất cả nhóm</option>
-                  <option v-for="option in CATEGORY_OPTIONS" :key="option.value" :value="option.value">
+                  <option value="">Tất cả loại</option>
+                  <option v-for="option in FEE_TYPE_OPTIONS" :key="option.value" :value="option.category">
                     {{ option.label }}
                   </option>
                 </select>
@@ -429,8 +399,7 @@ onMounted(async () => {
                 <thead>
                   <tr>
                     <th>Mã / tên</th>
-                    <th>Nhóm</th>
-                    <th>Cách tính</th>
+                    <th>Loại khoản thu</th>
                     <th>Đơn giá</th>
                     <th>Áp dụng</th>
                     <th>Trạng thái</th>
@@ -443,7 +412,6 @@ onMounted(async () => {
                       <strong>{{ row.code }}</strong>
                       <div>{{ row.name }}</div>
                     </td>
-                    <td class="text-sm">{{ categoryLabel(row.category) }}</td>
                     <td class="text-sm">{{ calcTypeLabel(row.calcType) }}</td>
                     <td class="text-sm">{{ formatMoney(row.unitPrice) }} / {{ row.unitName }}</td>
                     <td class="text-sm">
@@ -556,6 +524,16 @@ onMounted(async () => {
   display: inline-flex;
   align-items: center;
   gap: 0.4rem;
+}
+
+.fee-readonly-field {
+  min-height: calc(1.5em + 0.75rem + 2px);
+  padding: 0.5rem 0.75rem;
+  border: 1px solid #e7edf5;
+  border-radius: 0.5rem;
+  background: #f8fafc;
+  color: #475569;
+  font-size: 0.875rem;
 }
 
 .fee-inline-checks,

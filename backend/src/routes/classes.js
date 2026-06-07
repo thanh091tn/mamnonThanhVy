@@ -5,7 +5,7 @@ import { requireManager } from "../middleware/auth.js";
 const router = Router();
 
 const classSelect = `
-  SELECT c.id, c.name, c.level, c.room,
+  SELECT c.id, c.name, c.level, c.room, c.academic_year_id, c.max_students, c.min_age_months, c.max_age_months,
          MIN(ct.teacher_id) AS teacher_id,
          ARRAY_REMOVE(ARRAY_AGG(t.id ORDER BY t.name, t.id), NULL) AS teacher_ids,
          ARRAY_REMOVE(ARRAY_AGG(t.name ORDER BY t.name, t.id), NULL) AS teacher_names

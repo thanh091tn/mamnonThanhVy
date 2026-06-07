@@ -133,6 +133,29 @@ export async function initDb() {
       );
     `);
     await client.query(`
+      CREATE TABLE IF NOT EXISTS academic_years (
+        id SERIAL PRIMARY KEY,
+        name VARCHAR(100) NOT NULL UNIQUE,
+        start_date DATE,
+        end_date DATE,
+        is_current BOOLEAN NOT NULL DEFAULT FALSE,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+    `);
+    await client.query(`
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_academic_years_current
+      ON academic_years(is_current) WHERE is_current = TRUE;
+    `);
+    await client.query(`
+      ALTER TABLE classes ADD COLUMN IF NOT EXISTS academic_year_id INTEGER REFERENCES academic_years(id) ON DELETE SET NULL;
+    `);
+    await client.query(`ALTER TABLE classes ADD COLUMN IF NOT EXISTS max_students INTEGER NOT NULL DEFAULT 35;`);
+    await client.query(`ALTER TABLE classes ADD COLUMN IF NOT EXISTS min_age_months INTEGER;`);
+    await client.query(`ALTER TABLE classes ADD COLUMN IF NOT EXISTS max_age_months INTEGER;`);
+    await client.query(`
+      ALTER TABLE students ADD COLUMN IF NOT EXISTS academic_year_id INTEGER REFERENCES academic_years(id) ON DELETE SET NULL;
+    `);
+    await client.query(`
       CREATE TABLE IF NOT EXISTS class_teachers (
         class_id INTEGER NOT NULL REFERENCES classes(id) ON DELETE CASCADE,
         teacher_id INTEGER NOT NULL REFERENCES teachers(id) ON DELETE CASCADE,
@@ -270,10 +293,18 @@ export async function initDb() {
       );
     `);
     await client.query(`
+      ALTER TABLE student_class_history ADD COLUMN IF NOT EXISTS from_academic_year_id INTEGER REFERENCES academic_years(id) ON DELETE SET NULL;
+    `);
+    await client.query(`
+      ALTER TABLE student_class_history ADD COLUMN IF NOT EXISTS to_academic_year_id INTEGER REFERENCES academic_years(id) ON DELETE SET NULL;
+    `);
+    await client.query(`ALTER TABLE student_class_history ADD COLUMN IF NOT EXISTS action VARCHAR(40) NOT NULL DEFAULT 'class_transfer';`);
+    await client.query(`ALTER TABLE student_class_history ADD COLUMN IF NOT EXISTS from_status VARCHAR(50) DEFAULT '';`);
+    await client.query(`ALTER TABLE student_class_history ADD COLUMN IF NOT EXISTS to_status VARCHAR(50) DEFAULT '';`);
+    await client.query(`
       CREATE INDEX IF NOT EXISTS idx_student_class_history_student
       ON student_class_history(student_id);
     `);
-
     await client.query(`
       CREATE TABLE IF NOT EXISTS student_attendance (
         id SERIAL PRIMARY KEY,
@@ -371,6 +402,24 @@ export async function initDb() {
         AND u.role = 'teacher'
         AND COALESCE(u.phone, '') = ''
         AND COALESCE(t.phone, '') <> '';
+    `);
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS student_bulk_jobs (
+        id SERIAL PRIMARY KEY,
+        job_type VARCHAR(50) NOT NULL,
+        status VARCHAR(20) NOT NULL DEFAULT 'queued'
+          CHECK (status IN ('queued', 'running', 'completed', 'failed')),
+        total_count INTEGER NOT NULL DEFAULT 0,
+        processed_count INTEGER NOT NULL DEFAULT 0,
+        success_count INTEGER NOT NULL DEFAULT 0,
+        failed_count INTEGER NOT NULL DEFAULT 0,
+        error_message TEXT DEFAULT '',
+        payload JSONB NOT NULL DEFAULT '{}'::jsonb,
+        created_by_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        started_at TIMESTAMPTZ,
+        completed_at TIMESTAMPTZ
+      );
     `);
 
     await client.query(`
@@ -933,6 +982,10 @@ export function mapClassRow(row) {
     name: row.name,
     level: row.level ?? "",
     room: row.room ?? "",
+    academicYearId: row.academic_year_id != null ? Number(row.academic_year_id) : null,
+    maxStudents: row.max_students != null ? Number(row.max_students) : 35,
+    minAgeMonths: row.min_age_months != null ? Number(row.min_age_months) : null,
+    maxAgeMonths: row.max_age_months != null ? Number(row.max_age_months) : null,
     teacherId: teacherIds.length ? teacherIds[0] : null,
     teacherName: teacherNames.join(", "),
     teacherIds,

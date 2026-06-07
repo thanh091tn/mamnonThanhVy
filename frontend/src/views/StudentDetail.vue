@@ -18,12 +18,13 @@ const store = useStore()
 
 const isAdmin = computed(() => store.state.authUser?.role === 'admin')
 const canManageStudents = computed(() => ['admin', 'teacher'].includes(store.state.authUser?.role))
+const studyInfoLocked = computed(() => true)
 
 const STATUS_OPTIONS = [
-  { value: 'active', label: 'Đang học' },
-  { value: 'inactive', label: 'Nghỉ học' },
-  { value: 'graduated', label: 'Tốt nghiệp' },
-  { value: 'leave', label: 'Tạm nghỉ' },
+  { value: 'active', label: '\u0110ang h\u1ecdc' },
+  { value: 'inactive', label: 'Ngh\u1ec9 h\u1ecdc' },
+  { value: 'graduated', label: 'T\u1ed1t nghi\u1ec7p' },
+  { value: 'leave', label: 'T\u1ea1m ngh\u1ec9' },
 ]
 
 const GENDER_OPTIONS = [
@@ -486,32 +487,27 @@ onMounted(async () => {
           <section id="study-info" class="profile-card">
             <div class="profile-card-header">
               <h6 class="profile-section-title mb-0">Thông tin học tập</h6>
-              <button v-if="!isCreateMode" type="button" class="profile-link-button">Chuyển trạng thái</button>
             </div>
             <div class="profile-grid profile-grid-3">
               <div class="field">
                 <label>Lớp chính *</label>
-                <select v-model="form.classId" class="form-control">
+                <select v-model="form.classId" class="form-control" :disabled="studyInfoLocked">
                   <option value="">Chọn lớp</option>
                   <option v-for="c in classOptions" :key="c.id" :value="String(c.id)">{{ c.name }}</option>
                 </select>
               </div>
               <div class="field">
                 <label>Ngày nhập học *</label>
-                <app-date-field v-model="form.joinDate" name="joinDate" />
+                <app-date-field v-model="form.joinDate" name="joinDate" :disabled="studyInfoLocked" />
               </div>
               <div class="field">
                 <label>Trạng thái *</label>
-                <select v-model="form.status" class="form-control">
+                <select v-model="form.status" class="form-control" :disabled="studyInfoLocked">
                   <option v-for="o in STATUS_OPTIONS" :key="o.value" :value="o.value">{{ o.label }}</option>
                 </select>
               </div>
-              <div class="field field-full">
-                <label>Lớp năng khiếu</label>
-                <argon-input v-model="form.email" placeholder="Chọn lớp" name="email" />
-              </div>
             </div>
-            <div v-if="classIsChanging && isAdmin" class="profile-subpanel">
+            <div v-if="classIsChanging && isAdmin && !studyInfoLocked" class="profile-subpanel">
               <div class="profile-grid profile-grid-2">
                 <div class="field">
                   <label>Ngày hiệu lực chuyển lớp</label>

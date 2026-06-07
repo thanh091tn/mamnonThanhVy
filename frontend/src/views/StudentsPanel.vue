@@ -55,6 +55,7 @@ const exportButtonLabel = computed(() => exporting.value ? '\u0110ang t\u1ea3i..
 const createButtonLabel = computed(() => 'Th\u00eam h\u1ecdc sinh')
 const filterStatuses = ref([])
 const filterClassId = ref(null)
+const filterKeyword = ref('')
 
 function namePartsForSort(row) {
   const full = String(row?.name || '').trim().replace(/\s+/g, ' ')
@@ -79,6 +80,10 @@ function compareStudentByFirstName(a, b) {
 
 const filteredItems = computed(() => {
   let list = items.value
+  const keyword = String(filterKeyword.value || '').trim().toLowerCase()
+  if (keyword) {
+    list = list.filter((s) => String(s.name || '').toLowerCase().includes(keyword))
+  }
   if (filterStatuses.value.length) {
     list = list.filter((s) => filterStatuses.value.includes(s.status || 'active'))
   }
@@ -797,6 +802,13 @@ defineExpose({ load })
         <div class="student-filter-heading">
           <span class="student-filter-kicker">Bộ lọc</span>
           <strong>{{ filteredItems.length }} học sinh</strong>
+        </div>
+        <div :class="filterSectionClass">
+          <span class="tw-mb-[0.15rem] tw-text-[0.7rem] tw-font-bold tw-uppercase tw-tracking-[0.04em] tw-text-[#8392ab]">Tên</span>
+          <argon-input
+            v-model="filterKeyword"
+            placeholder="Tìm theo tên"
+          />
         </div>
 
         <div :class="filterSectionClass">

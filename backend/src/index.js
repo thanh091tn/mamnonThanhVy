@@ -13,6 +13,7 @@ import attendanceRouter from "./routes/attendance.js";
 import authRouter from "./routes/auth.js";
 import feesRouter from "./routes/fees.js";
 import dashboardRouter from "./routes/dashboard.js";
+import yearEndTransitionRouter from "./routes/yearEndTransition.js";
 import { requireAuth } from "./middleware/auth.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -42,6 +43,7 @@ app.use("/api/teachers", requireAuth, teachersRouter);
 app.use("/api/classes", requireAuth, classesRouter);
 app.use("/api/attendance", requireAuth, attendanceRouter);
 app.use("/api/fees", requireAuth, feesRouter);
+app.use("/api/year-end-transition", requireAuth, yearEndTransitionRouter);
 
 app.use((_req, res) => {
   res.status(404).json({ error: "Not found" });
