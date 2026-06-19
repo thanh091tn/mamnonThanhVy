@@ -3,6 +3,7 @@ import { computed, onMounted, ref } from "vue";
 import { api } from "@/api/client.js";
 import ArgonAlert from "@/components/ArgonAlert.vue";
 import ArgonButton from "@/components/ArgonButton.vue";
+import AppDateField from "@/components/AppDateField.vue";
 
 function currentMonthKey() {
   const d = new Date();
@@ -239,11 +240,11 @@ onMounted(async () => {
               </div>
               <div class="col-md-6">
                 <label class="form-control-label">Ngày bắt đầu</label>
-                <input v-model="form.startDate" type="date" class="form-control" />
+                <app-date-field v-model="form.startDate" />
               </div>
               <div class="col-md-6">
                 <label class="form-control-label">Ngày kết thúc</label>
-                <input v-model="form.endDate" type="date" class="form-control" />
+                <app-date-field v-model="form.endDate" />
               </div>
               <div class="col-md-6">
                 <label class="form-control-label">Trạng thái</label>
@@ -298,7 +299,7 @@ onMounted(async () => {
                 </select>
               </div>
               <div class="col-md-3">
-                <input v-model="usageForm.monthKey" type="month" class="form-control" />
+                <app-date-field v-model="usageForm.monthKey" month-picker />
               </div>
               <div class="col-md-3">
                 <input v-model="searchQuery" type="text" class="form-control" placeholder="Tìm học sinh/dịch vụ" />
@@ -375,7 +376,7 @@ onMounted(async () => {
               <div class="row g-3">
                 <div class="col-md-4">
                   <label class="form-control-label">Tháng</label>
-                  <input v-model="usageForm.monthKey" type="month" class="form-control" />
+                  <app-date-field v-model="usageForm.monthKey" month-picker />
                 </div>
                 <div class="col-md-4">
                   <label class="form-control-label">Số lượng</label>

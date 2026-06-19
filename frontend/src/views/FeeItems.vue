@@ -7,51 +7,50 @@ import ArgonButton from "@/components/ArgonButton.vue";
 const FEE_TYPE_OPTIONS = [
   {
     value: "monthly_fixed",
-    label: "Thu cố định hằng tháng",
+    label: "Cố định tháng",
     category: "fixed",
     unitName: "tháng",
-    description: "Dùng cho học phí, bán trú hoặc khoản thu cố định.",
+    description: "Dùng cho học phí, bán trú hoặc khoản thu cố định theo tháng.",
   },
   {
     value: "meal_days",
-    label: "Thu theo ngày ăn",
+    label: "Ngày ăn",
     category: "daily",
     unitName: "ngày",
-    description: "Số ngày lấy từ điểm danh chuyên cần.",
+    description: "Tính theo số ngày ăn thực tế từ điểm danh.",
   },
   {
     value: "attendance_days",
-    label: "Thu theo ngày học",
+    label: "Ngày học",
     category: "daily",
     unitName: "ngày",
-    description: "Số ngày lấy từ điểm danh đi học.",
+    description: "Tính theo số ngày đi học thực tế từ điểm danh.",
   },
   {
     value: "service_fixed",
-    label: "Dịch vụ đăng ký hằng tháng",
+    label: "Dịch vụ tháng",
     category: "service",
     unitName: "tháng",
-    description: "Chỉ tính cho học sinh có đăng ký dịch vụ.",
+    description: "Tính theo dịch vụ học sinh đã đăng ký theo tháng.",
   },
   {
     value: "service_usage",
-    label: "Dịch vụ theo số lượng",
+    label: "Dịch vụ số lượng",
     category: "service",
     unitName: "lượt",
-    description: "Số lượng nhập tại màn đăng ký dịch vụ.",
+    description: "Tính theo số lượng sử dụng được nhập ở đăng ký dịch vụ.",
   },
   {
     value: "one_time",
     label: "Thu một lần",
     category: "one_time",
     unitName: "lần",
-    description: "Dùng cho đồng phục, hồ sơ, sự kiện hoặc khoản phát sinh theo kỳ.",
+    description: "Dùng cho đồng phục, hồ sơ, sự kiện hoặc khoản phát sinh một lần.",
   },
 ];
 
 const SCOPE_OPTIONS = [
   { value: "all", label: "Toàn trường" },
-  { value: "levels", label: "Theo khối/lứa tuổi" },
   { value: "classes", label: "Theo lớp" },
 ];
 
@@ -74,20 +73,13 @@ const form = ref({
   isOptional: false,
   active: true,
   scopeType: "all",
-  applyLevels: [],
   applyClassIds: [],
-  effectiveStartMonth: "",
-  effectiveEndMonth: "",
   description: "",
   sortOrder: 1,
 });
 
 const selectedFeeType = computed(() => {
   return FEE_TYPE_OPTIONS.find((item) => item.value === form.value.calcType) || FEE_TYPE_OPTIONS[0];
-});
-
-const levelOptions = computed(() => {
-  return [...new Set(classes.value.map((row) => row.level).filter(Boolean))];
 });
 
 const filteredItems = computed(() => {
@@ -143,10 +135,7 @@ function resetForm() {
     isOptional: false,
     active: true,
     scopeType: "all",
-    applyLevels: [],
     applyClassIds: [],
-    effectiveStartMonth: "",
-    effectiveEndMonth: "",
     description: "",
     sortOrder: items.value.length + 1,
   };
@@ -172,10 +161,7 @@ function editItem(row) {
     isOptional: Boolean(row.isOptional),
     active: Boolean(row.active),
     scopeType: row.scopeType || "all",
-    applyLevels: Array.isArray(row.applyLevels) ? row.applyLevels : [],
     applyClassIds: Array.isArray(row.applyClassIds) ? row.applyClassIds : [],
-    effectiveStartMonth: row.effectiveStartMonth || "",
-    effectiveEndMonth: row.effectiveEndMonth || "",
     description: row.description || "",
     sortOrder: row.sortOrder || 1,
   };
@@ -204,10 +190,7 @@ async function saveItem() {
       isOptional: Boolean(form.value.isOptional),
       active: Boolean(form.value.active),
       scopeType: form.value.scopeType,
-      applyLevels: form.value.applyLevels,
       applyClassIds: form.value.applyClassIds,
-      effectiveStartMonth: form.value.effectiveStartMonth || "",
-      effectiveEndMonth: form.value.effectiveEndMonth || "",
       prorationMode: defaults.prorationMode,
       description: form.value.description,
       sortOrder: Number(form.value.sortOrder || 0),
@@ -316,16 +299,6 @@ watch(
                 </select>
               </div>
 
-              <div v-if="form.scopeType === 'levels'" class="col-12">
-                <label class="form-control-label">Áp dụng cho khối/lứa tuổi</label>
-                <div class="chip-list">
-                  <label v-for="level in levelOptions" :key="level" class="chip-check">
-                    <input v-model="form.applyLevels" type="checkbox" :value="level" />
-                    <span>{{ level }}</span>
-                  </label>
-                </div>
-              </div>
-
               <div v-if="form.scopeType === 'classes'" class="col-12">
                 <label class="form-control-label">Áp dụng cho lớp</label>
                 <div class="chip-list">
@@ -334,15 +307,6 @@ watch(
                     <span>{{ row.name }}</span>
                   </label>
                 </div>
-              </div>
-
-              <div class="col-md-6">
-                <label class="form-control-label">Hiệu lực từ tháng</label>
-                <input v-model="form.effectiveStartMonth" type="month" class="form-control" />
-              </div>
-              <div class="col-md-6">
-                <label class="form-control-label">Đến tháng</label>
-                <input v-model="form.effectiveEndMonth" type="month" class="form-control" />
               </div>
 
               <div class="col-12">
@@ -394,43 +358,49 @@ watch(
           <div class="card-body pt-3">
             <div v-if="loading" class="text-sm text-secondary">Đang tải...</div>
             <div v-else-if="!filteredItems.length" class="text-sm text-secondary">Chưa có khoản thu nào.</div>
-            <div v-else class="table-responsive">
-              <table class="table align-items-center mb-0">
+            <div v-else class="table-responsive fee-table-wrap">
+              <table class="table align-items-center mb-0 fee-manage-table">
+                <colgroup>
+                  <col class="fee-item-col-name" />
+                  <col class="fee-item-col-type" />
+                  <col class="fee-item-col-price" />
+                  <col class="fee-item-col-scope" />
+                  <col class="fee-item-col-status" />
+                  <col class="fee-item-col-action" />
+                </colgroup>
                 <thead>
                   <tr>
-                    <th>Mã / tên</th>
-                    <th>Loại khoản thu</th>
-                    <th>Đơn giá</th>
-                    <th>Áp dụng</th>
-                    <th>Trạng thái</th>
-                    <th></th>
+                    <th class="fee-head-left">Mã / tên</th>
+                    <th class="fee-head-left">Loại khoản thu</th>
+                    <th class="fee-head-right">Đơn giá</th>
+                    <th class="fee-head-left">Áp dụng</th>
+                    <th class="fee-head-center">Trạng thái</th>
+                    <th class="fee-head-right"></th>
                   </tr>
                 </thead>
                 <tbody>
                   <tr v-for="row in filteredItems" :key="row.id">
-                    <td class="text-sm">
+                    <td class="text-sm fee-cell-left">
                       <strong>{{ row.code }}</strong>
-                      <div>{{ row.name }}</div>
+                      <div class="fee-subtext">{{ row.name }}</div>
                     </td>
-                    <td class="text-sm">{{ calcTypeLabel(row.calcType) }}</td>
-                    <td class="text-sm">{{ formatMoney(row.unitPrice) }} / {{ row.unitName }}</td>
-                    <td class="text-sm">
+                    <td class="text-sm fee-cell-left">{{ calcTypeLabel(row.calcType) }}</td>
+                    <td class="text-sm fee-cell-right">{{ formatMoney(row.unitPrice) }} / {{ row.unitName }}</td>
+                    <td class="text-sm fee-cell-left">
                       {{
                         row.scopeType === "all"
                           ? "Toàn trường"
-                              : row.scopeType === "levels"
-                                ? row.applyLevels.join(", ")
-                                : row.applyClassIds.length
-                              ? classes.value.filter((item) => row.applyClassIds.includes(item.id)).map((item) => item.name).join(", ")
-                              : "Theo lớp"
+                          : row.applyClassIds.length
+                            ? classes.value.filter((item) => row.applyClassIds.includes(item.id)).map((item) => item.name).join(", ")
+                            : "Theo lớp"
                       }}
                     </td>
-                    <td class="text-sm">
+                    <td class="text-sm fee-cell-center">
                       <span class="fee-status" :class="row.active ? 'fee-status--active' : 'fee-status--inactive'">
                         {{ row.active ? "Đang dùng" : "Tạm ngưng" }}
                       </span>
                     </td>
-                    <td class="text-end">
+                    <td class="text-end fee-cell-right">
                       <button type="button" class="btn btn-link text-primary mb-0 p-0" @click="editItem(row)">
                         Sửa
                       </button>
@@ -536,6 +506,66 @@ watch(
   font-size: 0.875rem;
 }
 
+.fee-table-wrap {
+  overflow-x: visible;
+}
+
+.fee-manage-table {
+  width: 100%;
+  table-layout: fixed;
+}
+
+.fee-manage-table thead th {
+  padding: 0.72rem 0.55rem;
+  font-size: 0.68rem;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+.fee-manage-table tbody td {
+  padding: 0.72rem 0.55rem;
+  vertical-align: top;
+}
+
+.fee-head-left,
+.fee-cell-left {
+  text-align: left;
+}
+
+.fee-head-center,
+.fee-cell-center {
+  text-align: center;
+}
+
+.fee-head-right,
+.fee-cell-right {
+  text-align: right;
+}
+
+.fee-item-col-name {
+  width: 22%;
+}
+
+.fee-item-col-type {
+  width: 18%;
+}
+
+.fee-item-col-price {
+  width: 15%;
+}
+
+.fee-item-col-scope {
+  width: 25%;
+}
+
+.fee-item-col-status {
+  width: 12%;
+}
+
+.fee-item-col-action {
+  width: 8%;
+}
+
 .fee-inline-checks,
 .fee-actions {
   margin-top: 1rem;
@@ -568,6 +598,10 @@ watch(
   .fee-hero {
     flex-direction: column;
     align-items: stretch;
+  }
+
+  .fee-manage-table {
+    table-layout: auto;
   }
 }
 </style>

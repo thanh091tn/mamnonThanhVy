@@ -173,18 +173,6 @@ const getRoute = () => route.path.split("/")[1];
 
       <li v-if="authUser?.role === 'admin'" class="nav-item">
         <sidenav-item
-          to="/fee-services"
-          :class="getRoute() === 'fee-services' ? 'active' : ''"
-          :navText="isRTL ? 'Services' : 'ĐK dịch vụ'"
-        >
-          <template #icon>
-            <i class="ni ni-bus-front-12 text-info text-sm"></i>
-          </template>
-        </sidenav-item>
-      </li>
-
-      <li v-if="authUser?.role === 'admin'" class="nav-item">
-        <sidenav-item
           to="/fee-collection"
           :class="getRoute() === 'fee-collection' ? 'active' : ''"
           :navText="isRTL ? 'Statements' : 'Tính HP'"

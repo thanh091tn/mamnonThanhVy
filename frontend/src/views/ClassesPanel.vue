@@ -5,6 +5,7 @@ import { api } from '../api/client.js'
 import ArgonInput from '@/components/ArgonInput.vue'
 import ArgonButton from '@/components/ArgonButton.vue'
 import ArgonAlert from '@/components/ArgonAlert.vue'
+import AppDateField from '@/components/AppDateField.vue'
 
 const items = ref([])
 const teachers = ref([])
@@ -485,11 +486,11 @@ defineExpose({ load })
                     <p class="mb-0 text-sm text-uppercase text-muted">Điểm danh tháng</p>
                     <p class="mb-0 text-xs text-secondary">Tổng hợp điểm danh của lớp và từng học sinh trong tháng đã chọn</p>
                   </div>
-                  <input
+                  <app-date-field
                     v-model="attendanceMonth"
-                    type="month"
-                    class="form-control form-control-sm class-attendance-month"
-                    @change="loadAttendanceTabData"
+                    month-picker
+                    input-class="form-control-sm class-attendance-month"
+                    @update:model-value="loadAttendanceTabData"
                   />
                 </div>
                 <argon-alert v-if="attendanceSummaryErr" color="danger" icon="ni ni-fat-remove">

@@ -9,6 +9,10 @@ const props = defineProps({
     type: String,
     default: "",
   },
+  monthPicker: {
+    type: Boolean,
+    default: false,
+  },
   min: {
     type: String,
     default: "",
@@ -41,13 +45,78 @@ const props = defineProps({
 
 const emit = defineEmits(["update:modelValue"]);
 
+function normalizeMonthValue(value) {
+  if (!value) return "";
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    return `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, "0")}`;
+  }
+  const text = String(value).trim();
+  const monthMatch = text.match(/^(\d{4})-(\d{1,2})(?:-\d{1,2})?$/);
+  if (monthMatch) {
+    const month = Number(monthMatch[2]);
+    if (month >= 1 && month <= 12) {
+      return `${monthMatch[1]}-${String(month).padStart(2, "0")}`;
+    }
+  }
+  const parsed = new Date(text);
+  if (Number.isNaN(parsed.getTime())) return "";
+  return `${parsed.getFullYear()}-${String(parsed.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function monthValueToPicker(value) {
+  const normalized = normalizeMonthValue(value);
+  const match = normalized.match(/^(\d{4})-(0[1-9]|1[0-2])$/);
+  if (!match) return null;
+  return {
+    year: Number(match[1]),
+    month: Number(match[2]) - 1,
+  };
+}
+
+function normalizeDateValue(value) {
+  if (!value) return "";
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    return `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, "0")}-${String(value.getDate()).padStart(2, "0")}`;
+  }
+  const text = String(value).trim();
+  const dateMatch = text.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+  if (dateMatch) {
+    const month = Number(dateMatch[2]);
+    const day = Number(dateMatch[3]);
+    if (month >= 1 && month <= 12 && day >= 1 && day <= 31) {
+      return `${dateMatch[1]}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+    }
+  }
+  const parsed = new Date(text);
+  if (Number.isNaN(parsed.getTime())) return "";
+  return `${parsed.getFullYear()}-${String(parsed.getMonth() + 1).padStart(2, "0")}-${String(parsed.getDate()).padStart(2, "0")}`;
+}
+
 function isoToDate(value) {
   if (!value) return null;
-  const d = new Date(`${value}T00:00:00`);
+  if (props.monthPicker) {
+    return monthValueToPicker(value);
+  }
+  const normalized = normalizeDateValue(value);
+  if (!normalized) return null;
+  const d = new Date(`${normalized}T00:00:00`);
   return Number.isNaN(d.getTime()) ? null : d;
 }
 
 function dateToIso(value) {
+  if (props.monthPicker) {
+    if (value instanceof Date && !Number.isNaN(value.getTime())) {
+      return `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, "0")}`;
+    }
+    if (value && typeof value === "object") {
+      const year = Number(value.year);
+      const month = Number(value.month);
+      if (Number.isInteger(year) && Number.isInteger(month)) {
+        return `${year}-${String(month + 1).padStart(2, "0")}`;
+      }
+    }
+    return "";
+  }
   if (!(value instanceof Date) || Number.isNaN(value.getTime())) return "";
   const y = value.getFullYear();
   const m = String(value.getMonth() + 1).padStart(2, "0");
@@ -56,6 +125,12 @@ function dateToIso(value) {
 }
 
 function formatPickerDate(value) {
+  if (props.monthPicker) {
+    const month = Number(value?.month);
+    const year = Number(value?.year);
+    if (!Number.isInteger(month) || !Number.isInteger(year)) return "";
+    return `${String(month + 1).padStart(2, "0")}/${year}`;
+  }
   if (!(value instanceof Date) || Number.isNaN(value.getTime())) return "";
   const y = value.getFullYear();
   const m = String(value.getMonth() + 1).padStart(2, "0");
@@ -79,6 +154,7 @@ const maxDate = computed(() => isoToDate(props.max));
     v-model="pickerValue"
     :min-date="minDate"
     :max-date="maxDate"
+    :month-picker="monthPicker"
     :enable-time-picker="false"
     :auto-apply="true"
     :locale="vi"

@@ -3,6 +3,7 @@ import { computed, onMounted, ref } from "vue";
 import { api } from "@/api/client.js";
 import ArgonAlert from "@/components/ArgonAlert.vue";
 import ArgonButton from "@/components/ArgonButton.vue";
+import AppDateField from "@/components/AppDateField.vue";
 
 function currentMonthKey() {
   const d = new Date();
@@ -259,11 +260,11 @@ onMounted(async () => {
               </div>
               <div class="col-md-6">
                 <label class="form-control-label">Từ tháng</label>
-                <input v-model="form.startMonth" type="month" class="form-control" />
+                <app-date-field v-model="form.startMonth" month-picker />
               </div>
               <div class="col-md-6">
                 <label class="form-control-label">Đến tháng</label>
-                <input v-model="form.endMonth" type="month" class="form-control" />
+                <app-date-field v-model="form.endMonth" month-picker />
               </div>
               <div class="col-12">
                 <label class="form-control-label">Ghi chú</label>
@@ -336,25 +337,33 @@ onMounted(async () => {
           <div class="card-body pt-3">
             <div v-if="loading" class="text-sm text-secondary">Đang tải...</div>
             <div v-else-if="!policies.length" class="text-sm text-secondary">Chưa có chính sách miễn giảm nào.</div>
-            <div v-else class="table-responsive">
-              <table class="table align-items-center mb-0">
+            <div v-else class="table-responsive fee-table-wrap">
+              <table class="table align-items-center mb-0 fee-manage-table">
+                <colgroup>
+                  <col class="fee-policy-col-name" />
+                  <col class="fee-policy-col-scope" />
+                  <col class="fee-policy-col-value" />
+                  <col class="fee-policy-col-range" />
+                  <col class="fee-policy-col-count" />
+                  <col class="fee-policy-col-action" />
+                </colgroup>
                 <thead>
                   <tr>
-                    <th>Tên chính sách</th>
-                    <th>Phạm vi</th>
-                    <th>Giá trị</th>
-                    <th>Hiệu lực</th>
-                    <th>Số HS</th>
-                    <th></th>
+                    <th class="fee-head-left">Tên chính sách</th>
+                    <th class="fee-head-left">Phạm vi</th>
+                    <th class="fee-head-right">Giá trị</th>
+                    <th class="fee-head-left">Hiệu lực</th>
+                    <th class="fee-head-center">Số HS</th>
+                    <th class="fee-head-right"></th>
                   </tr>
                 </thead>
                 <tbody>
                   <tr v-for="row in policies" :key="row.id">
-                    <td class="text-sm">
+                    <td class="text-sm fee-cell-left">
                       <strong>{{ row.name }}</strong>
-                      <div class="text-secondary">{{ row.note || "Không có ghi chú" }}</div>
+                      <div class="text-secondary fee-subtext">{{ row.note || "Không có ghi chú" }}</div>
                     </td>
-                    <td class="text-sm">
+                    <td class="text-sm fee-cell-left">
                       {{
                         row.applyScope === "invoice"
                           ? "Toàn phiếu"
@@ -363,12 +372,12 @@ onMounted(async () => {
                             : row.targetFeeItemCode
                       }}
                     </td>
-                    <td class="text-sm">
+                    <td class="text-sm fee-cell-right">
                       {{ row.discountType === "percent" ? `${row.discountValue}%` : `${formatMoney(row.discountValue)} đ` }}
                     </td>
-                    <td class="text-sm">{{ row.startMonth }}{{ row.endMonth ? ` → ${row.endMonth}` : "" }}</td>
-                    <td class="text-sm">{{ row.studentCount }}</td>
-                    <td class="text-end">
+                    <td class="text-sm fee-cell-left">{{ row.startMonth }}{{ row.endMonth ? ` → ${row.endMonth}` : "" }}</td>
+                    <td class="text-sm fee-cell-center">{{ row.studentCount }}</td>
+                    <td class="text-end fee-cell-right">
                       <button type="button" class="btn btn-link text-primary mb-0 p-0" @click="editPolicy(row.id)">
                         Sửa
                       </button>
@@ -471,6 +480,66 @@ onMounted(async () => {
   color: #64748b;
 }
 
+.fee-table-wrap {
+  overflow-x: visible;
+}
+
+.fee-manage-table {
+  width: 100%;
+  table-layout: fixed;
+}
+
+.fee-manage-table thead th {
+  padding: 0.72rem 0.55rem;
+  font-size: 0.68rem;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+.fee-manage-table tbody td {
+  padding: 0.72rem 0.55rem;
+  vertical-align: top;
+}
+
+.fee-head-left,
+.fee-cell-left {
+  text-align: left;
+}
+
+.fee-head-center,
+.fee-cell-center {
+  text-align: center;
+}
+
+.fee-head-right,
+.fee-cell-right {
+  text-align: right;
+}
+
+.fee-policy-col-name {
+  width: 28%;
+}
+
+.fee-policy-col-scope {
+  width: 17%;
+}
+
+.fee-policy-col-value {
+  width: 14%;
+}
+
+.fee-policy-col-range {
+  width: 19%;
+}
+
+.fee-policy-col-count {
+  width: 10%;
+}
+
+.fee-policy-col-action {
+  width: 12%;
+}
+
 .fee-actions {
   margin-top: 1rem;
 }
@@ -479,6 +548,10 @@ onMounted(async () => {
   .fee-hero {
     flex-direction: column;
     align-items: stretch;
+  }
+
+  .fee-manage-table {
+    table-layout: auto;
   }
 }
 </style>

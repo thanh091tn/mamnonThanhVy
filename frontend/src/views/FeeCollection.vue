@@ -3,6 +3,7 @@ import { computed, onMounted, ref, watch } from "vue";
 import { api } from "@/api/client.js";
 import ArgonAlert from "@/components/ArgonAlert.vue";
 import ArgonButton from "@/components/ArgonButton.vue";
+import AppDateField from "@/components/AppDateField.vue";
 
 function formatMoney(value) {
   return Number(value || 0).toLocaleString("vi-VN");
@@ -256,9 +257,6 @@ onMounted(async () => {
             {{ row.title }} ({{ row.monthKey }})
           </option>
         </select>
-        <argon-button color="primary" variant="gradient" type="button" @click="generateSelectedPeriod">
-          Tạo bảng tính
-        </argon-button>
       </div>
     </section>
 
@@ -327,41 +325,46 @@ onMounted(async () => {
           <div class="card-body pt-3">
             <div v-if="loading" class="text-sm text-secondary">Đang tải bảng tính...</div>
             <div v-else-if="!rows.length" class="text-sm text-secondary">Chưa có dữ liệu học phí cho kỳ này.</div>
-            <div v-else class="table-responsive">
-              <table class="table align-items-center mb-0">
+            <div v-else class="table-responsive fee-table-wrap">
+              <table class="table align-items-center mb-0 fee-collection-table">
+                <colgroup>
+                  <col class="fee-col-student" />
+                  <col class="fee-col-amount" span="8" />
+                  <col class="fee-col-action" />
+                </colgroup>
                 <thead>
                   <tr>
-                    <th>Học sinh</th>
-                    <th>Học phí</th>
-                    <th>Theo ngày</th>
-                    <th>Dịch vụ</th>
-                    <th>Giảm trừ</th>
-                    <th>Nợ cũ</th>
-                    <th>Tổng</th>
-                    <th>Đã thu</th>
-                    <th>Còn thiếu</th>
-                    <th></th>
+                    <th class="fee-head-student">Học sinh</th>
+                    <th class="fee-head-amount">Học phí</th>
+                    <th class="fee-head-amount">Theo ngày</th>
+                    <th class="fee-head-amount">Dịch vụ</th>
+                    <th class="fee-head-amount">Giảm trừ</th>
+                    <th class="fee-head-amount">Nợ cũ</th>
+                    <th class="fee-head-amount">Tổng</th>
+                    <th class="fee-head-amount">Đã thu</th>
+                    <th class="fee-head-amount">Còn thiếu</th>
+                    <th class="fee-head-action"></th>
                   </tr>
                 </thead>
                 <tbody>
                   <tr v-for="row in rows" :key="row.id">
-                    <td class="text-sm">
-                      <strong>{{ row.studentName }}</strong>
-                      <div class="text-secondary">
+                    <td class="text-sm fee-student-cell">
+                      <strong class="fee-student-name">{{ row.studentName }}</strong>
+                      <div class="text-secondary fee-student-meta">
                         {{ row.className || "Chưa xếp lớp" }}
                         <span v-if="row.hasAlert" class="text-danger">• tăng bất thường</span>
                       </div>
                     </td>
-                    <td class="text-sm">{{ formatMoney(row.fixedAmount) }}</td>
-                    <td class="text-sm">{{ formatMoney(row.dailyAmount) }}</td>
-                    <td class="text-sm">{{ formatMoney(row.serviceAmount + row.oneTimeAmount) }}</td>
-                    <td class="text-sm text-success">-{{ formatMoney(row.discountAmount - Math.min(row.adjustmentAmount, 0)) }}</td>
-                    <td class="text-sm">{{ formatMoney(row.balanceAmount) }}</td>
-                    <td class="text-sm font-weight-bold">{{ formatMoney(row.finalAmount) }}</td>
-                    <td class="text-sm">{{ formatMoney(row.paidAmount) }}</td>
-                    <td class="text-sm">{{ formatMoney(row.remainingAmount) }}</td>
-                    <td class="text-end">
-                      <button type="button" class="btn btn-link text-primary mb-0 p-0" @click="loadDetail(row.id)">
+                    <td class="text-sm fee-money-cell">{{ formatMoney(row.fixedAmount) }}</td>
+                    <td class="text-sm fee-money-cell">{{ formatMoney(row.dailyAmount) }}</td>
+                    <td class="text-sm fee-money-cell">{{ formatMoney(row.serviceAmount + row.oneTimeAmount) }}</td>
+                    <td class="text-sm text-success fee-money-cell">-{{ formatMoney(row.discountAmount - Math.min(row.adjustmentAmount, 0)) }}</td>
+                    <td class="text-sm fee-money-cell">{{ formatMoney(row.balanceAmount) }}</td>
+                    <td class="text-sm font-weight-bold fee-money-cell">{{ formatMoney(row.finalAmount) }}</td>
+                    <td class="text-sm fee-money-cell">{{ formatMoney(row.paidAmount) }}</td>
+                    <td class="text-sm fee-money-cell">{{ formatMoney(row.remainingAmount) }}</td>
+                    <td class="text-end fee-action-cell">
+                      <button type="button" class="btn btn-link text-primary mb-0 p-0 fee-detail-button" @click="loadDetail(row.id)">
                         Giải thích số tiền
                       </button>
                     </td>
@@ -480,7 +483,7 @@ onMounted(async () => {
                   <input v-model="paymentForm.amount" type="number" min="0" step="1000" class="form-control" placeholder="Số tiền thu" />
                 </div>
                 <div class="col-md-6">
-                  <input v-model="paymentForm.paidDate" type="date" class="form-control" />
+                  <app-date-field v-model="paymentForm.paidDate" />
                 </div>
                 <div class="col-md-6">
                   <select v-model="paymentForm.method" class="form-select">
@@ -687,6 +690,87 @@ onMounted(async () => {
   border-radius: 0.9rem;
 }
 
+.fee-table-wrap {
+  overflow-x: visible;
+}
+
+.fee-collection-table {
+  width: 100%;
+  table-layout: fixed;
+}
+
+.fee-collection-table thead th {
+  padding: 0.7rem 0.5rem;
+  font-size: 0.68rem;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+.fee-collection-table tbody td {
+  padding: 0.7rem 0.5rem;
+  vertical-align: top;
+}
+
+.fee-collection-table .fee-col-student {
+  width: 18%;
+}
+
+.fee-collection-table .fee-col-amount {
+  width: 9%;
+}
+
+.fee-collection-table .fee-col-action {
+  width: 10%;
+}
+
+.fee-head-student {
+  text-align: left;
+}
+
+.fee-head-amount {
+  text-align: right;
+}
+
+.fee-head-action {
+  text-align: right;
+}
+
+.fee-student-cell,
+.fee-student-meta,
+.fee-student-name,
+.fee-detail-button {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.fee-student-name {
+  display: block;
+  line-height: 1.35;
+}
+
+.fee-student-meta {
+  margin-top: 0.2rem;
+  font-size: 0.76rem;
+  line-height: 1.35;
+}
+
+.fee-money-cell {
+  font-size: 0.82rem;
+  line-height: 1.3;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.fee-action-cell {
+  white-space: normal;
+}
+
+.fee-detail-button {
+  font-size: 0.78rem;
+  line-height: 1.35;
+  text-align: right;
+}
+
 .fee-section-title {
   margin: 1rem 0 0.65rem;
 }
@@ -713,6 +797,16 @@ onMounted(async () => {
 
   .fee-stats {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .fee-collection-table {
+    table-layout: auto;
+  }
+
+  .fee-col-student,
+  .fee-col-amount,
+  .fee-col-action {
+    width: auto;
   }
 }
 </style>

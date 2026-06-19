@@ -146,6 +146,15 @@ function dateOnly(date) {
   return String(date).slice(0, 10);
 }
 
+function dateToApi(date) {
+  if (!date) return "";
+  if (date instanceof Date) return date.toISOString().slice(0, 10);
+  const text = String(date).trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(text)) return text;
+  const parsed = new Date(text);
+  return Number.isNaN(parsed.getTime()) ? text.slice(0, 10) : parsed.toISOString().slice(0, 10);
+}
+
 function parseDate(dateText) {
   if (!dateText) return null;
   const text = dateOnly(dateText);
@@ -285,7 +294,7 @@ function mapPeriodRow(row) {
     id: row.id,
     monthKey: row.month_key,
     title: row.title,
-    dueDate: row.due_date ? String(row.due_date).slice(0, 10) : "",
+    dueDate: dateToApi(row.due_date),
     status: row.status,
     itemCount: Number(row.item_count ?? 0),
     studentCount: Number(row.student_count ?? 0),
@@ -988,6 +997,185 @@ async function fetchPeriodGeneratedState(client, periodId) {
   return { hasPayments: paymentExists.rowCount > 0 };
 }
 
+async function regeneratePeriodStatements(client, periodId, options = {}) {
+  const { ensurePublished = false } = options;
+  const periodRes = await client.query(`SELECT * FROM fee_periods WHERE id = $1`, [periodId]);
+  if (!periodRes.rowCount) {
+    return { error: "Fee period not found", statusCode: 404 };
+  }
+  const period = periodRes.rows[0];
+  const itemsRes = await client.query(`SELECT * FROM fee_period_items WHERE period_id = $1 ORDER BY sort_order, id`, [periodId]);
+  if (!itemsRes.rowCount) {
+    return { error: "Kỳ thu phải có ít nhất một khoản thu trước khi generate", statusCode: 400 };
+  }
+  const items = itemsRes.rows.map(mapPeriodItemRow);
+
+  const state = await fetchPeriodGeneratedState(client, periodId);
+  if (state.hasPayments) {
+    return { error: "Kỳ thu đã có thanh toán, không thể generate lại", statusCode: 400 };
+  }
+  await client.query(`DELETE FROM student_fee_periods WHERE period_id = $1`, [periodId]);
+
+  const { start, end } = monthBounds(period.month_key);
+  const monthStart = dateOnly(start);
+  const monthEnd = dateOnly(end);
+
+  const studentsRes = await client.query(
+    `SELECT s.id, s.name, s.class_id, s.join_date, s.leave_date, s.status,
+            c.name AS class_name, c.level AS class_level
+     FROM students s
+     LEFT JOIN classes c ON c.id = s.class_id
+     WHERE s.status IN ('active', 'inactive')
+       AND COALESCE(s.join_date, $1::date) <= $2::date
+       AND (s.leave_date IS NULL OR s.leave_date >= $1::date)
+     ORDER BY c.name NULLS LAST, s.name`,
+    [monthStart, monthEnd]
+  );
+  const attendanceRes = await client.query(
+    `SELECT student_id, COUNT(DISTINCT attendance_date) AS attendance_days
+     FROM student_attendance
+     WHERE attendance_date >= $1::date
+       AND attendance_date <= $2::date
+       AND status = 'present'
+     GROUP BY student_id`,
+    [monthStart, monthEnd]
+  );
+  const attendanceMap = new Map(attendanceRes.rows.map((row) => [Number(row.student_id), Number(row.attendance_days || 0)]));
+
+  const policyRes = await client.query(
+    `SELECT p.*, ps.student_id
+     FROM discount_policies p
+     JOIN discount_policy_students ps ON ps.policy_id = p.id
+     WHERE p.active = TRUE
+       AND p.start_month <= $1
+       AND (p.end_month IS NULL OR p.end_month = '' OR p.end_month >= $1)
+     ORDER BY p.id`,
+    [period.month_key]
+  );
+
+  const subscriptionRes = await client.query(
+    `SELECT sss.*, fit.code AS fee_item_code, su.quantity AS usage_quantity
+     FROM student_service_subscriptions sss
+     JOIN fee_item_templates fit ON fit.id = sss.fee_item_template_id
+     LEFT JOIN student_service_usage_entries su
+       ON su.subscription_id = sss.id
+      AND su.month_key = $1`,
+    [period.month_key]
+  );
+  const subscriptionMap = new Map();
+  for (const row of subscriptionRes.rows) {
+    subscriptionMap.set(`${row.student_id}:${row.fee_item_template_id}:${row.fee_item_code || ""}`, row);
+  }
+
+  const adjustmentRes = await client.query(
+    `SELECT fa.*, fit.code AS item_code
+     FROM fee_adjustments fa
+     LEFT JOIN fee_item_templates fit ON fit.id = fa.fee_item_template_id
+     WHERE fa.period_id = $1
+     ORDER BY fa.id`,
+    [periodId]
+  );
+  const adjustmentMap = new Map();
+  for (const row of adjustmentRes.rows) {
+    const list = adjustmentMap.get(Number(row.student_id)) || [];
+    list.push(row);
+    adjustmentMap.set(Number(row.student_id), list);
+  }
+
+  const previousBalanceRes = await client.query(
+    `SELECT sfp.student_id, COALESCE(SUM(sfp.final_amount - sfp.paid_amount), 0) AS balance
+     FROM student_fee_periods sfp
+     JOIN fee_periods fp ON fp.id = sfp.period_id
+     WHERE fp.month_key < $1
+     GROUP BY sfp.student_id`,
+    [period.month_key]
+  );
+  const previousBalanceMap = new Map(previousBalanceRes.rows.map((row) => [Number(row.student_id), toMoney(row.balance)]));
+
+  let generatedCount = 0;
+  let periodBaseAmount = 0;
+
+  for (const student of studentsRes.rows) {
+    const ctx = { monthKey: period.month_key, periodId, attendanceMap, subscriptionMap };
+    const lines = [];
+    for (const item of items) {
+      const line = calculateItemForStudent(item, student, ctx);
+      if (line) lines.push(line);
+    }
+
+    const previousBalance = toMoney(previousBalanceMap.get(Number(student.id)) || 0);
+    if (previousBalance !== 0) {
+      lines.push(
+        buildChargeLine({
+          code: previousBalance > 0 ? "PREV-BALANCE" : "PREV-CREDIT",
+          name: previousBalance > 0 ? "Công nợ kỳ trước" : "Khấu trừ dư kỳ trước",
+          category: "adjustment",
+          calcType: "manual",
+          quantity: 1,
+          unitPrice: Math.abs(previousBalance),
+          baseAmount: previousBalance,
+          finalAmount: previousBalance,
+          formulaText: previousBalance > 0 ? "Cộng số tiền còn thiếu từ các kỳ trước" : "Khấu trừ số tiền đã nộp dư kỳ trước",
+          note: "Tự động tổng hợp từ các kỳ trước",
+          sourceType: "SystemRule",
+          sourceReference: `student:${student.id}`,
+          isOptional: false,
+          sortOrder: 900,
+          lineType: previousBalance > 0 ? "balance" : "credit",
+        })
+      );
+    }
+
+    for (const adjustment of adjustmentMap.get(Number(student.id)) || []) {
+      lines.push(buildPeriodLineFromAdjustment(adjustment, 1000 + lines.length));
+    }
+
+    const { discountLines, appliedPolicies } = buildDiscountLines(student.id, lines, policyRes.rows);
+    lines.push(...discountLines);
+    lines.sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name));
+
+    const totals = summarizeStatementLines(lines);
+    const paymentStatus = totals.finalAmount <= 0 ? "paid" : "unpaid";
+    periodBaseAmount += totals.baseAmount;
+
+    const inserted = await client.query(
+      `INSERT INTO student_fee_periods
+       (student_id, period_id, base_amount, previous_balance, adjustment_amount, discount_amount, final_amount, paid_amount, payment_status)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, 0, $8)
+       RETURNING id`,
+      [student.id, periodId, totals.baseAmount, totals.previousBalance, totals.adjustmentAmount, totals.discountAmount, totals.finalAmount, paymentStatus]
+    );
+    const studentFeePeriodId = inserted.rows[0].id;
+
+    for (const line of lines) {
+      await insertStudentStatementLine(client, studentFeePeriodId, line);
+    }
+    for (const discount of appliedPolicies) {
+      await client.query(
+        `INSERT INTO student_fee_period_discounts
+         (student_fee_period_id, policy_id, policy_name, discount_type, discount_value, discount_amount)
+         VALUES ($1, $2, $3, $4, $5, $6)`,
+        [studentFeePeriodId, discount.policyId, discount.policyName, discount.discountType, discount.discountValue, discount.discountAmount]
+      );
+    }
+    generatedCount++;
+  }
+
+  await client.query(
+    `UPDATE fee_periods
+     SET status = CASE
+           WHEN $2 THEN 'published'
+           WHEN status = 'draft' THEN 'published'
+           ELSE status
+         END,
+         updated_at = NOW()
+     WHERE id = $1`,
+    [periodId, ensurePublished]
+  );
+
+  return { generatedCount, baseAmount: roundMoney(periodBaseAmount) };
+}
+
 router.get("/item-templates", async (req, res, next) => {
   try {
     const where = [];
@@ -1213,6 +1401,13 @@ router.post("/periods", async (req, res, next) => {
       [monthKey, title, dueDate, status, req.user.id]
     );
     await replacePeriodItems(client, inserted.rows[0].id, items);
+    if (status === "published") {
+      const generated = await regeneratePeriodStatements(client, inserted.rows[0].id, { ensurePublished: true });
+      if (generated?.error) {
+        await client.query("ROLLBACK");
+        return res.status(generated.statusCode || 400).json({ error: generated.error });
+      }
+    }
     await client.query("COMMIT");
     const fresh = await pool.query(
       `SELECT p.*, COUNT(DISTINCT i.id) AS item_count, 0::bigint AS student_count, 0::numeric AS total_final_amount, 0::numeric AS total_paid_amount
@@ -1267,6 +1462,14 @@ router.put("/periods/:id", async (req, res, next) => {
         return res.status(400).json({ error: "Kỳ thu phải có ít nhất một khoản thu" });
       }
       await replacePeriodItems(client, id, items);
+    }
+    if (status === "published") {
+      const generated = await regeneratePeriodStatements(client, id, { ensurePublished: true });
+      if (generated?.error) {
+        await client.query("ROLLBACK");
+        return res.status(generated.statusCode || 400).json({ error: generated.error });
+      }
+    } else if (Array.isArray(items)) {
       await client.query(`DELETE FROM student_fee_periods WHERE period_id = $1`, [id]);
     }
     await client.query("COMMIT");
@@ -1930,7 +2133,7 @@ router.get("/reports/period/:id", async (req, res, next) => {
         id: period.id,
         monthKey: period.month_key,
         title: period.title,
-        dueDate: period.due_date ? String(period.due_date).slice(0, 10) : "",
+        dueDate: dateToApi(period.due_date),
         status: period.status,
       },
       summary: {
@@ -2022,7 +2225,7 @@ router.get("/student-periods/:id", async (req, res, next) => {
       periodId: row.period_id,
       periodTitle: row.period_title,
       monthKey: row.month_key,
-      dueDate: row.due_date ? String(row.due_date).slice(0, 10) : "",
+      dueDate: dateToApi(row.due_date),
       periodStatus: row.period_status,
       baseAmount: toMoney(row.base_amount),
       previousBalance: toMoney(row.previous_balance),

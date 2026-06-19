@@ -1,6 +1,7 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { api } from '../api/client.js'
+import AppDateField from '@/components/AppDateField.vue'
 
 const steps = [
   { key: 1, label: 'Chọn học sinh', icon: 'ni ni-bullet-list-67' },
@@ -390,7 +391,7 @@ onBeforeUnmount(() => clearInterval(pollTimer.value))
       <div class="config-grid mt-4">
         <label>
           <span>Ngày hiệu lực</span>
-          <input v-model="config.effectiveDate" type="date" class="form-control" />
+          <app-date-field v-model="config.effectiveDate" />
         </label>
         <label>
           <span>Ghi chú</span>

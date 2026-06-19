@@ -3,6 +3,7 @@ import { computed, onMounted, ref } from "vue";
 import { api } from "@/api/client.js";
 import ArgonAlert from "@/components/ArgonAlert.vue";
 import ArgonButton from "@/components/ArgonButton.vue";
+import AppDateField from "@/components/AppDateField.vue";
 
 function nextMonthKey() {
   const d = new Date();
@@ -14,11 +15,30 @@ function formatMoney(value) {
   return Number(value || 0).toLocaleString("vi-VN");
 }
 
+function feeTypeLabel(value) {
+  const labels = {
+    monthly_fixed: "Cố định tháng",
+    meal_days: "Ngày ăn",
+    attendance_days: "Ngày học",
+    service_fixed: "Dịch vụ tháng",
+    service_usage: "Dịch vụ số lượng",
+    one_time: "Thu một lần",
+    manual: "Điều chỉnh tay",
+  };
+  return labels[value] || value;
+}
+
+function periodStatusLabel(value) {
+  if (value === "draft") return "Nháp";
+  if (value === "published") return "Đã phát hành";
+  if (value === "closed") return "Đã khóa";
+  return value;
+}
+
 const periods = ref([]);
 const templates = ref([]);
 const loading = ref(false);
 const saving = ref(false);
-const generatingId = ref(null);
 const loadErr = ref("");
 const formErr = ref("");
 const okMsg = ref("");
@@ -33,6 +53,13 @@ const form = ref({
   dueDate: "",
   status: "draft",
   selectedTemplateIds: [],
+});
+
+const visibleTemplates = computed(() => {
+  if (!editingId.value) {
+    return templates.value.filter((row) => row.active);
+  }
+  return templates.value.filter((row) => row.active || form.value.selectedTemplateIds.includes(row.id));
 });
 
 const stats = computed(() => ({
@@ -59,10 +86,10 @@ function resetForm() {
 }
 
 async function loadTemplates() {
-  const { data } = await api.get("/fees/item-templates", { params: { active: true } });
+  const { data } = await api.get("/fees/item-templates");
   templates.value = Array.isArray(data) ? data : [];
   if (!editingId.value) {
-    form.value.selectedTemplateIds = templates.value.map((row) => row.id);
+    form.value.selectedTemplateIds = templates.value.filter((row) => row.active).map((row) => row.id);
   }
 }
 
@@ -98,11 +125,12 @@ async function editPeriod(id) {
   okMsg.value = "";
   try {
     const { data } = await api.get(`/fees/periods/${id}`);
+    const listRow = periods.value.find((row) => row.id === id);
     editingId.value = data.id;
     form.value = {
       monthKey: data.monthKey || nextMonthKey(),
       title: data.title || "",
-      dueDate: data.dueDate || "",
+      dueDate: data.dueDate || listRow?.dueDate || "",
       status: data.status || "draft",
       selectedTemplateIds: Array.isArray(data.items) ? data.items.map((row) => row.templateId).filter(Boolean) : [],
     };
@@ -164,21 +192,6 @@ async function savePeriod() {
     formErr.value = e.response?.data?.error || e.message || "Lưu kỳ thu thất bại";
   } finally {
     saving.value = false;
-  }
-}
-
-async function generatePeriod(id) {
-  generatingId.value = id;
-  loadErr.value = "";
-  okMsg.value = "";
-  try {
-    const { data } = await api.post(`/fees/periods/${id}/generate`);
-    okMsg.value = `Đã tạo bảng tính cho ${data.generatedCount || 0} học sinh.`;
-    await loadPeriods();
-  } catch (e) {
-    loadErr.value = e.response?.data?.error || e.message || "Generate kỳ thu thất bại";
-  } finally {
-    generatingId.value = null;
   }
 }
 
@@ -248,11 +261,11 @@ onMounted(async () => {
             <div class="row g-3">
               <div class="col-md-6">
                 <label class="form-control-label">Tháng</label>
-                <input v-model="form.monthKey" type="month" class="form-control" />
+                <app-date-field v-model="form.monthKey" month-picker />
               </div>
               <div class="col-md-6">
                 <label class="form-control-label">Hạn đóng</label>
-                <input v-model="form.dueDate" type="date" class="form-control" />
+                <app-date-field v-model="form.dueDate" />
               </div>
               <div class="col-12">
                 <label class="form-control-label">Tên kỳ thu</label>
@@ -273,12 +286,12 @@ onMounted(async () => {
               <span class="text-sm text-secondary">{{ selectedTemplates.length }} khoản</span>
             </div>
             <div class="fee-template-list">
-              <label v-for="row in templates" :key="row.id" class="fee-template-row">
+              <label v-for="row in visibleTemplates" :key="row.id" class="fee-template-row">
                 <input :checked="form.selectedTemplateIds.includes(row.id)" type="checkbox" @change="toggleTemplate(row.id)" />
                 <span>
                   <strong>{{ row.code }} - {{ row.name }}</strong>
                   <small>
-                    {{ row.category }} • {{ row.calcType }} • {{ formatMoney(row.unitPrice) }} / {{ row.unitName }}
+                    {{ feeTypeLabel(row.calcType) }} • {{ formatMoney(row.unitPrice) }} / {{ row.unitName }}
                   </small>
                 </span>
               </label>
@@ -301,7 +314,7 @@ onMounted(async () => {
           <div class="card-header pb-0">
             <div class="row g-3">
               <div class="col-md-3">
-                <input v-model="monthFilter" type="month" class="form-control" />
+                <app-date-field v-model="monthFilter" month-picker />
               </div>
               <div class="col-md-3">
                 <select v-model="statusFilter" class="form-select">
@@ -324,43 +337,48 @@ onMounted(async () => {
           <div class="card-body pt-3">
             <div v-if="loading" class="text-sm text-secondary">Đang tải dữ liệu kỳ thu...</div>
             <div v-else-if="!periods.length" class="text-sm text-secondary">Chưa có kỳ thu nào.</div>
-            <div v-else class="table-responsive">
-              <table class="table align-items-center mb-0">
+            <div v-else class="table-responsive fee-table-wrap">
+              <table class="table align-items-center mb-0 fee-manage-table">
+                <colgroup>
+                  <col class="fee-period-col-month" />
+                  <col class="fee-period-col-title" />
+                  <col class="fee-period-col-count" />
+                  <col class="fee-period-col-count" />
+                  <col class="fee-period-col-money" />
+                  <col class="fee-period-col-money" />
+                  <col class="fee-period-col-status" />
+                  <col class="fee-period-col-action" />
+                </colgroup>
                 <thead>
                   <tr>
-                    <th>Tháng</th>
-                    <th>Tên kỳ</th>
-                    <th>Khoản</th>
-                    <th>HS</th>
-                    <th>Phải thu</th>
-                    <th>Đã thu</th>
-                    <th>Trạng thái</th>
-                    <th></th>
+                    <th class="fee-head-left">Tháng</th>
+                    <th class="fee-head-left">Tên kỳ</th>
+                    <th class="fee-head-center">Khoản</th>
+                    <th class="fee-head-center">HS</th>
+                    <th class="fee-head-right">Phải thu</th>
+                    <th class="fee-head-right">Đã thu</th>
+                    <th class="fee-head-center">Trạng thái</th>
+                    <th class="fee-head-right"></th>
                   </tr>
                 </thead>
                 <tbody>
                   <tr v-for="row in periods" :key="row.id">
-                    <td class="text-sm font-weight-bold">{{ row.monthKey }}</td>
-                    <td class="text-sm">
+                    <td class="text-sm font-weight-bold fee-cell-left">{{ row.monthKey }}</td>
+                    <td class="text-sm fee-cell-left">
                       <strong>{{ row.title }}</strong>
-                      <div class="text-secondary">Hạn đóng: {{ row.dueDate || "Chưa đặt" }}</div>
+                      <div class="text-secondary fee-subtext">Hạn đóng: {{ row.dueDate || "Chưa đặt" }}</div>
                     </td>
-                    <td class="text-sm">{{ row.itemCount }}</td>
-                    <td class="text-sm">{{ row.studentCount }}</td>
-                    <td class="text-sm">{{ formatMoney(row.totalFinalAmount) }}</td>
-                    <td class="text-sm">{{ formatMoney(row.totalPaidAmount) }}</td>
-                    <td class="text-sm">
-                      <span class="fee-status" :class="`fee-status--${row.status}`">{{ row.status }}</span>
+                    <td class="text-sm fee-cell-center">{{ row.itemCount }}</td>
+                    <td class="text-sm fee-cell-center">{{ row.studentCount }}</td>
+                    <td class="text-sm fee-cell-right">{{ formatMoney(row.totalFinalAmount) }}</td>
+                    <td class="text-sm fee-cell-right">{{ formatMoney(row.totalPaidAmount) }}</td>
+                    <td class="text-sm fee-cell-center">
+                      <span class="fee-status" :class="`fee-status--${row.status}`">{{ periodStatusLabel(row.status) }}</span>
                     </td>
-                    <td class="text-end">
-                      <div class="fee-table-actions">
-                        <button type="button" class="btn btn-link text-secondary mb-0 p-0" @click="editPeriod(row.id)">
-                          Sửa
-                        </button>
-                        <button type="button" class="btn btn-link text-primary mb-0 p-0" :disabled="generatingId === row.id" @click="generatePeriod(row.id)">
-                          {{ generatingId === row.id ? "Đang tạo..." : "Tạo bảng tính" }}
-                        </button>
-                      </div>
+                    <td class="text-end fee-cell-right">
+                      <button type="button" class="btn btn-link text-secondary mb-0 p-0" @click="editPeriod(row.id)">
+                        Sửa
+                      </button>
                     </td>
                   </tr>
                 </tbody>
@@ -481,6 +499,72 @@ onMounted(async () => {
   color: #64748b;
 }
 
+.fee-table-wrap {
+  overflow-x: visible;
+}
+
+.fee-manage-table {
+  width: 100%;
+  table-layout: fixed;
+}
+
+.fee-manage-table thead th {
+  padding: 0.72rem 0.55rem;
+  font-size: 0.68rem;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+.fee-manage-table tbody td {
+  padding: 0.72rem 0.55rem;
+  vertical-align: top;
+}
+
+.fee-head-left,
+.fee-cell-left {
+  text-align: left;
+}
+
+.fee-head-center,
+.fee-cell-center {
+  text-align: center;
+}
+
+.fee-head-right,
+.fee-cell-right {
+  text-align: right;
+}
+
+.fee-period-col-month {
+  width: 10%;
+}
+
+.fee-period-col-title {
+  width: 28%;
+}
+
+.fee-period-col-count {
+  width: 8%;
+}
+
+.fee-period-col-money {
+  width: 14%;
+}
+
+.fee-period-col-status {
+  width: 10%;
+}
+
+.fee-period-col-action {
+  width: 8%;
+}
+
+.fee-subtext {
+  margin-top: 0.2rem;
+  font-size: 0.76rem;
+  line-height: 1.35;
+}
+
 .fee-actions {
   margin-top: 1rem;
   justify-content: flex-end;
@@ -519,6 +603,10 @@ onMounted(async () => {
 
   .fee-stats {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .fee-manage-table {
+    table-layout: auto;
   }
 }
 </style>
