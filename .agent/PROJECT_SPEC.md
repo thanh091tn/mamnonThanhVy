@@ -21,6 +21,7 @@ Frontend:
 - Vue Router
 - Vuex
 - Axios
+- `@vuepic/vue-datepicker` via shared `AppDateField.vue`
 - Bootstrap 5
 - Tailwind CSS
 - Sass
@@ -127,7 +128,7 @@ Fees:
 - Fee periods.
 - Discount policies.
 - Service subscriptions and usage entries.
-- Period generation.
+- Period generation is triggered automatically when a fee period is saved with status `published`.
 - Student fee periods.
 - Adjustments.
 - Payments.
@@ -158,8 +159,10 @@ Admin-only routes:
 - `/fee-items`
 - `/fee-periods`
 - `/fee-policies`
-- `/fee-services`
 - `/fee-collection`
+
+Hidden/disabled frontend route:
+- `/fee-services` currently exists in backend/API/domain model, but is intentionally hidden from the current frontend navigation and router.
 
 Teacher-only route:
 - `/teacher-leave`
@@ -241,6 +244,7 @@ Coding expectations:
 - Use parameterized queries.
 - Keep row-to-API conversion in mapper helpers where possible.
 - Keep date API values in `YYYY-MM-DD` format.
+- Keep month-style API values in `YYYY-MM` format.
 - Preserve existing camelCase API response fields and snake_case DB fields.
 - Be careful with fee calculation logic; it affects invoices and payments.
 
@@ -250,11 +254,13 @@ The frontend uses Argon Dashboard style assets plus Bootstrap utility classes.
 
 Follow existing patterns:
 - Reuse app components from `frontend/src/components/`.
+- Prefer the shared date picker component `frontend/src/components/AppDateField.vue` for both date and month selection instead of raw `input[type="date"]` / `input[type="month"]` in admin flows.
 - Reuse Argon/example layout components where the app already uses them.
 - Keep dashboard/admin screens dense, scannable, and operational.
 - Include loading, empty, error, and disabled states for user-facing flows.
 - Use existing table styles such as `frontend/src/assets/css/panel-tables.css` when working on panels.
 - Prefer Vue 3 Composition API and `<script setup>` when matching nearby files.
+- For fee admin screens, prefer fixed-layout operational tables with explicit column widths/alignment over wide free-flow tables that require horizontal scrolling.
 
 ## Coding Conventions
 
