@@ -18,7 +18,7 @@ const store = useStore()
 
 const isAdmin = computed(() => store.state.authUser?.role === 'admin')
 const canManageStudents = computed(() => ['admin', 'teacher'].includes(store.state.authUser?.role))
-const studyInfoLocked = computed(() => true)
+const studyInfoLocked = computed(() => !canManageStudents.value)
 
 const STATUS_OPTIONS = [
   { value: 'active', label: '\u0110ang h\u1ecdc' },
@@ -74,6 +74,7 @@ const form = ref({
   name: '',
   lastName: '',
   firstName: '',
+  academicYearId: '',
   classId: '',
   grade: '',
   email: '',
@@ -87,6 +88,7 @@ const form = ref({
 
 const isCreateMode = computed(() => route.name === 'StudentCreate')
 const studentId = computed(() => Number(route.params.id))
+const academicYearOptions = ref([])
 const classOptions = ref([])
 const loading = ref(false)
 const saving = ref(false)
@@ -96,15 +98,26 @@ const avatarFileInput = ref(null)
 const uploadingAvatar = ref(false)
 const avatarUploadErr = ref('')
 const currentAddressSame = ref(true)
+const initialAcademicYearIdSnapshot = ref('')
 const initialClassIdSnapshot = ref('')
 const classChangeEffectiveDate = ref(new Date().toISOString().slice(0, 10))
 const classChangeNote = ref('')
 
+const filteredClassOptions = computed(() => {
+  if (!form.value.academicYearId) return classOptions.value
+  const filtered = classOptions.value.filter(
+    (item) => item.academicYearId === Number(form.value.academicYearId)
+  )
+  return filtered.length ? filtered : classOptions.value
+})
+
 const classIsChanging = computed(() => {
   if (isCreateMode.value) return false
+  const curYear = form.value.academicYearId === '' ? '' : String(form.value.academicYearId)
+  const snapYear = initialAcademicYearIdSnapshot.value === '' ? '' : String(initialAcademicYearIdSnapshot.value)
   const cur = form.value.classId === '' ? '' : String(form.value.classId)
   const snap = initialClassIdSnapshot.value === '' ? '' : String(initialClassIdSnapshot.value)
-  return cur !== snap
+  return cur !== snap || curYear !== snapYear
 })
 
 const selectedProvince = computed(() => findProvinceByName(form.value.province))
@@ -155,6 +168,17 @@ watch(
   }
 )
 
+watch(
+  () => form.value.academicYearId,
+  () => {
+    if (!classOptions.value.length || !form.value.classId || !form.value.academicYearId) return
+    const selectedClass = classOptions.value.find((item) => String(item.id) === String(form.value.classId))
+    if (selectedClass?.academicYearId != null && selectedClass.academicYearId !== Number(form.value.academicYearId)) {
+      form.value.classId = ''
+    }
+  }
+)
+
 function splitFullName(value) {
   const full = String(value || '').trim().replace(/\s+/g, ' ')
   if (!full) return { lastName: '', firstName: '' }
@@ -180,6 +204,7 @@ function fillForm(row) {
     name: row.name || '',
     lastName: row.lastName || split.lastName,
     firstName: row.firstName || split.firstName,
+    academicYearId: row.academicYearId != null ? String(row.academicYearId) : '',
     classId: row.classId != null ? String(row.classId) : '',
     grade: row.grade || '',
     email: row.email || '',
@@ -190,6 +215,7 @@ function fillForm(row) {
     gender: row.gender === 'female' ? 'female' : 'male',
     ...Object.fromEntries(Object.keys(EXTRA_FIELDS_DEFAULTS).map((key) => [key, row[key] || ''])),
   }
+  initialAcademicYearIdSnapshot.value = form.value.academicYearId === '' ? '' : String(form.value.academicYearId)
   initialClassIdSnapshot.value = form.value.classId === '' ? '' : String(form.value.classId)
   const permanentAddress = permanentAddressText()
   currentAddressSame.value = !form.value.hamlet || form.value.hamlet === permanentAddress
@@ -240,11 +266,20 @@ function goBack() {
   router.push('/school')
 }
 
-async function loadClasses() {
+function setDefaultAcademicYear() {
+  if (form.value.academicYearId) return
+  const currentYear = academicYearOptions.value.find((item) => item.isCurrent) || academicYearOptions.value[0]
+  form.value.academicYearId = currentYear?.id ? String(currentYear.id) : ''
+}
+
+async function loadMetadata() {
   try {
-    const { data } = await api.get('/classes')
-    classOptions.value = Array.isArray(data) ? data : []
+    const { data } = await api.get('/students/metadata')
+    academicYearOptions.value = Array.isArray(data?.academicYears) ? data.academicYears : []
+    classOptions.value = Array.isArray(data?.classes) ? data.classes : []
+    if (isCreateMode.value) setDefaultAcademicYear()
   } catch {
+    academicYearOptions.value = []
     classOptions.value = []
   }
 }
@@ -273,6 +308,7 @@ function buildPayload() {
     grade: form.value.grade,
     email: form.value.email,
     dateOfBirth: form.value.dateOfBirth,
+    academicYearId: form.value.academicYearId === '' ? null : Number(form.value.academicYearId),
     classId: form.value.classId === '' ? null : Number(form.value.classId),
     avatar: form.value.avatar,
     joinDate: form.value.joinDate,
@@ -326,6 +362,10 @@ async function save() {
     formErr.value = 'Vui lòng nhập họ tên học sinh'
     return
   }
+  if (!form.value.academicYearId) {
+    formErr.value = 'Vui lòng chọn năm học'
+    return
+  }
   if (!form.value.classId) {
     formErr.value = 'Vui lòng chọn lớp'
     return
@@ -364,7 +404,8 @@ async function removeStudent() {
 }
 
 onMounted(async () => {
-  await Promise.all([loadClasses(), loadStudent()])
+  await loadMetadata()
+  await loadStudent()
 })
 </script>
 
@@ -490,10 +531,17 @@ onMounted(async () => {
             </div>
             <div class="profile-grid profile-grid-3">
               <div class="field">
+                <label>Năm học *</label>
+                <select v-model="form.academicYearId" class="form-control" :disabled="studyInfoLocked">
+                  <option value="">Chọn năm học</option>
+                  <option v-for="year in academicYearOptions" :key="year.id" :value="String(year.id)">{{ year.name }}</option>
+                </select>
+              </div>
+              <div class="field">
                 <label>Lớp chính *</label>
                 <select v-model="form.classId" class="form-control" :disabled="studyInfoLocked">
                   <option value="">Chọn lớp</option>
-                  <option v-for="c in classOptions" :key="c.id" :value="String(c.id)">{{ c.name }}</option>
+                  <option v-for="c in filteredClassOptions" :key="c.id" :value="String(c.id)">{{ c.name }}</option>
                 </select>
               </div>
               <div class="field">

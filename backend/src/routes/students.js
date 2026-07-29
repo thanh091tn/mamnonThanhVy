@@ -222,7 +222,7 @@ function classIdsDiffer(a, b) {
 }
 
 const studentSelect = `
-  SELECT s.id, s.name, s.last_name, s.first_name, s.grade, s.email, s.date_of_birth, s.class_id,
+  SELECT s.id, s.name, s.last_name, s.first_name, s.grade, s.email, s.date_of_birth, s.class_id, s.academic_year_id,
          s.avatar, s.join_date, s.status, s.gender,
          s.phone, s.nationality, s.religion, s.province, s.ward, s.house_number, s.street, s.hamlet,
          s.birth_place, s.birth_address, s.birth_ward, s.birth_province,
@@ -242,9 +242,10 @@ const studentSelect = `
          s.doc2_health_check, s.doc2_residence_confirmation, s.doc2_birth_certificate_04,
          s.disability_type, s.policy_beneficiary, s.eye_disease,
          s.guardian_name, s.guardian_occupation, s.guardian_birth_year,
-         c.name AS class_name
+         c.name AS class_name, ay.name AS academic_year_name
   FROM students s
   LEFT JOIN classes c ON c.id = s.class_id
+  LEFT JOIN academic_years ay ON ay.id = s.academic_year_id
 `;
 
 const studentNameOrder = `
@@ -255,15 +256,96 @@ const studentNameOrder = `
     s.id
 `;
 
+function mapAcademicYear(row) {
+  return {
+    id: row.id,
+    name: row.name,
+    startDate: row.start_date ? String(row.start_date).slice(0, 10) : "",
+    endDate: row.end_date ? String(row.end_date).slice(0, 10) : "",
+    isCurrent: row.is_current === true,
+  };
+}
+
+function mapClassOption(row) {
+  return {
+    id: row.id,
+    name: row.name,
+    level: row.level ?? "",
+    academicYearId: row.academic_year_id != null ? Number(row.academic_year_id) : null,
+  };
+}
+
+async function ensureAcademicYearsSeeded() {
+  const currentYearRow = await pool.query(
+    `SELECT name
+     FROM academic_years
+     WHERE is_current = TRUE
+     ORDER BY id
+     LIMIT 1`
+  );
+
+  const now = new Date();
+  const thisYear = now.getFullYear();
+  const defaultCurrentStartYear = now.getMonth() >= 7 ? thisYear : thisYear - 1;
+  const currentStartYear = currentYearRow.rowCount
+    ? Number(String(currentYearRow.rows[0].name || "").slice(0, 4)) || defaultCurrentStartYear
+    : defaultCurrentStartYear;
+
+  for (let startYear = currentStartYear - 1; startYear <= 2035; startYear += 1) {
+    await pool.query(
+      `INSERT INTO academic_years (name, start_date, end_date, is_current)
+       VALUES ($1, $2, $3, $4)
+       ON CONFLICT (name) DO NOTHING`,
+      [
+        `${startYear}-${startYear + 1}`,
+        `${startYear}-08-01`,
+        `${startYear + 1}-07-31`,
+        startYear === currentStartYear,
+      ]
+    );
+  }
+}
+
+async function resolveAcademicYearId(raw) {
+  if (raw == null || raw === "") return null;
+  const id = Number(raw);
+  if (!Number.isInteger(id) || id < 1) {
+    return { error: "academicYearId must be a positive integer or empty" };
+  }
+  const r = await pool.query(`SELECT id FROM academic_years WHERE id = $1`, [id]);
+  if (!r.rowCount) return { error: "Academic year not found" };
+  return { id };
+}
+
 async function resolveClassId(raw) {
   if (raw == null || raw === "") return null;
   const id = Number(raw);
   if (!Number.isInteger(id) || id < 1) {
     return { error: "classId must be a positive integer or empty" };
   }
-  const c = await pool.query(`SELECT id FROM classes WHERE id = $1`, [id]);
+  const c = await pool.query(`SELECT id, academic_year_id FROM classes WHERE id = $1`, [id]);
   if (!c.rowCount) return { error: "Class not found" };
-  return { id };
+  return {
+    id,
+    academicYearId: c.rows[0].academic_year_id != null ? Number(c.rows[0].academic_year_id) : null,
+  };
+}
+
+async function resolveAcademicPlacement({ classId, academicYearId }) {
+  const cid = await resolveClassId(classId);
+  if (cid?.error) return { error: cid.error };
+  const aid = await resolveAcademicYearId(academicYearId);
+  if (aid?.error) return { error: aid.error };
+
+  const nextAcademicYearId = aid?.id ?? cid?.academicYearId ?? null;
+  if (cid?.academicYearId != null && nextAcademicYearId != null && cid.academicYearId !== nextAcademicYearId) {
+    return { error: "Class does not belong to selected academic year" };
+  }
+
+  return {
+    classId: cid?.id ?? null,
+    academicYearId: nextAcademicYearId,
+  };
 }
 
 async function assertStudentAccess(db, req, rawStudentId) {
@@ -400,12 +482,45 @@ router.get("/export/classes", async (req, res, next) => {
 });
 
 const historySelect = `
-  SELECT h.id, h.student_id, h.from_class_id, h.to_class_id, h.effective_date, h.note, h.created_at,
+  SELECT h.id, h.student_id, h.from_class_id, h.to_class_id,
+         h.from_academic_year_id, h.to_academic_year_id, h.effective_date, h.note, h.created_at,
          cf.name AS from_class_name, ct.name AS to_class_name
   FROM student_class_history h
   LEFT JOIN classes cf ON cf.id = h.from_class_id
   LEFT JOIN classes ct ON ct.id = h.to_class_id
 `;
+
+router.get("/metadata", async (req, res, next) => {
+  try {
+    await ensureAcademicYearsSeeded();
+    const params = [];
+    const classAccess =
+      req.user?.role === "teacher"
+        ? req.user.teacherId == null
+          ? "WHERE FALSE"
+          : "WHERE EXISTS (SELECT 1 FROM class_teachers ct WHERE ct.class_id = c.id AND ct.teacher_id = $1)"
+        : "";
+    if (req.user?.role === "teacher" && req.user.teacherId != null) {
+      params.push(req.user.teacherId);
+    }
+    const [years, classes] = await Promise.all([
+      pool.query(`SELECT * FROM academic_years ORDER BY start_date NULLS LAST, name`),
+      pool.query(
+        `SELECT c.id, c.name, c.level, c.academic_year_id
+         FROM classes c
+         ${classAccess}
+         ORDER BY c.name, c.id`,
+        params
+      ),
+    ]);
+    res.json({
+      academicYears: years.rows.map(mapAcademicYear),
+      classes: classes.rows.map(mapClassOption),
+    });
+  } catch (e) {
+    next(e);
+  }
+});
 
 router.get("/:id/class-history", async (req, res, next) => {
   try {
@@ -517,14 +632,15 @@ async function updateStudentExtraFields(client, studentId, body) {
 router.post("/", async (req, res, next) => {
   try {
     const b = req.body || {};
-    const { name, lastName, firstName, grade, email, dateOfBirth, classId, avatar, joinDate, status, gender } = b;
+    const { name, lastName, firstName, grade, email, dateOfBirth, classId, academicYearId, avatar, joinDate, status, gender } = b;
     const personName = normalizePersonName({ name, lastName, firstName });
     if (!personName.name) {
       return res.status(400).json({ error: "name is required" });
     }
-    const cid = await resolveClassId(classId);
-    if (cid && cid.error) return res.status(400).json({ error: cid.error });
-    const class_id = cid == null ? null : cid.id;
+    const placement = await resolveAcademicPlacement({ classId, academicYearId });
+    if (placement.error) return res.status(400).json({ error: placement.error });
+    const class_id = placement.classId;
+    const academic_year_id = placement.academicYearId;
     const classAccess = await assertClassWriteAccess(pool, req, class_id);
     if (classAccess.error) return res.status(classAccess.status).json({ error: classAccess.error });
 
@@ -543,7 +659,7 @@ router.post("/", async (req, res, next) => {
       await client.query("BEGIN");
       const r = await client.query(
         `INSERT INTO students (
-           name, last_name, first_name, grade, email, date_of_birth, class_id, avatar, join_date, status, gender,
+           name, last_name, first_name, grade, email, date_of_birth, class_id, academic_year_id, avatar, join_date, status, gender,
            phone, nationality, religion, province, ward, house_number, street, hamlet,
            birth_place, father_birth_year, mother_birth_year,
            father_name, father_birth_date, father_phone, father_email,
@@ -553,7 +669,7 @@ router.post("/", async (req, res, next) => {
            id_number, id_issued_place, id_issued_date, area, bhyt_number,
            disability_type, policy_beneficiary, eye_disease,
            guardian_name, guardian_occupation, guardian_birth_year
-         ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$35,$36,$37,$38,$39,$40,$41,$42,$43,$44,$45,$46,$47)
+         ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$35,$36,$37,$38,$39,$40,$41,$42,$43,$44,$45,$46,$47,$48)
           RETURNING id`,
         [
           personName.name,
@@ -563,6 +679,7 @@ router.post("/", async (req, res, next) => {
           str(email),
           normalizeDateInput(dateOfBirth),
           class_id,
+          academic_year_id,
           avatar != null ? String(avatar).trim().slice(0, 100000) : "",
           normalizeDateInput(joinDate),
           st,
@@ -584,9 +701,12 @@ router.post("/", async (req, res, next) => {
       if (class_id != null) {
         const eff = normalizeDateInput(joinDate);
         await client.query(
-          `INSERT INTO student_class_history (student_id, from_class_id, to_class_id, effective_date, note)
-           VALUES ($1, NULL, $2, COALESCE($3::date, CURRENT_DATE), $4)`,
-          [newId, class_id, eff, normalizeHistoryNote(req.body?.classHistoryNote)]
+          `INSERT INTO student_class_history (
+             student_id, from_class_id, to_class_id, from_academic_year_id, to_academic_year_id,
+             effective_date, note, action, from_status, to_status
+           )
+           VALUES ($1, NULL, $2, NULL, $3, COALESCE($4::date, CURRENT_DATE), $5, 'transfer', NULL, $6)`,
+          [newId, class_id, academic_year_id, eff, normalizeHistoryNote(req.body?.classHistoryNote), st]
         );
       }
       await client.query("COMMIT");
@@ -608,7 +728,7 @@ router.put("/:id", async (req, res, next) => {
     const id = Number(req.params.id);
     const b = req.body || {};
     const {
-      name, grade, email, dateOfBirth, classId, avatar, joinDate, status, gender,
+      name, grade, email, dateOfBirth, classId, academicYearId, avatar, joinDate, status, gender,
       lastName, firstName,
       classChangeEffectiveDate, classChangeNote,
     } = b;
@@ -645,13 +765,18 @@ router.put("/:id", async (req, res, next) => {
         dateOfBirth != null ? normalizeDateInput(dateOfBirth) : cur.date_of_birth;
 
       let nextClassId = cur.class_id;
-      if (classId !== undefined) {
-        const cid = await resolveClassId(classId);
-        if (cid && cid.error) {
+      let nextAcademicYearId = cur.academic_year_id;
+      if (classId !== undefined || academicYearId !== undefined) {
+        const placement = await resolveAcademicPlacement({
+          classId: classId !== undefined ? classId : cur.class_id,
+          academicYearId: academicYearId !== undefined ? academicYearId : cur.academic_year_id,
+        });
+        if (placement.error) {
           await client.query("ROLLBACK");
-          return res.status(400).json({ error: cid.error });
+          return res.status(400).json({ error: placement.error });
         }
-        nextClassId = cid == null ? null : cid.id;
+        nextClassId = placement.classId;
+        nextAcademicYearId = placement.academicYearId;
       }
 
       const currentClassAccess = await assertClassWriteAccess(client, req, cur.class_id);
@@ -694,7 +819,7 @@ router.put("/:id", async (req, res, next) => {
         nextGender = gen;
       }
 
-      if (classIdsDiffer(cur.class_id, nextClassId)) {
+      if (classIdsDiffer(cur.class_id, nextClassId) || classIdsDiffer(cur.academic_year_id, nextAcademicYearId)) {
         const rawEff =
           classChangeEffectiveDate !== undefined && classChangeEffectiveDate !== null
             ? String(classChangeEffectiveDate).trim()
@@ -710,14 +835,21 @@ router.put("/:id", async (req, res, next) => {
         }
         const effParam = rawEff === "" ? null : normalizeDateInput(classChangeEffectiveDate);
         await client.query(
-          `INSERT INTO student_class_history (student_id, from_class_id, to_class_id, effective_date, note)
-           VALUES ($1, $2, $3, COALESCE($4::date, CURRENT_DATE), $5)`,
+          `INSERT INTO student_class_history (
+             student_id, from_class_id, to_class_id, from_academic_year_id, to_academic_year_id,
+             effective_date, note, action, from_status, to_status
+           )
+           VALUES ($1, $2, $3, $4, $5, COALESCE($6::date, CURRENT_DATE), $7, 'transfer', $8, $9)`,
           [
             id,
             cur.class_id,
             nextClassId,
+            cur.academic_year_id,
+            nextAcademicYearId,
             effParam,
             normalizeHistoryNote(classChangeNote),
+            cur.status ?? "active",
+            nextStatus,
           ]
         );
       }
@@ -727,20 +859,20 @@ router.put("/:id", async (req, res, next) => {
 
       await client.query(
         `UPDATE students SET
-           name=$1, last_name=$2, first_name=$3, grade=$4, email=$5, date_of_birth=$6, class_id=$7,
-           avatar=$8, join_date=$9, status=$10, gender=$11,
-           phone=$12, nationality=$13, religion=$14, province=$15, ward=$16, house_number=$17, street=$18, hamlet=$19,
-           birth_place=$20, father_birth_year=$21, mother_birth_year=$22,
-           father_name=$23, father_birth_date=$24, father_phone=$25, father_email=$26,
-           father_login=$27, father_id_number=$28, father_occupation=$29,
-           mother_name=$30, mother_birth_date=$31, mother_phone=$32, mother_email=$33,
-           mother_login=$34, mother_id_number=$35, mother_occupation=$36,
-           id_number=$37, id_issued_place=$38, id_issued_date=$39, area=$40, bhyt_number=$41,
-           disability_type=$42, policy_beneficiary=$43, eye_disease=$44,
-           guardian_name=$45, guardian_occupation=$46, guardian_birth_year=$47
-         WHERE id = $48`,
+           name=$1, last_name=$2, first_name=$3, grade=$4, email=$5, date_of_birth=$6, class_id=$7, academic_year_id=$8,
+           avatar=$9, join_date=$10, status=$11, gender=$12,
+           phone=$13, nationality=$14, religion=$15, province=$16, ward=$17, house_number=$18, street=$19, hamlet=$20,
+           birth_place=$21, father_birth_year=$22, mother_birth_year=$23,
+           father_name=$24, father_birth_date=$25, father_phone=$26, father_email=$27,
+           father_login=$28, father_id_number=$29, father_occupation=$30,
+           mother_name=$31, mother_birth_date=$32, mother_phone=$33, mother_email=$34,
+           mother_login=$35, mother_id_number=$36, mother_occupation=$37,
+           id_number=$38, id_issued_place=$39, id_issued_date=$40, area=$41, bhyt_number=$42,
+           disability_type=$43, policy_beneficiary=$44, eye_disease=$45,
+           guardian_name=$46, guardian_occupation=$47, guardian_birth_year=$48
+         WHERE id = $49`,
         [
-          nextName, personName.lastName, personName.firstName, nextGrade, nextEmail, nextDob, nextClassId,
+          nextName, personName.lastName, personName.firstName, nextGrade, nextEmail, nextDob, nextClassId, nextAcademicYearId,
           nextAvatar, nextJoin, nextStatus, nextGender,
           upd("phone"), upd("nationality"), upd("religion"),
           upd("province"), upd("ward"), updSnake("houseNumber", "house_number"), upd("street"), upd("hamlet"),
