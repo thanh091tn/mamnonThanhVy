@@ -66,6 +66,13 @@ function formatMoney(value) {
   return Number(value || 0).toLocaleString("vi-VN");
 }
 
+function statusLabel(status) {
+  if (status === "active") return "Đang áp dụng";
+  if (status === "paused") return "Tạm dừng";
+  if (status === "stopped") return "Ngừng hẳn";
+  return status || "";
+}
+
 async function loadMeta() {
   const [studentsRes, classesRes, templateRes] = await Promise.all([
     api.get("/students"),
@@ -341,7 +348,7 @@ onMounted(async () => {
                     <td class="text-sm">{{ row.usageQuantity ?? row.quantityOverride ?? "-" }}</td>
                     <td class="text-sm">
                       <span class="fee-status" :class="`fee-status--${row.status}`">
-                        {{ row.status }}
+                        {{ statusLabel(row.status) }}
                       </span>
                     </td>
                     <td class="text-end">
@@ -411,58 +418,11 @@ onMounted(async () => {
 </template>
 
 <style scoped>
-.fee-page {
-  padding: 1rem 1.5rem 1.5rem;
-}
-
-.fee-hero {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 1rem;
-  padding: 1.1rem 1.25rem;
-  margin-bottom: 1rem;
-  border: 1px solid #e7edf5;
-  border-radius: 1rem;
-  background: linear-gradient(135deg, #ffffff, #eef9ff);
-}
-
-.fee-eyebrow {
-  display: inline-block;
-  margin-bottom: 0.25rem;
-  color: #0891b2;
-  font-size: 0.72rem;
-  font-weight: 700;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-}
-
-.fee-title {
-  color: #1f2a44;
-  font-weight: 700;
-}
-
-.fee-subtitle,
-.fee-detail-head small {
-  color: #64748b;
-}
-
-.fee-card {
-  border: 1px solid #e7edf5;
-  border-radius: 1rem;
-  box-shadow: 0 1rem 2rem -1.8rem rgba(15, 23, 42, 0.35);
-}
-
-.fee-actions,
 .fee-table-actions {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 0.75rem;
-}
-
-.fee-actions {
-  margin-top: 1rem;
 }
 
 .fee-detail-head {
@@ -472,35 +432,7 @@ onMounted(async () => {
   margin-bottom: 0.9rem;
 }
 
-.fee-status {
-  display: inline-flex;
-  align-items: center;
-  padding: 0.22rem 0.65rem;
-  border-radius: 999px;
-  font-size: 0.74rem;
-  font-weight: 700;
-  text-transform: capitalize;
-}
-
-.fee-status--active {
-  color: #166534;
-  background: #dcfce7;
-}
-
-.fee-status--paused {
-  color: #92400e;
-  background: #fef3c7;
-}
-
-.fee-status--stopped {
-  color: #991b1b;
-  background: #fee2e2;
-}
-
-@media (max-width: 991.98px) {
-  .fee-hero {
-    flex-direction: column;
-    align-items: stretch;
-  }
+.fee-detail-head small {
+  color: #64748b;
 }
 </style>

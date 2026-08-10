@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, ref, watch } from "vue";
+import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import { api } from "@/api/client.js";
 import ArgonAlert from "@/components/ArgonAlert.vue";
 import ArgonButton from "@/components/ArgonButton.vue";
@@ -54,6 +54,13 @@ const SCOPE_OPTIONS = [
   { value: "classes", label: "Theo lớp" },
 ];
 
+const CATEGORY_FILTER_OPTIONS = [
+  { value: "fixed", label: "Cố định tháng" },
+  { value: "daily", label: "Theo ngày" },
+  { value: "service", label: "Dịch vụ" },
+  { value: "one_time", label: "Thu một lần" },
+];
+
 const items = ref([]);
 const classes = ref([]);
 const loading = ref(false);
@@ -62,6 +69,7 @@ const loadErr = ref("");
 const formErr = ref("");
 const okMsg = ref("");
 const editingId = ref(null);
+const drawerOpen = ref(false);
 const categoryFilter = ref("");
 const searchQuery = ref("");
 
@@ -82,6 +90,10 @@ const selectedFeeType = computed(() => {
   return FEE_TYPE_OPTIONS.find((item) => item.value === form.value.calcType) || FEE_TYPE_OPTIONS[0];
 });
 
+const filtersActive = computed(
+  () => Boolean(categoryFilter.value) || Boolean(searchQuery.value.trim())
+);
+
 const filteredItems = computed(() => {
   const q = searchQuery.value.trim().toLowerCase();
   return items.value.filter((item) => {
@@ -96,16 +108,22 @@ function formatMoney(value) {
   return Number(value || 0).toLocaleString("vi-VN");
 }
 
-function categoryLabel(value) {
-  return FEE_TYPE_OPTIONS.find((item) => item.category === value)?.label || value;
-}
-
 function calcTypeLabel(value) {
   return FEE_TYPE_OPTIONS.find((item) => item.value === value)?.label || value;
 }
 
 function typeDescription(value) {
   return FEE_TYPE_OPTIONS.find((item) => item.value === value)?.description || "";
+}
+
+function applyScopeLabel(row) {
+  if (row.scopeType === "all") return "Toàn trường";
+  const ids = Array.isArray(row.applyClassIds) ? row.applyClassIds : [];
+  if (!ids.length) return "Theo lớp";
+  const names = classes.value
+    .filter((item) => ids.includes(item.id))
+    .map((item) => item.name);
+  return names.length ? names.join(", ") : "Theo lớp";
 }
 
 function getPayloadDefaults(calcType) {
@@ -142,13 +160,35 @@ function resetForm() {
   formErr.value = "";
 }
 
+function openCreateDrawer() {
+  resetForm();
+  drawerOpen.value = true;
+}
+
+function closeDrawer() {
+  drawerOpen.value = false;
+}
+
+function setBodyScrollLocked(locked) {
+  document.body.style.overflow = locked ? "hidden" : "";
+}
+
+function onEscape(e) {
+  if (e.key === "Escape" && drawerOpen.value) closeDrawer();
+}
+
 async function loadMeta() {
-  const [itemsRes, classesRes] = await Promise.all([
-    api.get("/fees/item-templates"),
-    api.get("/classes"),
-  ]);
-  items.value = Array.isArray(itemsRes.data) ? itemsRes.data : [];
-  classes.value = Array.isArray(classesRes.data) ? classesRes.data : [];
+  loading.value = true;
+  try {
+    const [itemsRes, classesRes] = await Promise.all([
+      api.get("/fees/item-templates"),
+      api.get("/classes"),
+    ]);
+    items.value = Array.isArray(itemsRes.data) ? itemsRes.data : [];
+    classes.value = Array.isArray(classesRes.data) ? classesRes.data : [];
+  } finally {
+    loading.value = false;
+  }
 }
 
 function editItem(row) {
@@ -165,6 +205,8 @@ function editItem(row) {
     description: row.description || "",
     sortOrder: row.sortOrder || 1,
   };
+  formErr.value = "";
+  drawerOpen.value = true;
 }
 
 async function saveItem() {
@@ -204,21 +246,13 @@ async function saveItem() {
     }
     await loadMeta();
     resetForm();
+    closeDrawer();
   } catch (e) {
     formErr.value = e.response?.data?.error || e.message || "Lưu khoản thu thất bại";
   } finally {
     saving.value = false;
   }
 }
-
-onMounted(async () => {
-  try {
-    await loadMeta();
-    resetForm();
-  } catch (e) {
-    loadErr.value = e.response?.data?.error || e.message || "Không tải được cấu hình khoản thu";
-  }
-});
 
 watch(
   () => form.value.calcType,
@@ -228,6 +262,25 @@ watch(
     }
   }
 );
+
+watch(drawerOpen, (open) => {
+  setBodyScrollLocked(open);
+});
+
+onMounted(async () => {
+  window.addEventListener("keydown", onEscape);
+  try {
+    await loadMeta();
+    resetForm();
+  } catch (e) {
+    loadErr.value = e.response?.data?.error || e.message || "Không tải được cấu hình khoản thu";
+  }
+});
+
+onUnmounted(() => {
+  window.removeEventListener("keydown", onEscape);
+  setBodyScrollLocked(false);
+});
 </script>
 
 <template>
@@ -240,7 +293,7 @@ watch(
           Quản lý khoản thu theo cách kế toán thường dùng: chọn loại khoản thu, nhập đơn giá và phạm vi áp dụng.
         </p>
       </div>
-      <argon-button color="secondary" variant="outline" type="button" @click="resetForm">
+      <argon-button color="primary" variant="gradient" type="button" @click="openCreateDrawer">
         Tạo khoản thu mới
       </argon-button>
     </section>
@@ -252,296 +305,186 @@ watch(
       {{ okMsg }}
     </argon-alert>
 
-    <div class="row g-4">
-      <div class="col-xl-5">
-        <div class="card fee-card">
-          <div class="card-header pb-0">
-            <h6 class="mb-1">{{ editingId ? "Cập nhật khoản thu" : "Tạo khoản thu" }}</h6>
-            <p class="text-sm text-secondary mb-0">Các quy tắc kỹ thuật sẽ được hệ thống tự chọn theo loại khoản thu.</p>
+    <div class="card fee-card">
+      <div class="card-header pb-0">
+        <div class="row g-3">
+          <div class="col-md-4">
+            <select v-model="categoryFilter" class="form-select">
+              <option value="">Tất cả loại</option>
+              <option
+                v-for="option in CATEGORY_FILTER_OPTIONS"
+                :key="option.value"
+                :value="option.value"
+              >
+                {{ option.label }}
+              </option>
+            </select>
           </div>
-          <div class="card-body">
-            <argon-alert v-if="formErr" color="danger" icon="ni ni-fat-remove" class="mb-3">
-              {{ formErr }}
-            </argon-alert>
-
-            <div class="row g-3">
-              <div class="col-md-4">
-                <label class="form-control-label">Mã khoản thu</label>
-                <input v-model="form.code" type="text" class="form-control" placeholder="HP01" />
-              </div>
-              <div class="col-md-8">
-                <label class="form-control-label">Tên khoản thu</label>
-                <input v-model="form.name" type="text" class="form-control" placeholder="Học phí chính khóa" />
-              </div>
-              <div class="col-12">
-                <label class="form-control-label">Loại khoản thu</label>
-                <select v-model="form.calcType" class="form-select">
-                  <option v-for="option in FEE_TYPE_OPTIONS" :key="option.value" :value="option.value">
-                    {{ option.label }}
-                  </option>
-                </select>
-                <div class="text-xs text-secondary mt-1">{{ typeDescription(form.calcType) }}</div>
-              </div>
-              <div class="col-md-6">
-                <label class="form-control-label">Đơn giá</label>
-                <input v-model="form.unitPrice" type="number" min="0" step="1000" class="form-control" />
-              </div>
-              <div class="col-md-6">
-                <label class="form-control-label">Đơn vị</label>
-                <div class="fee-readonly-field">{{ selectedFeeType.unitName }}</div>
-              </div>
-              <div class="col-md-6">
-                <label class="form-control-label">Phạm vi áp dụng</label>
-                <select v-model="form.scopeType" class="form-select">
-                  <option v-for="option in SCOPE_OPTIONS" :key="option.value" :value="option.value">
-                    {{ option.label }}
-                  </option>
-                </select>
-              </div>
-
-              <div v-if="form.scopeType === 'classes'" class="col-12">
-                <label class="form-control-label">Áp dụng cho lớp</label>
-                <div class="chip-list">
-                  <label v-for="row in classes" :key="row.id" class="chip-check">
-                    <input v-model="form.applyClassIds" type="checkbox" :value="row.id" />
-                    <span>{{ row.name }}</span>
-                  </label>
-                </div>
-              </div>
-
-              <div class="col-12">
-                <label class="form-control-label">Mô tả / giải thích</label>
-                <textarea v-model="form.description" rows="3" class="form-control" placeholder="Ví dụ: áp dụng cho học sinh bán trú từ tháng 05/2026"></textarea>
-              </div>
-            </div>
-
-            <div class="fee-inline-checks">
-              <label class="fee-check">
-                <input v-model="form.isOptional" type="checkbox" />
-                <span>Tùy chọn</span>
-              </label>
-              <label class="fee-check">
-                <input v-model="form.active" type="checkbox" />
-                <span>Đang sử dụng</span>
-              </label>
-            </div>
-
-            <div class="fee-actions">
-              <argon-button color="secondary" variant="outline" type="button" @click="resetForm">
-                Làm mới
-              </argon-button>
-              <argon-button color="primary" variant="gradient" type="button" :disabled="saving" @click="saveItem">
-                {{ saving ? "Đang lưu..." : editingId ? "Cập nhật khoản thu" : "Lưu khoản thu" }}
-              </argon-button>
-            </div>
+          <div class="col-md-8">
+            <input
+              v-model="searchQuery"
+              type="text"
+              class="form-control"
+              placeholder="Tìm theo mã hoặc tên khoản thu"
+            />
           </div>
         </div>
       </div>
-
-      <div class="col-xl-7">
-        <div class="card fee-card">
-          <div class="card-header pb-0">
-            <div class="row g-3">
-              <div class="col-md-4">
-                <select v-model="categoryFilter" class="form-select">
-                  <option value="">Tất cả loại</option>
-                  <option v-for="option in FEE_TYPE_OPTIONS" :key="option.value" :value="option.category">
-                    {{ option.label }}
-                  </option>
-                </select>
-              </div>
-              <div class="col-md-8">
-                <input v-model="searchQuery" type="text" class="form-control" placeholder="Tìm theo mã hoặc tên khoản thu" />
-              </div>
-            </div>
-          </div>
-          <div class="card-body pt-3">
-            <div v-if="loading" class="text-sm text-secondary">Đang tải...</div>
-            <div v-else-if="!filteredItems.length" class="text-sm text-secondary">Chưa có khoản thu nào.</div>
-            <div v-else class="table-responsive fee-table-wrap">
-              <table class="table align-items-center mb-0 fee-manage-table">
-                <colgroup>
-                  <col class="fee-item-col-name" />
-                  <col class="fee-item-col-type" />
-                  <col class="fee-item-col-price" />
-                  <col class="fee-item-col-scope" />
-                  <col class="fee-item-col-status" />
-                  <col class="fee-item-col-action" />
-                </colgroup>
-                <thead>
-                  <tr>
-                    <th class="fee-head-left">Mã / tên</th>
-                    <th class="fee-head-left">Loại khoản thu</th>
-                    <th class="fee-head-right">Đơn giá</th>
-                    <th class="fee-head-left">Áp dụng</th>
-                    <th class="fee-head-center">Trạng thái</th>
-                    <th class="fee-head-right"></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr v-for="row in filteredItems" :key="row.id">
-                    <td class="text-sm fee-cell-left">
-                      <strong>{{ row.code }}</strong>
-                      <div class="fee-subtext">{{ row.name }}</div>
-                    </td>
-                    <td class="text-sm fee-cell-left">{{ calcTypeLabel(row.calcType) }}</td>
-                    <td class="text-sm fee-cell-right">{{ formatMoney(row.unitPrice) }} / {{ row.unitName }}</td>
-                    <td class="text-sm fee-cell-left">
-                      {{
-                        row.scopeType === "all"
-                          ? "Toàn trường"
-                          : row.applyClassIds.length
-                            ? classes.value.filter((item) => row.applyClassIds.includes(item.id)).map((item) => item.name).join(", ")
-                            : "Theo lớp"
-                      }}
-                    </td>
-                    <td class="text-sm fee-cell-center">
-                      <span class="fee-status" :class="row.active ? 'fee-status--active' : 'fee-status--inactive'">
-                        {{ row.active ? "Đang dùng" : "Tạm ngưng" }}
-                      </span>
-                    </td>
-                    <td class="text-end fee-cell-right">
-                      <button type="button" class="btn btn-link text-primary mb-0 p-0" @click="editItem(row)">
-                        Sửa
-                      </button>
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </div>
+      <div class="card-body pt-3">
+        <div v-if="loading" class="fee-loading-block">Đang tải danh mục khoản thu...</div>
+        <div v-else-if="!filteredItems.length" class="fee-empty-state">
+          <p class="text-sm text-secondary mb-0">
+            {{ filtersActive ? "Không có khoản thu khớp bộ lọc." : "Chưa có khoản thu nào." }}
+          </p>
+        </div>
+        <div v-else class="table-responsive fee-table-wrap">
+          <table class="table align-items-center mb-0 fee-manage-table">
+            <colgroup>
+              <col class="fee-item-col-name" />
+              <col class="fee-item-col-type" />
+              <col class="fee-item-col-price" />
+              <col class="fee-item-col-scope" />
+              <col class="fee-item-col-status" />
+              <col class="fee-item-col-action" />
+            </colgroup>
+            <thead>
+              <tr>
+                <th class="fee-head-left">Mã / tên</th>
+                <th class="fee-head-left">Loại khoản thu</th>
+                <th class="fee-head-right">Đơn giá</th>
+                <th class="fee-head-left">Áp dụng</th>
+                <th class="fee-head-center">Trạng thái</th>
+                <th class="fee-head-right"></th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr
+                v-for="row in filteredItems"
+                :key="row.id"
+                :class="{ 'fee-row-selected': drawerOpen && editingId === row.id }"
+              >
+                <td class="text-sm fee-cell-left">
+                  <strong>{{ row.code }}</strong>
+                  <div class="fee-subtext">{{ row.name }}</div>
+                </td>
+                <td class="text-sm fee-cell-left">{{ calcTypeLabel(row.calcType) }}</td>
+                <td class="text-sm fee-cell-right">{{ formatMoney(row.unitPrice) }} / {{ row.unitName }}</td>
+                <td class="text-sm fee-cell-left">{{ applyScopeLabel(row) }}</td>
+                <td class="text-sm fee-cell-center">
+                  <span class="fee-status" :class="row.active ? 'fee-status--active' : 'fee-status--inactive'">
+                    {{ row.active ? "Đang dùng" : "Tạm ngưng" }}
+                  </span>
+                </td>
+                <td class="text-end fee-cell-right">
+                  <button type="button" class="btn btn-link text-primary mb-0 p-0" @click="editItem(row)">
+                    Sửa
+                  </button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
         </div>
       </div>
     </div>
+
+    <Transition name="fee-drawer-backdrop">
+      <div v-if="drawerOpen" class="fee-drawer-backdrop" @click="closeDrawer"></div>
+    </Transition>
+    <Transition name="fee-drawer-slide">
+      <aside v-if="drawerOpen" class="fee-drawer-panel">
+        <div class="fee-drawer-header">
+          <h5 class="fee-drawer-title">{{ editingId ? "Cập nhật khoản thu" : "Tạo khoản thu" }}</h5>
+          <button type="button" class="btn-close" aria-label="Đóng" @click="closeDrawer"></button>
+        </div>
+        <div class="fee-drawer-body">
+          <p class="text-sm text-secondary mb-3">
+            Các quy tắc kỹ thuật sẽ được hệ thống tự chọn theo loại khoản thu.
+          </p>
+          <argon-alert v-if="formErr" color="danger" icon="ni ni-fat-remove" class="mb-3">
+            {{ formErr }}
+          </argon-alert>
+
+          <div class="row g-3">
+            <div class="col-md-4">
+              <label class="form-control-label">Mã khoản thu</label>
+              <input v-model="form.code" type="text" class="form-control" placeholder="HP01" />
+            </div>
+            <div class="col-md-8">
+              <label class="form-control-label">Tên khoản thu</label>
+              <input v-model="form.name" type="text" class="form-control" placeholder="Học phí chính khóa" />
+            </div>
+            <div class="col-12">
+              <label class="form-control-label">Loại khoản thu</label>
+              <select v-model="form.calcType" class="form-select">
+                <option v-for="option in FEE_TYPE_OPTIONS" :key="option.value" :value="option.value">
+                  {{ option.label }}
+                </option>
+              </select>
+              <div class="text-xs text-secondary mt-1">{{ typeDescription(form.calcType) }}</div>
+            </div>
+            <div class="col-md-6">
+              <label class="form-control-label">Đơn giá</label>
+              <input v-model="form.unitPrice" type="number" min="0" step="1000" class="form-control" />
+            </div>
+            <div class="col-md-6">
+              <label class="form-control-label">Đơn vị</label>
+              <div class="fee-readonly-field">{{ selectedFeeType.unitName }}</div>
+            </div>
+            <div class="col-md-6">
+              <label class="form-control-label">Phạm vi áp dụng</label>
+              <select v-model="form.scopeType" class="form-select">
+                <option v-for="option in SCOPE_OPTIONS" :key="option.value" :value="option.value">
+                  {{ option.label }}
+                </option>
+              </select>
+            </div>
+
+            <div v-if="form.scopeType === 'classes'" class="col-12">
+              <label class="form-control-label">Áp dụng cho lớp</label>
+              <div class="fee-chip-list">
+                <label v-for="row in classes" :key="row.id" class="fee-chip-check">
+                  <input v-model="form.applyClassIds" type="checkbox" :value="row.id" />
+                  <span>{{ row.name }}</span>
+                </label>
+              </div>
+            </div>
+
+            <div class="col-12">
+              <label class="form-control-label">Mô tả / giải thích</label>
+              <textarea
+                v-model="form.description"
+                rows="3"
+                class="form-control"
+                placeholder="Ví dụ: áp dụng cho học sinh bán trú từ tháng 05/2026"
+              ></textarea>
+            </div>
+          </div>
+
+          <div class="fee-inline-checks">
+            <label class="fee-check">
+              <input v-model="form.isOptional" type="checkbox" />
+              <span>Tùy chọn</span>
+            </label>
+            <label class="fee-check">
+              <input v-model="form.active" type="checkbox" />
+              <span>Đang sử dụng</span>
+            </label>
+          </div>
+        </div>
+        <div class="fee-drawer-footer">
+          <argon-button color="secondary" variant="outline" type="button" @click="closeDrawer">
+            Đóng
+          </argon-button>
+          <argon-button color="primary" variant="gradient" type="button" :disabled="saving" @click="saveItem">
+            {{ saving ? "Đang lưu..." : editingId ? "Cập nhật khoản thu" : "Lưu khoản thu" }}
+          </argon-button>
+        </div>
+      </aside>
+    </Transition>
   </div>
 </template>
 
 <style scoped>
-.fee-page {
-  padding: 1rem 1.5rem 1.5rem;
-}
-
-.fee-hero {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 1rem;
-  padding: 1.1rem 1.25rem;
-  margin-bottom: 1rem;
-  border: 1px solid #e7edf5;
-  border-radius: 1rem;
-  background: linear-gradient(135deg, #ffffff, #eef6ff);
-}
-
-.fee-eyebrow {
-  display: inline-block;
-  margin-bottom: 0.25rem;
-  color: #2563eb;
-  font-size: 0.72rem;
-  font-weight: 700;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-}
-
-.fee-title {
-  color: #1f2a44;
-  font-weight: 700;
-}
-
-.fee-subtitle {
-  color: #64748b;
-}
-
-.fee-card {
-  border: 1px solid #e7edf5;
-  border-radius: 1rem;
-  box-shadow: 0 1rem 2rem -1.8rem rgba(15, 23, 42, 0.35);
-}
-
-.chip-list,
-.fee-inline-checks,
-.fee-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.65rem;
-}
-
-.chip-check {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-  padding: 0.55rem 0.75rem;
-  border: 1px solid #dbe5f0;
-  border-radius: 999px;
-  background: #fff;
-}
-
-.weekday-chip {
-  min-width: 3rem;
-  padding: 0.5rem 0.7rem;
-  border: 1px solid #d4dbe8;
-  border-radius: 999px;
-  background: #fff;
-}
-
-.weekday-chip--active {
-  border-color: #2563eb;
-  background: #eff6ff;
-  color: #1d4ed8;
-}
-
-.fee-check {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-}
-
-.fee-readonly-field {
-  min-height: calc(1.5em + 0.75rem + 2px);
-  padding: 0.5rem 0.75rem;
-  border: 1px solid #e7edf5;
-  border-radius: 0.5rem;
-  background: #f8fafc;
-  color: #475569;
-  font-size: 0.875rem;
-}
-
-.fee-table-wrap {
-  overflow-x: visible;
-}
-
-.fee-manage-table {
-  width: 100%;
-  table-layout: fixed;
-}
-
-.fee-manage-table thead th {
-  padding: 0.72rem 0.55rem;
-  font-size: 0.68rem;
-  white-space: nowrap;
-  vertical-align: middle;
-}
-
-.fee-manage-table tbody td {
-  padding: 0.72rem 0.55rem;
-  vertical-align: top;
-}
-
-.fee-head-left,
-.fee-cell-left {
-  text-align: left;
-}
-
-.fee-head-center,
-.fee-cell-center {
-  text-align: center;
-}
-
-.fee-head-right,
-.fee-cell-right {
-  text-align: right;
-}
-
 .fee-item-col-name {
   width: 22%;
 }
@@ -564,44 +507,5 @@ watch(
 
 .fee-item-col-action {
   width: 8%;
-}
-
-.fee-inline-checks,
-.fee-actions {
-  margin-top: 1rem;
-}
-
-.fee-actions {
-  justify-content: flex-end;
-}
-
-.fee-status {
-  display: inline-flex;
-  align-items: center;
-  padding: 0.22rem 0.65rem;
-  border-radius: 999px;
-  font-size: 0.74rem;
-  font-weight: 700;
-}
-
-.fee-status--active {
-  color: #166534;
-  background: #dcfce7;
-}
-
-.fee-status--inactive {
-  color: #991b1b;
-  background: #fee2e2;
-}
-
-@media (max-width: 991.98px) {
-  .fee-hero {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .fee-manage-table {
-    table-layout: auto;
-  }
 }
 </style>

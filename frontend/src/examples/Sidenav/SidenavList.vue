@@ -175,7 +175,7 @@ const getRoute = () => route.path.split("/")[1];
         <sidenav-item
           to="/fee-collection"
           :class="getRoute() === 'fee-collection' ? 'active' : ''"
-          :navText="isRTL ? 'Statements' : 'Tính HP'"
+          :navText="isRTL ? 'Statements' : 'Thu học phí'"
         >
           <template #icon>
             <i class="ni ni-money-coins text-warning text-sm"></i>

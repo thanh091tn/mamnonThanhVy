@@ -162,7 +162,7 @@ Admin-only routes:
 - `/fee-collection`
 
 Hidden/disabled frontend route:
-- `/fee-services` currently exists in backend/API/domain model, but is intentionally hidden from the current frontend navigation and router.
+- `/fee-services` currently exists in backend/API/domain model and router, but is intentionally hidden from the current frontend navigation.
 
 Teacher-only route:
 - `/teacher-leave`

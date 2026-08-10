@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, ref } from "vue";
+import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import { api } from "@/api/client.js";
 import ArgonAlert from "@/components/ArgonAlert.vue";
 import ArgonButton from "@/components/ArgonButton.vue";
@@ -43,9 +43,16 @@ const loadErr = ref("");
 const formErr = ref("");
 const okMsg = ref("");
 const editingId = ref(null);
+const drawerOpen = ref(false);
 const monthFilter = ref("");
 const statusFilter = ref("");
 const searchQuery = ref("");
+const templateSearch = ref("");
+let searchTimer = null;
+
+const filtersActive = computed(
+  () => Boolean(monthFilter.value) || Boolean(statusFilter.value) || Boolean(searchQuery.value.trim())
+);
 
 const form = ref({
   monthKey: nextMonthKey(),
@@ -56,17 +63,21 @@ const form = ref({
 });
 
 const visibleTemplates = computed(() => {
-  if (!editingId.value) {
-    return templates.value.filter((row) => row.active);
+  const q = templateSearch.value.trim().toLowerCase();
+  let list = !editingId.value
+    ? templates.value.filter((row) => row.active)
+    : templates.value.filter((row) => row.active || form.value.selectedTemplateIds.includes(row.id));
+  if (q) {
+    list = list.filter((row) => `${row.code} ${row.name}`.toLowerCase().includes(q));
   }
-  return templates.value.filter((row) => row.active || form.value.selectedTemplateIds.includes(row.id));
+  return list;
 });
 
 const stats = computed(() => ({
   total: periods.value.length,
   published: periods.value.filter((row) => row.status === "published").length,
   draft: periods.value.filter((row) => row.status === "draft").length,
-  selectedItems: form.value.selectedTemplateIds.length,
+  closed: periods.value.filter((row) => row.status === "closed").length,
 }));
 
 const selectedTemplates = computed(() => {
@@ -75,6 +86,7 @@ const selectedTemplates = computed(() => {
 
 function resetForm() {
   editingId.value = null;
+  templateSearch.value = "";
   form.value = {
     monthKey: nextMonthKey(),
     title: "",
@@ -85,10 +97,38 @@ function resetForm() {
   formErr.value = "";
 }
 
+function openCreateDrawer() {
+  resetForm();
+  drawerOpen.value = true;
+}
+
+function closeDrawer() {
+  drawerOpen.value = false;
+}
+
+function setBodyScrollLocked(locked) {
+  document.body.style.overflow = locked ? "hidden" : "";
+}
+
+function onEscape(e) {
+  if (e.key === "Escape" && drawerOpen.value) closeDrawer();
+}
+
+function selectVisibleTemplates() {
+  const selected = new Set(form.value.selectedTemplateIds);
+  for (const row of visibleTemplates.value) selected.add(row.id);
+  form.value.selectedTemplateIds = [...selected];
+}
+
+function deselectVisibleTemplates() {
+  const removeIds = new Set(visibleTemplates.value.map((row) => row.id));
+  form.value.selectedTemplateIds = form.value.selectedTemplateIds.filter((id) => !removeIds.has(id));
+}
+
 async function loadTemplates() {
   const { data } = await api.get("/fees/item-templates");
   templates.value = Array.isArray(data) ? data : [];
-  if (!editingId.value) {
+  if (!editingId.value && !drawerOpen.value) {
     form.value.selectedTemplateIds = templates.value.filter((row) => row.active).map((row) => row.id);
   }
 }
@@ -127,6 +167,7 @@ async function editPeriod(id) {
     const { data } = await api.get(`/fees/periods/${id}`);
     const listRow = periods.value.find((row) => row.id === id);
     editingId.value = data.id;
+    templateSearch.value = "";
     form.value = {
       monthKey: data.monthKey || nextMonthKey(),
       title: data.title || "",
@@ -134,6 +175,7 @@ async function editPeriod(id) {
       status: data.status || "draft",
       selectedTemplateIds: Array.isArray(data.items) ? data.items.map((row) => row.templateId).filter(Boolean) : [],
     };
+    drawerOpen.value = true;
   } catch (e) {
     formErr.value = e.response?.data?.error || e.message || "Không tải được kỳ thu";
   }
@@ -188,6 +230,7 @@ async function savePeriod() {
     }
     await loadPeriods();
     resetForm();
+    closeDrawer();
   } catch (e) {
     formErr.value = e.response?.data?.error || e.message || "Lưu kỳ thu thất bại";
   } finally {
@@ -195,13 +238,35 @@ async function savePeriod() {
   }
 }
 
+watch([monthFilter, statusFilter], () => {
+  loadPeriods();
+});
+
+watch(searchQuery, () => {
+  if (searchTimer) clearTimeout(searchTimer);
+  searchTimer = setTimeout(() => {
+    loadPeriods();
+  }, 300);
+});
+
+watch(drawerOpen, (open) => {
+  setBodyScrollLocked(open);
+});
+
 onMounted(async () => {
+  window.addEventListener("keydown", onEscape);
   try {
     await Promise.all([loadTemplates(), loadPeriods()]);
     resetForm();
   } catch (e) {
     loadErr.value = e.response?.data?.error || e.message || "Không tải được dữ liệu kỳ thu";
   }
+});
+
+onUnmounted(() => {
+  window.removeEventListener("keydown", onEscape);
+  if (searchTimer) clearTimeout(searchTimer);
+  setBodyScrollLocked(false);
 });
 </script>
 
@@ -215,7 +280,7 @@ onMounted(async () => {
           Chọn khoản thu áp dụng cho từng tháng, chốt hạn đóng và sinh bảng tính học phí tự động cho toàn trường.
         </p>
       </div>
-      <argon-button color="secondary" variant="outline" type="button" @click="resetForm">
+      <argon-button color="primary" variant="gradient" type="button" @click="openCreateDrawer">
         Tạo kỳ mới
       </argon-button>
     </section>
@@ -234,8 +299,8 @@ onMounted(async () => {
         <strong>{{ stats.published }}</strong>
       </div>
       <div class="fee-stat-card">
-        <span>Khoản đang chọn</span>
-        <strong>{{ stats.selectedItems }}</strong>
+        <span>Đã khóa</span>
+        <strong>{{ stats.closed }}</strong>
       </div>
     </div>
 
@@ -246,293 +311,205 @@ onMounted(async () => {
       {{ okMsg }}
     </argon-alert>
 
-    <div class="row g-4">
-      <div class="col-xl-5">
-        <div class="card fee-card">
-          <div class="card-header pb-0">
-            <h6 class="mb-1">{{ editingId ? "Cập nhật kỳ thu" : "Tạo kỳ thu" }}</h6>
-            <p class="text-sm text-secondary mb-0">Kỳ thu là ảnh chụp danh sách khoản thu được áp dụng trong một tháng cụ thể.</p>
+    <div class="card fee-card">
+      <div class="card-header pb-0">
+        <div class="row g-3">
+          <div class="col-md-3">
+            <app-date-field v-model="monthFilter" month-picker />
           </div>
-          <div class="card-body">
-            <argon-alert v-if="formErr" color="danger" icon="ni ni-fat-remove" class="mb-3">
-              {{ formErr }}
-            </argon-alert>
-
-            <div class="row g-3">
-              <div class="col-md-6">
-                <label class="form-control-label">Tháng</label>
-                <app-date-field v-model="form.monthKey" month-picker />
-              </div>
-              <div class="col-md-6">
-                <label class="form-control-label">Hạn đóng</label>
-                <app-date-field v-model="form.dueDate" />
-              </div>
-              <div class="col-12">
-                <label class="form-control-label">Tên kỳ thu</label>
-                <input v-model="form.title" type="text" class="form-control" placeholder="Ví dụ: Học phí tháng 05/2026" />
-              </div>
-              <div class="col-12">
-                <label class="form-control-label">Trạng thái</label>
-                <select v-model="form.status" class="form-select">
-                  <option value="draft">Nháp</option>
-                  <option value="published">Đã phát hành</option>
-                  <option value="closed">Đã khóa</option>
-                </select>
-              </div>
-            </div>
-
-            <div class="fee-section-head">
-              <h6 class="mb-0">Khoản thu áp dụng trong tháng</h6>
-              <span class="text-sm text-secondary">{{ selectedTemplates.length }} khoản</span>
-            </div>
-            <div class="fee-template-list">
-              <label v-for="row in visibleTemplates" :key="row.id" class="fee-template-row">
-                <input :checked="form.selectedTemplateIds.includes(row.id)" type="checkbox" @change="toggleTemplate(row.id)" />
-                <span>
-                  <strong>{{ row.code }} - {{ row.name }}</strong>
-                  <small>
-                    {{ feeTypeLabel(row.calcType) }} • {{ formatMoney(row.unitPrice) }} / {{ row.unitName }}
-                  </small>
-                </span>
-              </label>
-            </div>
-
-            <div class="fee-actions">
-              <argon-button color="secondary" variant="outline" type="button" @click="resetForm">
-                Làm mới
-              </argon-button>
-              <argon-button color="primary" variant="gradient" type="button" :disabled="saving" @click="savePeriod">
-                {{ saving ? "Đang lưu..." : editingId ? "Cập nhật kỳ thu" : "Lưu kỳ thu" }}
-              </argon-button>
-            </div>
+          <div class="col-md-3">
+            <select v-model="statusFilter" class="form-select">
+              <option value="">Tất cả trạng thái</option>
+              <option value="draft">Nháp</option>
+              <option value="published">Đã phát hành</option>
+              <option value="closed">Đã khóa</option>
+            </select>
+          </div>
+          <div class="col-md-4">
+            <input v-model="searchQuery" type="text" class="form-control" placeholder="Tìm tên kỳ thu" />
+          </div>
+          <div class="col-md-2">
+            <argon-button color="secondary" variant="outline" type="button" class="w-100" @click="loadPeriods">
+              Tải lại
+            </argon-button>
           </div>
         </div>
       </div>
-
-      <div class="col-xl-7">
-        <div class="card fee-card">
-          <div class="card-header pb-0">
-            <div class="row g-3">
-              <div class="col-md-3">
-                <app-date-field v-model="monthFilter" month-picker />
-              </div>
-              <div class="col-md-3">
-                <select v-model="statusFilter" class="form-select">
-                  <option value="">Tất cả trạng thái</option>
-                  <option value="draft">Nháp</option>
-                  <option value="published">Đã phát hành</option>
-                  <option value="closed">Đã khóa</option>
-                </select>
-              </div>
-              <div class="col-md-4">
-                <input v-model="searchQuery" type="text" class="form-control" placeholder="Tìm tên kỳ thu" />
-              </div>
-              <div class="col-md-2">
-                <argon-button color="secondary" variant="outline" type="button" class="w-100" @click="loadPeriods">
-                  Lọc
-                </argon-button>
-              </div>
-            </div>
-          </div>
-          <div class="card-body pt-3">
-            <div v-if="loading" class="text-sm text-secondary">Đang tải dữ liệu kỳ thu...</div>
-            <div v-else-if="!periods.length" class="text-sm text-secondary">Chưa có kỳ thu nào.</div>
-            <div v-else class="table-responsive fee-table-wrap">
-              <table class="table align-items-center mb-0 fee-manage-table">
-                <colgroup>
-                  <col class="fee-period-col-month" />
-                  <col class="fee-period-col-title" />
-                  <col class="fee-period-col-count" />
-                  <col class="fee-period-col-count" />
-                  <col class="fee-period-col-money" />
-                  <col class="fee-period-col-money" />
-                  <col class="fee-period-col-status" />
-                  <col class="fee-period-col-action" />
-                </colgroup>
-                <thead>
-                  <tr>
-                    <th class="fee-head-left">Tháng</th>
-                    <th class="fee-head-left">Tên kỳ</th>
-                    <th class="fee-head-center">Khoản</th>
-                    <th class="fee-head-center">HS</th>
-                    <th class="fee-head-right">Phải thu</th>
-                    <th class="fee-head-right">Đã thu</th>
-                    <th class="fee-head-center">Trạng thái</th>
-                    <th class="fee-head-right"></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr v-for="row in periods" :key="row.id">
-                    <td class="text-sm font-weight-bold fee-cell-left">{{ row.monthKey }}</td>
-                    <td class="text-sm fee-cell-left">
-                      <strong>{{ row.title }}</strong>
-                      <div class="text-secondary fee-subtext">Hạn đóng: {{ row.dueDate || "Chưa đặt" }}</div>
-                    </td>
-                    <td class="text-sm fee-cell-center">{{ row.itemCount }}</td>
-                    <td class="text-sm fee-cell-center">{{ row.studentCount }}</td>
-                    <td class="text-sm fee-cell-right">{{ formatMoney(row.totalFinalAmount) }}</td>
-                    <td class="text-sm fee-cell-right">{{ formatMoney(row.totalPaidAmount) }}</td>
-                    <td class="text-sm fee-cell-center">
-                      <span class="fee-status" :class="`fee-status--${row.status}`">{{ periodStatusLabel(row.status) }}</span>
-                    </td>
-                    <td class="text-end fee-cell-right">
-                      <button type="button" class="btn btn-link text-secondary mb-0 p-0" @click="editPeriod(row.id)">
-                        Sửa
-                      </button>
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </div>
+      <div class="card-body pt-3">
+        <div v-if="loading" class="fee-loading-block">Đang tải dữ liệu kỳ thu...</div>
+        <div v-else-if="!periods.length" class="fee-empty-state">
+          <p class="text-sm text-secondary mb-0">
+            {{ filtersActive ? "Không có kỳ thu khớp bộ lọc." : "Chưa có kỳ thu nào." }}
+          </p>
+        </div>
+        <div v-else class="table-responsive fee-table-wrap">
+          <table class="table align-items-center mb-0 fee-manage-table">
+            <colgroup>
+              <col class="fee-period-col-month" />
+              <col class="fee-period-col-title" />
+              <col class="fee-period-col-count" />
+              <col class="fee-period-col-count" />
+              <col class="fee-period-col-money" />
+              <col class="fee-period-col-money" />
+              <col class="fee-period-col-status" />
+              <col class="fee-period-col-action" />
+            </colgroup>
+            <thead>
+              <tr>
+                <th class="fee-head-left">Tháng</th>
+                <th class="fee-head-left">Tên kỳ</th>
+                <th class="fee-head-center">Khoản</th>
+                <th class="fee-head-center">HS</th>
+                <th class="fee-head-right">Phải thu</th>
+                <th class="fee-head-right">Đã thu</th>
+                <th class="fee-head-center">Trạng thái</th>
+                <th class="fee-head-right"></th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr
+                v-for="row in periods"
+                :key="row.id"
+                :class="{ 'fee-row-selected': drawerOpen && editingId === row.id }"
+              >
+                <td class="text-sm font-weight-bold fee-cell-left">{{ row.monthKey }}</td>
+                <td class="text-sm fee-cell-left">
+                  <strong>{{ row.title }}</strong>
+                  <div class="text-secondary fee-subtext">Hạn đóng: {{ row.dueDate || "Chưa đặt" }}</div>
+                </td>
+                <td class="text-sm fee-cell-center">{{ row.itemCount }}</td>
+                <td class="text-sm fee-cell-center">{{ row.studentCount }}</td>
+                <td class="text-sm fee-cell-right">{{ formatMoney(row.totalFinalAmount) }}</td>
+                <td class="text-sm fee-cell-right">{{ formatMoney(row.totalPaidAmount) }}</td>
+                <td class="text-sm fee-cell-center">
+                  <span class="fee-status" :class="`fee-status--${row.status}`">{{ periodStatusLabel(row.status) }}</span>
+                </td>
+                <td class="text-end fee-cell-right">
+                  <button type="button" class="btn btn-link text-primary mb-0 p-0" @click="editPeriod(row.id)">
+                    Sửa
+                  </button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
         </div>
       </div>
     </div>
+
+    <Transition name="fee-drawer-backdrop">
+      <div v-if="drawerOpen" class="fee-drawer-backdrop" @click="closeDrawer"></div>
+    </Transition>
+    <Transition name="fee-drawer-slide">
+      <aside v-if="drawerOpen" class="fee-drawer-panel fee-drawer-panel--wide">
+        <div class="fee-drawer-header">
+          <h5 class="fee-drawer-title">{{ editingId ? "Cập nhật kỳ thu" : "Tạo kỳ thu" }}</h5>
+          <button type="button" class="btn-close" aria-label="Đóng" @click="closeDrawer"></button>
+        </div>
+        <div class="fee-drawer-body">
+          <p class="text-sm text-secondary mb-3">
+            Kỳ thu là ảnh chụp danh sách khoản thu được áp dụng trong một tháng cụ thể.
+          </p>
+          <argon-alert v-if="formErr" color="danger" icon="ni ni-fat-remove" class="mb-3">
+            {{ formErr }}
+          </argon-alert>
+
+          <div class="row g-3">
+            <div class="col-md-6">
+              <label class="form-control-label">Tháng</label>
+              <app-date-field v-model="form.monthKey" month-picker />
+            </div>
+            <div class="col-md-6">
+              <label class="form-control-label">Hạn đóng</label>
+              <app-date-field v-model="form.dueDate" />
+            </div>
+            <div class="col-12">
+              <label class="form-control-label">Tên kỳ thu</label>
+              <input
+                v-model="form.title"
+                type="text"
+                class="form-control"
+                placeholder="Ví dụ: Học phí tháng 05/2026"
+              />
+            </div>
+            <div class="col-12">
+              <label class="form-control-label">Trạng thái</label>
+              <select v-model="form.status" class="form-select">
+                <option value="draft">Nháp</option>
+                <option value="published">Đã phát hành</option>
+                <option value="closed">Đã khóa</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="fee-section-head">
+            <h6 class="mb-0">Khoản thu áp dụng trong tháng</h6>
+            <span class="text-sm text-secondary">{{ selectedTemplates.length }} khoản</span>
+          </div>
+
+          <div class="fee-sticky-bar">
+            <strong class="text-sm">Đã chọn {{ selectedTemplates.length }} khoản</strong>
+            <div class="fee-sticky-actions">
+              <button type="button" class="btn btn-link text-primary mb-0 p-0 text-sm" @click="selectVisibleTemplates">
+                Chọn tất cả (lọc)
+              </button>
+              <button type="button" class="btn btn-link text-secondary mb-0 p-0 text-sm" @click="deselectVisibleTemplates">
+                Bỏ chọn (lọc)
+              </button>
+            </div>
+          </div>
+
+          <div class="mb-2">
+            <input
+              v-model="templateSearch"
+              type="text"
+              class="form-control"
+              placeholder="Lọc khoản thu theo mã hoặc tên"
+            />
+          </div>
+
+          <div class="fee-selectable-list">
+            <label
+              v-for="row in visibleTemplates"
+              :key="row.id"
+              class="fee-selectable-row"
+              :class="{ 'is-selected': form.selectedTemplateIds.includes(row.id) }"
+            >
+              <input
+                :checked="form.selectedTemplateIds.includes(row.id)"
+                type="checkbox"
+                @change="toggleTemplate(row.id)"
+              />
+              <span>
+                <strong>{{ row.code }} - {{ row.name }}</strong>
+                <small>
+                  {{ feeTypeLabel(row.calcType) }} • {{ formatMoney(row.unitPrice) }} / {{ row.unitName }}
+                </small>
+              </span>
+            </label>
+            <div v-if="!visibleTemplates.length" class="text-sm text-secondary px-1 py-2">
+              Không có khoản thu khớp bộ lọc.
+            </div>
+          </div>
+        </div>
+        <div class="fee-drawer-footer">
+          <argon-button color="secondary" variant="outline" type="button" @click="closeDrawer">
+            Đóng
+          </argon-button>
+          <argon-button color="primary" variant="gradient" type="button" :disabled="saving" @click="savePeriod">
+            {{ saving ? "Đang lưu..." : editingId ? "Cập nhật kỳ thu" : "Lưu kỳ thu" }}
+          </argon-button>
+        </div>
+      </aside>
+    </Transition>
   </div>
 </template>
 
 <style scoped>
-.fee-page {
-  padding: 1rem 1.5rem 1.5rem;
-}
-
-.fee-hero {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 1rem;
-  padding: 1.1rem 1.25rem;
-  margin-bottom: 1rem;
-  border: 1px solid #e7edf5;
-  border-radius: 1rem;
-  background: linear-gradient(135deg, #ffffff, #eef4ff);
-}
-
-.fee-eyebrow {
-  display: inline-block;
-  margin-bottom: 0.25rem;
-  color: #1d4ed8;
-  font-size: 0.72rem;
-  font-weight: 700;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-}
-
-.fee-title {
-  color: #1f2a44;
-  font-weight: 700;
-}
-
-.fee-subtitle {
-  color: #64748b;
-}
-
-.fee-stats {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 1rem;
-  margin-bottom: 1rem;
-}
-
-.fee-stat-card,
-.fee-card {
-  border: 1px solid #e7edf5;
-  border-radius: 1rem;
-  box-shadow: 0 1rem 2rem -1.8rem rgba(15, 23, 42, 0.35);
-}
-
-.fee-stat-card {
-  display: flex;
-  flex-direction: column;
-  gap: 0.35rem;
-  padding: 1rem 1.1rem;
-  background: #fff;
-}
-
-.fee-stat-card span {
-  color: #64748b;
-  font-size: 0.82rem;
-}
-
-.fee-stat-card strong {
-  color: #1f2a44;
-  font-size: 1.4rem;
-}
-
-.fee-section-head,
-.fee-actions,
-.fee-table-actions {
+.fee-sticky-actions {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
-}
-
-.fee-section-head {
-  margin: 1.25rem 0 0.75rem;
-}
-
-.fee-template-list {
-  display: flex;
-  flex-direction: column;
-  gap: 0.65rem;
-  max-height: 26rem;
-  overflow: auto;
-}
-
-.fee-template-row {
-  display: flex;
-  align-items: center;
-  gap: 0.7rem;
-  padding: 0.8rem 0.9rem;
-  border: 1px solid #e7edf5;
-  border-radius: 0.9rem;
-  background: #fff;
-}
-
-.fee-template-row span {
-  display: flex;
-  flex-direction: column;
-}
-
-.fee-template-row small {
-  color: #64748b;
-}
-
-.fee-table-wrap {
-  overflow-x: visible;
-}
-
-.fee-manage-table {
-  width: 100%;
-  table-layout: fixed;
-}
-
-.fee-manage-table thead th {
-  padding: 0.72rem 0.55rem;
-  font-size: 0.68rem;
-  white-space: nowrap;
-  vertical-align: middle;
-}
-
-.fee-manage-table tbody td {
-  padding: 0.72rem 0.55rem;
-  vertical-align: top;
-}
-
-.fee-head-left,
-.fee-cell-left {
-  text-align: left;
-}
-
-.fee-head-center,
-.fee-cell-center {
-  text-align: center;
-}
-
-.fee-head-right,
-.fee-cell-right {
-  text-align: right;
+  gap: 0.85rem;
+  flex-wrap: wrap;
 }
 
 .fee-period-col-month {
@@ -557,56 +534,5 @@ onMounted(async () => {
 
 .fee-period-col-action {
   width: 8%;
-}
-
-.fee-subtext {
-  margin-top: 0.2rem;
-  font-size: 0.76rem;
-  line-height: 1.35;
-}
-
-.fee-actions {
-  margin-top: 1rem;
-  justify-content: flex-end;
-}
-
-.fee-status {
-  display: inline-flex;
-  align-items: center;
-  padding: 0.22rem 0.65rem;
-  border-radius: 999px;
-  font-size: 0.74rem;
-  font-weight: 700;
-  text-transform: capitalize;
-}
-
-.fee-status--draft {
-  color: #92400e;
-  background: #fef3c7;
-}
-
-.fee-status--published {
-  color: #1d4ed8;
-  background: #dbeafe;
-}
-
-.fee-status--closed {
-  color: #166534;
-  background: #dcfce7;
-}
-
-@media (max-width: 991.98px) {
-  .fee-hero {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .fee-stats {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .fee-manage-table {
-    table-layout: auto;
-  }
 }
 </style>
