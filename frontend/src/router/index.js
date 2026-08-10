@@ -12,6 +12,7 @@ import FeeItems from '../views/FeeItems.vue'
 import FeePeriods from '../views/FeePeriods.vue'
 import FeePolicies from '../views/FeePolicies.vue'
 import FeeCollection from '../views/FeeCollection.vue'
+import FeeServices from '../views/FeeServices.vue'
 import StudentDetail from '../views/StudentDetail.vue'
 import YearEndTransition from '../views/YearEndTransition.vue'
 
@@ -82,6 +83,12 @@ const routes = [
     path: '/fee-collection',
     name: 'FeeCollection',
     component: FeeCollection,
+    meta: { requiresAuth: true, requiresManager: true },
+  },
+  {
+    path: '/fee-services',
+    name: 'FeeServices',
+    component: FeeServices,
     meta: { requiresAuth: true, requiresManager: true },
   },
   {

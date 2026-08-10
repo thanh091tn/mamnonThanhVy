@@ -49,11 +49,13 @@ const DOC_FIELDS = [
 
 const items = ref([])
 const classOptions = ref([])
+const academicYearOptions = ref([])
 const loading = ref(false)
 const exporting = ref(false)
 const exportButtonLabel = computed(() => exporting.value ? '\u0110ang t\u1ea3i...' : 'Xu\u1ea5t Excel')
 const createButtonLabel = computed(() => 'Th\u00eam h\u1ecdc sinh')
 const filterStatuses = ref([])
+const filterAcademicYearId = ref('')
 const filterClassId = ref(null)
 const filterKeyword = ref('')
 
@@ -78,6 +80,26 @@ function compareStudentByFirstName(a, b) {
   )
 }
 
+const sortedAcademicYears = computed(() => {
+  return [...academicYearOptions.value].sort((a, b) => {
+    return String(a.name || '').localeCompare(String(b.name || ''), 'vi')
+  })
+})
+
+const selectedFilterAcademicYearId = computed(() => {
+  if (filterAcademicYearId.value === '' || filterAcademicYearId.value == null) return null
+  const id = Number(filterAcademicYearId.value)
+  return Number.isInteger(id) && id > 0 ? id : null
+})
+
+const filterClassOptions = computed(() => {
+  if (selectedFilterAcademicYearId.value == null) return classOptions.value
+  const matched = classOptions.value.filter(
+    (c) => c.academicYearId === selectedFilterAcademicYearId.value
+  )
+  return matched.length ? matched : classOptions.value
+})
+
 const filteredItems = computed(() => {
   let list = items.value
   const keyword = String(filterKeyword.value || '').trim().toLowerCase()
@@ -86,6 +108,9 @@ const filteredItems = computed(() => {
   }
   if (filterStatuses.value.length) {
     list = list.filter((s) => filterStatuses.value.includes(s.status || 'active'))
+  }
+  if (selectedFilterAcademicYearId.value != null) {
+    list = list.filter((s) => s.academicYearId === selectedFilterAcademicYearId.value)
   }
   if (filterClassId.value != null) {
     list = list.filter((s) => s.classId === filterClassId.value)
@@ -117,6 +142,12 @@ const pagedItems = computed(() => {
 })
 
 watch(filteredItems, () => { currentPage.value = 1 })
+
+watch(filterAcademicYearId, () => {
+  if (filterClassId.value == null) return
+  const stillValid = filterClassOptions.value.some((c) => c.id === filterClassId.value)
+  if (!stillValid) filterClassId.value = null
+})
 
 function goToPage(page) {
   currentPage.value = Math.max(1, Math.min(page, totalPages.value))
@@ -511,10 +542,17 @@ function statusLabel(status) {
 
 async function loadClasses() {
   try {
-    const { data } = await api.get('/classes')
-    classOptions.value = data
+    const { data } = await api.get('/students/metadata')
+    academicYearOptions.value = Array.isArray(data?.academicYears) ? data.academicYears : []
+    classOptions.value = Array.isArray(data?.classes) ? data.classes : []
   } catch {
-    classOptions.value = []
+    academicYearOptions.value = []
+    try {
+      const { data } = await api.get('/classes')
+      classOptions.value = data
+    } catch {
+      classOptions.value = []
+    }
   }
 }
 
@@ -830,6 +868,20 @@ defineExpose({ load })
         </div>
 
         <div :class="filterSectionClass">
+          <span class="tw-mb-[0.15rem] tw-text-[0.7rem] tw-font-bold tw-uppercase tw-tracking-[0.04em] tw-text-[#8392ab]">Năm học</span>
+          <select v-model="filterAcademicYearId" class="form-control form-control-sm">
+            <option value="">Tất cả</option>
+            <option
+              v-for="year in sortedAcademicYears"
+              :key="year.id"
+              :value="String(year.id)"
+            >
+              {{ year.name }}{{ year.isCurrent ? ' (hiện tại)' : '' }}
+            </option>
+          </select>
+        </div>
+
+        <div :class="filterSectionClass">
           <span class="tw-mb-[0.15rem] tw-text-[0.7rem] tw-font-bold tw-uppercase tw-tracking-[0.04em] tw-text-[#8392ab]">Lớp</span>
           <div
             :class="[filterClassItemClass, filterClassId == null ? activeFilterClassItemClass : '']"
@@ -838,7 +890,7 @@ defineExpose({ load })
             <i class="ni ni-books me-1"></i> Tất cả
           </div>
           <div
-            v-for="c in classOptions"
+            v-for="c in filterClassOptions"
             :key="c.id"
             :class="[filterClassItemClass, filterClassId === c.id ? activeFilterClassItemClass : '']"
             @click="filterClassId = c.id"

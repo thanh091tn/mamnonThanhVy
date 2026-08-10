@@ -8,6 +8,7 @@ import 'bootstrap/dist/js/bootstrap.bundle.min.js'
 import ArgonDashboard from './argon-dashboard'
 import './style.css'
 import './assets/css/panel-tables.css'
+import './assets/css/fee-panel.css'
 
 const app = createApp(App)
 app.use(store)

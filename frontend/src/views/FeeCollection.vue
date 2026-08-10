@@ -1,9 +1,11 @@
 <script setup>
-import { computed, onMounted, ref, watch } from "vue";
+import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import { api } from "@/api/client.js";
 import ArgonAlert from "@/components/ArgonAlert.vue";
 import ArgonButton from "@/components/ArgonButton.vue";
 import AppDateField from "@/components/AppDateField.vue";
+
+const PAGE_SIZE = 15;
 
 function formatMoney(value) {
   return Number(value || 0).toLocaleString("vi-VN");
@@ -20,6 +22,27 @@ function getPaymentStatusLabel(status) {
   return "Chưa thu";
 }
 
+function paymentStatusClass(status) {
+  if (status === "paid") return "fee-pay-status--paid";
+  if (status === "partial") return "fee-pay-status--partial";
+  return "fee-pay-status--unpaid";
+}
+
+function paymentMethodLabel(method) {
+  if (method === "cash") return "Tiền mặt";
+  if (method === "transfer") return "Chuyển khoản";
+  if (method === "card") return "Thẻ";
+  return method || "";
+}
+
+function adjustmentTypeLabel(type) {
+  if (type === "charge") return "Phụ thu";
+  if (type === "discount") return "Giảm trừ";
+  if (type === "refund") return "Hoàn tiền";
+  if (type === "carry_forward") return "Khấu trừ số dư";
+  return type || "";
+}
+
 const periods = ref([]);
 const classes = ref([]);
 const rows = ref([]);
@@ -30,14 +53,18 @@ const paymentStatusFilter = ref("");
 const hasDiscountFilter = ref("");
 const searchQuery = ref("");
 const loading = ref(false);
+const generating = ref(false);
 const reportLoading = ref(false);
 const loadErr = ref("");
 const okMsg = ref("");
 const selectedDetail = ref(null);
+const drawerOpen = ref(false);
 const detailLoading = ref(false);
 const paymentSaving = ref(false);
 const adjustmentSaving = ref(false);
 const detailErr = ref("");
+const currentPage = ref(1);
+let searchTimer = null;
 
 const paymentForm = ref({
   amount: "",
@@ -55,6 +82,14 @@ const adjustmentForm = ref({
   amount: "",
   note: "",
 });
+
+const filtersActive = computed(
+  () =>
+    Boolean(classFilter.value) ||
+    Boolean(paymentStatusFilter.value) ||
+    Boolean(hasDiscountFilter.value) ||
+    Boolean(searchQuery.value.trim())
+);
 
 const totals = computed(() => {
   const summary = report.value?.summary;
@@ -80,6 +115,13 @@ const totals = computed(() => {
   };
 });
 
+const totalPages = computed(() => Math.max(1, Math.ceil(rows.value.length / PAGE_SIZE)));
+
+const pagedRows = computed(() => {
+  const start = (currentPage.value - 1) * PAGE_SIZE;
+  return rows.value.slice(start, start + PAGE_SIZE);
+});
+
 function resetPaymentForm() {
   paymentForm.value = {
     amount: "",
@@ -99,6 +141,20 @@ function resetAdjustmentForm() {
     amount: "",
     note: "",
   };
+}
+
+function closeDrawer() {
+  drawerOpen.value = false;
+  selectedDetail.value = null;
+  detailErr.value = "";
+}
+
+function setBodyScrollLocked(locked) {
+  document.body.style.overflow = locked ? "hidden" : "";
+}
+
+function onEscape(e) {
+  if (e.key === "Escape" && drawerOpen.value) closeDrawer();
 }
 
 async function loadMeta() {
@@ -127,6 +183,7 @@ async function loadRows() {
       },
     });
     rows.value = Array.isArray(data) ? data : [];
+    currentPage.value = 1;
   } catch (e) {
     loadErr.value = e.response?.data?.error || e.message || "Không tải được bảng tính học phí";
     rows.value = [];
@@ -152,6 +209,7 @@ async function loadReport() {
 }
 
 async function loadDetail(id) {
+  drawerOpen.value = true;
   detailLoading.value = true;
   detailErr.value = "";
   try {
@@ -167,7 +225,8 @@ async function loadDetail(id) {
 }
 
 async function generateSelectedPeriod() {
-  if (!selectedPeriodId.value) return;
+  if (!selectedPeriodId.value || generating.value) return;
+  generating.value = true;
   loadErr.value = "";
   okMsg.value = "";
   try {
@@ -176,6 +235,8 @@ async function generateSelectedPeriod() {
     await Promise.all([loadMeta(), loadRows(), loadReport()]);
   } catch (e) {
     loadErr.value = e.response?.data?.error || e.message || "Generate bảng tính thất bại";
+  } finally {
+    generating.value = false;
   }
 }
 
@@ -226,17 +287,43 @@ async function submitAdjustment() {
 }
 
 watch(selectedPeriodId, async () => {
-  selectedDetail.value = null;
+  closeDrawer();
   await Promise.all([loadRows(), loadReport()]);
 });
 
+watch([classFilter, paymentStatusFilter, hasDiscountFilter], () => {
+  loadRows();
+});
+
+watch(searchQuery, () => {
+  if (searchTimer) clearTimeout(searchTimer);
+  searchTimer = setTimeout(() => {
+    loadRows();
+  }, 300);
+});
+
+watch(totalPages, (pages) => {
+  if (currentPage.value > pages) currentPage.value = pages;
+});
+
+watch(drawerOpen, (open) => {
+  setBodyScrollLocked(open);
+});
+
 onMounted(async () => {
+  window.addEventListener("keydown", onEscape);
   try {
     await loadMeta();
     await Promise.all([loadRows(), loadReport()]);
   } catch (e) {
     loadErr.value = e.response?.data?.error || e.message || "Không tải được dữ liệu học phí";
   }
+});
+
+onUnmounted(() => {
+  window.removeEventListener("keydown", onEscape);
+  if (searchTimer) clearTimeout(searchTimer);
+  setBodyScrollLocked(false);
 });
 </script>
 
@@ -245,7 +332,7 @@ onMounted(async () => {
     <section class="fee-hero">
       <div>
         <span class="fee-eyebrow">Bảng tính</span>
-        <h4 class="fee-title mb-1">Tính học phí tháng</h4>
+        <h4 class="fee-title mb-1">Thu học phí tháng</h4>
         <p class="fee-subtitle mb-0">
           Theo dõi tổng phải thu, đã thu, còn thiếu và giải thích rõ từng dòng tiền cho phụ huynh và kế toán.
         </p>
@@ -257,6 +344,15 @@ onMounted(async () => {
             {{ row.title }} ({{ row.monthKey }})
           </option>
         </select>
+        <argon-button
+          color="primary"
+          variant="gradient"
+          type="button"
+          :disabled="!selectedPeriodId || generating"
+          @click="generateSelectedPeriod"
+        >
+          {{ generating ? "Đang sinh..." : "Sinh bảng tính" }}
+        </argon-button>
       </div>
     </section>
 
@@ -286,362 +382,345 @@ onMounted(async () => {
       </div>
     </div>
 
-    <div class="row g-4">
-      <div class="col-xl-8">
-        <div class="card fee-card">
-          <div class="card-header pb-0">
-            <div class="row g-3">
-              <div class="col-md-3">
-                <select v-model="classFilter" class="form-select">
-                  <option value="">Tất cả lớp</option>
-                  <option v-for="row in classes" :key="row.id" :value="row.id">{{ row.name }}</option>
-                </select>
-              </div>
-              <div class="col-md-3">
-                <select v-model="paymentStatusFilter" class="form-select">
-                  <option value="">Tất cả trạng thái</option>
-                  <option value="unpaid">Chưa thu</option>
-                  <option value="partial">Thu một phần</option>
-                  <option value="paid">Đã đủ</option>
-                </select>
-              </div>
-              <div class="col-md-2">
-                <select v-model="hasDiscountFilter" class="form-select">
-                  <option value="">Miễn giảm</option>
-                  <option value="true">Có miễn giảm</option>
-                  <option value="false">Không miễn giảm</option>
-                </select>
-              </div>
-              <div class="col-md-3">
-                <input v-model="searchQuery" type="text" class="form-control" placeholder="Tìm học sinh" />
-              </div>
-              <div class="col-md-1">
-                <argon-button color="secondary" variant="outline" type="button" class="w-100" @click="loadRows">
-                  Lọc
-                </argon-button>
-              </div>
-            </div>
+    <div class="card fee-card">
+      <div class="card-header pb-0">
+        <div class="row g-3">
+          <div class="col-md-3">
+            <select v-model="classFilter" class="form-select">
+              <option value="">Tất cả lớp</option>
+              <option v-for="row in classes" :key="row.id" :value="row.id">{{ row.name }}</option>
+            </select>
           </div>
-          <div class="card-body pt-3">
-            <div v-if="loading" class="text-sm text-secondary">Đang tải bảng tính...</div>
-            <div v-else-if="!rows.length" class="text-sm text-secondary">Chưa có dữ liệu học phí cho kỳ này.</div>
-            <div v-else class="table-responsive fee-table-wrap">
-              <table class="table align-items-center mb-0 fee-collection-table">
-                <colgroup>
-                  <col class="fee-col-student" />
-                  <col class="fee-col-amount" span="8" />
-                  <col class="fee-col-action" />
-                </colgroup>
-                <thead>
-                  <tr>
-                    <th class="fee-head-student">Học sinh</th>
-                    <th class="fee-head-amount">Học phí</th>
-                    <th class="fee-head-amount">Theo ngày</th>
-                    <th class="fee-head-amount">Dịch vụ</th>
-                    <th class="fee-head-amount">Giảm trừ</th>
-                    <th class="fee-head-amount">Nợ cũ</th>
-                    <th class="fee-head-amount">Tổng</th>
-                    <th class="fee-head-amount">Đã thu</th>
-                    <th class="fee-head-amount">Còn thiếu</th>
-                    <th class="fee-head-action"></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr v-for="row in rows" :key="row.id">
-                    <td class="text-sm fee-student-cell">
-                      <strong class="fee-student-name">{{ row.studentName }}</strong>
-                      <div class="text-secondary fee-student-meta">
-                        {{ row.className || "Chưa xếp lớp" }}
-                        <span v-if="row.hasAlert" class="text-danger">• tăng bất thường</span>
-                      </div>
-                    </td>
-                    <td class="text-sm fee-money-cell">{{ formatMoney(row.fixedAmount) }}</td>
-                    <td class="text-sm fee-money-cell">{{ formatMoney(row.dailyAmount) }}</td>
-                    <td class="text-sm fee-money-cell">{{ formatMoney(row.serviceAmount + row.oneTimeAmount) }}</td>
-                    <td class="text-sm text-success fee-money-cell">-{{ formatMoney(row.discountAmount - Math.min(row.adjustmentAmount, 0)) }}</td>
-                    <td class="text-sm fee-money-cell">{{ formatMoney(row.balanceAmount) }}</td>
-                    <td class="text-sm font-weight-bold fee-money-cell">{{ formatMoney(row.finalAmount) }}</td>
-                    <td class="text-sm fee-money-cell">{{ formatMoney(row.paidAmount) }}</td>
-                    <td class="text-sm fee-money-cell">{{ formatMoney(row.remainingAmount) }}</td>
-                    <td class="text-end fee-action-cell">
-                      <button type="button" class="btn btn-link text-primary mb-0 p-0 fee-detail-button" @click="loadDetail(row.id)">
-                        Giải thích số tiền
-                      </button>
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
+          <div class="col-md-3">
+            <select v-model="paymentStatusFilter" class="form-select">
+              <option value="">Tất cả trạng thái</option>
+              <option value="unpaid">Chưa thu</option>
+              <option value="partial">Thu một phần</option>
+              <option value="paid">Đã đủ</option>
+            </select>
           </div>
-        </div>
-
-        <div class="card fee-card mt-4">
-          <div class="card-header pb-0">
-            <h6 class="mb-1">Tổng hợp theo lớp</h6>
-            <p class="text-sm text-secondary mb-0">Giúp kế toán và ban giám hiệu theo dõi công nợ theo từng lớp.</p>
+          <div class="col-md-3">
+            <select v-model="hasDiscountFilter" class="form-select">
+              <option value="">Miễn giảm</option>
+              <option value="true">Có miễn giảm</option>
+              <option value="false">Không miễn giảm</option>
+            </select>
           </div>
-          <div class="card-body pt-3">
-            <div v-if="reportLoading" class="text-sm text-secondary">Đang tải báo cáo...</div>
-            <div v-else-if="!report?.byClass?.length" class="text-sm text-secondary">Chưa có dữ liệu tổng hợp.</div>
-            <div v-else class="table-responsive">
-              <table class="table align-items-center mb-0">
-                <thead>
-                  <tr>
-                    <th>Lớp</th>
-                    <th>HS</th>
-                    <th>Phải thu</th>
-                    <th>Đã thu</th>
-                    <th>Còn thiếu</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr v-for="row in report.byClass" :key="row.className">
-                    <td class="text-sm font-weight-bold">{{ row.className }}</td>
-                    <td class="text-sm">{{ row.studentCount }}</td>
-                    <td class="text-sm">{{ formatMoney(row.finalAmount) }}</td>
-                    <td class="text-sm">{{ formatMoney(row.paidAmount) }}</td>
-                    <td class="text-sm">{{ formatMoney(row.remainingAmount) }}</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
+          <div class="col-md-3">
+            <input v-model="searchQuery" type="text" class="form-control" placeholder="Tìm học sinh" />
           </div>
         </div>
       </div>
-
-      <div class="col-xl-4">
-        <div class="card fee-card">
-          <div class="card-header pb-0">
-            <h6 class="mb-1">Phiếu học phí chi tiết</h6>
-            <p class="text-sm text-secondary mb-0">Hiển thị từng dòng, công thức và nguồn dữ liệu để phụ huynh nhìn vào là hiểu ngay.</p>
-          </div>
-          <div class="card-body">
-            <div v-if="detailLoading" class="text-sm text-secondary">Đang tải phiếu học phí...</div>
-            <div v-else-if="!selectedDetail" class="text-sm text-secondary">Chọn một học sinh để xem phiếu chi tiết.</div>
-            <template v-else>
-              <div class="fee-detail-head">
-                <strong>{{ selectedDetail.studentName }}</strong>
-                <small>{{ selectedDetail.className || "Chưa xếp lớp" }} • {{ selectedDetail.monthKey }} • Hạn đóng {{ selectedDetail.dueDate || "chưa đặt" }}</small>
-              </div>
-
-              <div v-if="selectedDetail.hasAlert" class="fee-alert-note">
-                Tổng tiền tháng này tăng {{ formatMoney(selectedDetail.finalAmount - selectedDetail.previousFinalAmount) }} đ so với tháng trước.
-              </div>
-
-              <div class="fee-summary-box">
-                <div><span>Tổng phải thu</span><strong>{{ formatMoney(selectedDetail.finalAmount) }}</strong></div>
-                <div><span>Đã thanh toán</span><strong>{{ formatMoney(selectedDetail.paidAmount) }}</strong></div>
-                <div><span>Còn phải nộp</span><strong>{{ formatMoney(selectedDetail.remainingAmount) }}</strong></div>
-              </div>
-
-              <h6 class="fee-section-title">Chi tiết khoản thu</h6>
-              <div class="fee-line-list">
-                <div v-for="item in selectedDetail.items" :key="item.id" class="fee-line-row">
-                  <div>
-                    <strong>{{ item.name }}</strong>
-                    <div class="text-secondary text-sm">{{ item.formulaText || item.note || item.sourceType }}</div>
-                    <div v-if="item.note && item.formulaText" class="text-secondary text-xs">{{ item.note }}</div>
-                  </div>
-                  <strong :class="item.finalAmount < 0 ? 'text-success' : ''">
-                    {{ item.finalAmount < 0 ? "-" : "" }}{{ formatMoney(Math.abs(item.finalAmount)) }}
-                  </strong>
-                </div>
-              </div>
-
-              <h6 class="fee-section-title">Lịch sử thanh toán</h6>
-              <div v-if="selectedDetail.payments.length" class="fee-line-list">
-                <div v-for="payment in selectedDetail.payments" :key="payment.id" class="fee-line-row">
-                  <div>
-                    <strong>{{ payment.method }}</strong>
-                    <div class="text-secondary text-sm">
-                      {{ payment.paidAt.slice(0, 10) }}{{ payment.invoiceNumber ? ` • HĐ ${payment.invoiceNumber}` : "" }}
-                    </div>
-                  </div>
-                  <strong>{{ formatMoney(payment.amount) }}</strong>
-                </div>
-              </div>
-              <p v-else class="text-sm text-secondary">Chưa có thanh toán nào.</p>
-
-              <h6 class="fee-section-title">Phiếu điều chỉnh</h6>
-              <div v-if="selectedDetail.adjustments.length" class="fee-line-list mb-3">
-                <div v-for="adjustment in selectedDetail.adjustments" :key="adjustment.id" class="fee-line-row">
-                  <div>
-                    <strong>{{ adjustment.lineName }}</strong>
-                    <div class="text-secondary text-sm">{{ adjustment.adjustmentType }} • {{ adjustment.createdAt.slice(0, 10) }}</div>
-                  </div>
-                  <strong>{{ adjustment.amount < 0 ? "-" : "" }}{{ formatMoney(Math.abs(adjustment.amount)) }}</strong>
-                </div>
-              </div>
-
-              <argon-alert v-if="detailErr" color="danger" icon="ni ni-fat-remove" class="mb-3">
-                {{ detailErr }}
-              </argon-alert>
-
-              <h6 class="fee-section-title">Ghi nhận thanh toán</h6>
-              <div class="row g-3">
-                <div class="col-12">
-                  <input v-model="paymentForm.amount" type="number" min="0" step="1000" class="form-control" placeholder="Số tiền thu" />
-                </div>
-                <div class="col-md-6">
-                  <app-date-field v-model="paymentForm.paidDate" />
-                </div>
-                <div class="col-md-6">
-                  <select v-model="paymentForm.method" class="form-select">
-                    <option value="cash">Tiền mặt</option>
-                    <option value="transfer">Chuyển khoản</option>
-                    <option value="card">Thẻ</option>
-                  </select>
-                </div>
-                <div class="col-12">
-                  <input v-model="paymentForm.invoiceNumber" type="text" class="form-control" placeholder="Số hóa đơn / biên lai" />
-                </div>
-                <div class="col-12">
-                  <textarea v-model="paymentForm.note" rows="2" class="form-control" placeholder="Ghi chú thanh toán"></textarea>
-                </div>
-              </div>
-              <div class="fee-actions">
-                <argon-button color="primary" variant="gradient" type="button" :disabled="paymentSaving" @click="submitPayment">
-                  {{ paymentSaving ? "Đang lưu..." : "Xác nhận thu tiền" }}
-                </argon-button>
-              </div>
-
-              <h6 class="fee-section-title">Thêm điều chỉnh</h6>
-              <div class="row g-3">
-                <div class="col-12">
-                  <input v-model="adjustmentForm.lineName" type="text" class="form-control" placeholder="Ví dụ: Hoàn tiền nghỉ dài ngày" />
-                </div>
-                <div class="col-md-6">
-                  <select v-model="adjustmentForm.adjustmentType" class="form-select">
-                    <option value="charge">Phụ thu</option>
-                    <option value="discount">Giảm trừ</option>
-                    <option value="refund">Hoàn tiền</option>
-                    <option value="carry_forward">Khấu trừ số dư</option>
-                  </select>
-                </div>
-                <div class="col-md-6">
-                  <input v-model="adjustmentForm.amount" type="number" step="1000" class="form-control" placeholder="Số tiền (có thể bỏ trống)" />
-                </div>
-                <div class="col-md-6">
-                  <input v-model="adjustmentForm.quantity" type="number" min="0" step="0.5" class="form-control" placeholder="Số lượng" />
-                </div>
-                <div class="col-md-6">
-                  <input v-model="adjustmentForm.unitPrice" type="number" min="0" step="1000" class="form-control" placeholder="Đơn giá" />
-                </div>
-                <div class="col-12">
-                  <textarea v-model="adjustmentForm.note" rows="2" class="form-control" placeholder="Lý do điều chỉnh"></textarea>
-                </div>
-              </div>
-              <div class="fee-actions">
-                <argon-button color="secondary" variant="outline" type="button" :disabled="adjustmentSaving" @click="submitAdjustment">
-                  {{ adjustmentSaving ? "Đang lưu..." : "Lưu phiếu điều chỉnh" }}
-                </argon-button>
-              </div>
-            </template>
-          </div>
+      <div class="card-body pt-3">
+        <div v-if="loading" class="fee-loading-block">Đang tải bảng tính...</div>
+        <div v-else-if="!rows.length" class="fee-empty-state">
+          <template v-if="filtersActive">
+            <p class="text-sm text-secondary mb-0">Không có học sinh khớp bộ lọc.</p>
+          </template>
+          <template v-else>
+            <p class="text-sm text-secondary mb-3">
+              {{
+                selectedPeriodId
+                  ? "Kỳ này chưa có bảng tính học phí. Bấm “Sinh bảng tính” để tạo dữ liệu thu phí."
+                  : "Chọn kỳ thu để xem bảng tính học phí."
+              }}
+            </p>
+            <argon-button
+              v-if="selectedPeriodId"
+              color="primary"
+              variant="gradient"
+              type="button"
+              :disabled="generating"
+              @click="generateSelectedPeriod"
+            >
+              {{ generating ? "Đang sinh..." : "Sinh bảng tính" }}
+            </argon-button>
+          </template>
         </div>
-
-        <div class="card fee-card mt-4">
-          <div class="card-header pb-0">
-            <h6 class="mb-1">Tiến độ thu</h6>
-            <p class="text-sm text-secondary mb-0">Theo dõi nhanh số phiếu đã đủ, còn thiếu và chưa thu.</p>
-          </div>
-          <div class="card-body pt-3">
-            <div class="fee-progress-row">
-              <span>Chưa thu</span>
-              <strong>{{ totals.unpaidCount }}</strong>
-            </div>
-            <div class="fee-progress-row">
-              <span>Thu một phần</span>
-              <strong>{{ totals.partialCount }}</strong>
-            </div>
-            <div class="fee-progress-row">
-              <span>Đã đủ</span>
-              <strong>{{ totals.paidCount }}</strong>
+        <div v-else class="table-responsive fee-table-wrap">
+          <table class="table align-items-center mb-0 fee-collection-table">
+            <colgroup>
+              <col class="fee-col-student" />
+              <col class="fee-col-status" />
+              <col class="fee-col-amount" span="8" />
+              <col class="fee-col-action" />
+            </colgroup>
+            <thead>
+              <tr>
+                <th class="fee-head-student">Học sinh</th>
+                <th class="fee-head-status">Trạng thái</th>
+                <th class="fee-head-amount">Học phí</th>
+                <th class="fee-head-amount">Theo ngày</th>
+                <th class="fee-head-amount">Dịch vụ</th>
+                <th class="fee-head-amount">Giảm trừ</th>
+                <th class="fee-head-amount">Nợ cũ</th>
+                <th class="fee-head-amount">Tổng</th>
+                <th class="fee-head-amount">Đã thu</th>
+                <th class="fee-head-amount">Còn thiếu</th>
+                <th class="fee-head-action"></th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr
+                v-for="row in pagedRows"
+                :key="row.id"
+                :class="{ 'fee-row-selected': selectedDetail?.id === row.id }"
+              >
+                <td class="text-sm fee-student-cell">
+                  <strong class="fee-student-name">{{ row.studentName }}</strong>
+                  <div class="text-secondary fee-student-meta">
+                    {{ row.className || "Chưa xếp lớp" }}
+                    <span v-if="row.hasAlert" class="text-danger">• tăng bất thường</span>
+                  </div>
+                </td>
+                <td class="text-sm fee-status-cell">
+                  <span class="fee-pay-status" :class="paymentStatusClass(row.paymentStatus)">
+                    {{ getPaymentStatusLabel(row.paymentStatus) }}
+                  </span>
+                </td>
+                <td class="text-sm fee-money-cell">{{ formatMoney(row.fixedAmount) }}</td>
+                <td class="text-sm fee-money-cell">{{ formatMoney(row.dailyAmount) }}</td>
+                <td class="text-sm fee-money-cell">{{ formatMoney(row.serviceAmount + row.oneTimeAmount) }}</td>
+                <td class="text-sm text-success fee-money-cell">-{{ formatMoney(row.discountAmount - Math.min(row.adjustmentAmount, 0)) }}</td>
+                <td class="text-sm fee-money-cell">{{ formatMoney(row.balanceAmount) }}</td>
+                <td class="text-sm font-weight-bold fee-money-cell">{{ formatMoney(row.finalAmount) }}</td>
+                <td class="text-sm fee-money-cell">{{ formatMoney(row.paidAmount) }}</td>
+                <td
+                  class="text-sm fee-money-cell"
+                  :class="{ 'fee-remaining--due': Number(row.remainingAmount) > 0 }"
+                >
+                  {{ formatMoney(row.remainingAmount) }}
+                </td>
+                <td class="text-end fee-action-cell">
+                  <button type="button" class="btn btn-link text-primary mb-0 p-0 fee-detail-button" @click="loadDetail(row.id)">
+                    Giải thích số tiền
+                  </button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+          <div v-if="rows.length > PAGE_SIZE" class="fee-pagination">
+            <span class="text-sm text-secondary">
+              {{ (currentPage - 1) * PAGE_SIZE + 1 }}–{{ Math.min(currentPage * PAGE_SIZE, rows.length) }} / {{ rows.length }}
+            </span>
+            <div class="fee-pagination-controls">
+              <argon-button
+                color="secondary"
+                variant="outline"
+                type="button"
+                size="sm"
+                :disabled="currentPage <= 1"
+                @click="currentPage -= 1"
+              >
+                Trước
+              </argon-button>
+              <argon-button
+                color="secondary"
+                variant="outline"
+                type="button"
+                size="sm"
+                :disabled="currentPage >= totalPages"
+                @click="currentPage += 1"
+              >
+                Sau
+              </argon-button>
             </div>
           </div>
         </div>
       </div>
     </div>
+
+    <div class="card fee-card mt-4">
+      <div class="card-header pb-0">
+        <h6 class="mb-1">Tổng hợp theo lớp</h6>
+        <p class="text-sm text-secondary mb-0">Giúp kế toán và ban giám hiệu theo dõi công nợ theo từng lớp.</p>
+      </div>
+      <div class="card-body pt-3">
+        <div v-if="reportLoading" class="text-sm text-secondary">Đang tải báo cáo...</div>
+        <div v-else-if="!report?.byClass?.length" class="text-sm text-secondary">Chưa có dữ liệu tổng hợp.</div>
+        <div v-else class="table-responsive">
+          <table class="table align-items-center mb-0">
+            <thead>
+              <tr>
+                <th>Lớp</th>
+                <th>HS</th>
+                <th>Phải thu</th>
+                <th>Đã thu</th>
+                <th>Còn thiếu</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="row in report.byClass" :key="row.className">
+                <td class="text-sm font-weight-bold">{{ row.className }}</td>
+                <td class="text-sm">{{ row.studentCount }}</td>
+                <td class="text-sm">{{ formatMoney(row.finalAmount) }}</td>
+                <td class="text-sm">{{ formatMoney(row.paidAmount) }}</td>
+                <td class="text-sm">{{ formatMoney(row.remainingAmount) }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="fee-progress-inline mt-3">
+          <div class="fee-progress-row">
+            <span>Chưa thu</span>
+            <strong>{{ totals.unpaidCount }}</strong>
+          </div>
+          <div class="fee-progress-row">
+            <span>Thu một phần</span>
+            <strong>{{ totals.partialCount }}</strong>
+          </div>
+          <div class="fee-progress-row">
+            <span>Đã đủ</span>
+            <strong>{{ totals.paidCount }}</strong>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <Transition name="fee-drawer-backdrop">
+      <div v-if="drawerOpen" class="fee-drawer-backdrop" @click="closeDrawer"></div>
+    </Transition>
+    <Transition name="fee-drawer-slide">
+      <aside v-if="drawerOpen" class="fee-drawer-panel">
+        <div class="fee-drawer-header">
+          <h5 class="fee-drawer-title">Phiếu học phí chi tiết</h5>
+          <button type="button" class="btn-close" aria-label="Đóng" @click="closeDrawer"></button>
+        </div>
+        <div class="fee-drawer-body">
+          <div v-if="detailLoading" class="fee-loading-block">Đang tải phiếu học phí...</div>
+          <template v-else-if="selectedDetail">
+            <div class="fee-detail-head">
+              <strong>{{ selectedDetail.studentName }}</strong>
+              <small>{{ selectedDetail.className || "Chưa xếp lớp" }} • {{ selectedDetail.monthKey }} • Hạn đóng {{ selectedDetail.dueDate || "chưa đặt" }}</small>
+            </div>
+
+            <div v-if="selectedDetail.hasAlert" class="fee-alert-note">
+              Tổng tiền tháng này tăng {{ formatMoney(selectedDetail.finalAmount - selectedDetail.previousFinalAmount) }} đ so với tháng trước.
+            </div>
+
+            <div class="fee-summary-box">
+              <div><span>Tổng phải thu</span><strong>{{ formatMoney(selectedDetail.finalAmount) }}</strong></div>
+              <div><span>Đã thanh toán</span><strong>{{ formatMoney(selectedDetail.paidAmount) }}</strong></div>
+              <div><span>Còn phải nộp</span><strong>{{ formatMoney(selectedDetail.remainingAmount) }}</strong></div>
+            </div>
+
+            <h6 class="fee-section-title">Chi tiết khoản thu</h6>
+            <div class="fee-line-list">
+              <div v-for="item in selectedDetail.items" :key="item.id" class="fee-line-row">
+                <div>
+                  <strong>{{ item.name }}</strong>
+                  <div class="text-secondary text-sm">{{ item.formulaText || item.note || item.sourceType }}</div>
+                  <div v-if="item.note && item.formulaText" class="text-secondary text-xs">{{ item.note }}</div>
+                </div>
+                <strong :class="item.finalAmount < 0 ? 'text-success' : ''">
+                  {{ item.finalAmount < 0 ? "-" : "" }}{{ formatMoney(Math.abs(item.finalAmount)) }}
+                </strong>
+              </div>
+            </div>
+
+            <h6 class="fee-section-title">Lịch sử thanh toán</h6>
+            <div v-if="selectedDetail.payments.length" class="fee-line-list">
+              <div v-for="payment in selectedDetail.payments" :key="payment.id" class="fee-line-row">
+                <div>
+                  <strong>{{ paymentMethodLabel(payment.method) }}</strong>
+                  <div class="text-secondary text-sm">
+                    {{ payment.paidAt.slice(0, 10) }}{{ payment.invoiceNumber ? ` • HĐ ${payment.invoiceNumber}` : "" }}
+                  </div>
+                </div>
+                <strong>{{ formatMoney(payment.amount) }}</strong>
+              </div>
+            </div>
+            <p v-else class="text-sm text-secondary">Chưa có thanh toán nào.</p>
+
+            <h6 class="fee-section-title">Phiếu điều chỉnh</h6>
+            <div v-if="selectedDetail.adjustments.length" class="fee-line-list mb-3">
+              <div v-for="adjustment in selectedDetail.adjustments" :key="adjustment.id" class="fee-line-row">
+                <div>
+                  <strong>{{ adjustment.lineName }}</strong>
+                  <div class="text-secondary text-sm">
+                    {{ adjustmentTypeLabel(adjustment.adjustmentType) }} • {{ adjustment.createdAt.slice(0, 10) }}
+                  </div>
+                </div>
+                <strong>{{ adjustment.amount < 0 ? "-" : "" }}{{ formatMoney(Math.abs(adjustment.amount)) }}</strong>
+              </div>
+            </div>
+
+            <argon-alert v-if="detailErr" color="danger" icon="ni ni-fat-remove" class="mb-3">
+              {{ detailErr }}
+            </argon-alert>
+
+            <h6 class="fee-section-title">Ghi nhận thanh toán</h6>
+            <div class="row g-3">
+              <div class="col-12">
+                <input v-model="paymentForm.amount" type="number" min="0" step="1000" class="form-control" placeholder="Số tiền thu" />
+              </div>
+              <div class="col-md-6">
+                <app-date-field v-model="paymentForm.paidDate" />
+              </div>
+              <div class="col-md-6">
+                <select v-model="paymentForm.method" class="form-select">
+                  <option value="cash">Tiền mặt</option>
+                  <option value="transfer">Chuyển khoản</option>
+                  <option value="card">Thẻ</option>
+                </select>
+              </div>
+              <div class="col-12">
+                <input v-model="paymentForm.invoiceNumber" type="text" class="form-control" placeholder="Số hóa đơn / biên lai" />
+              </div>
+              <div class="col-12">
+                <textarea v-model="paymentForm.note" rows="2" class="form-control" placeholder="Ghi chú thanh toán"></textarea>
+              </div>
+            </div>
+            <div class="fee-actions">
+              <span></span>
+              <argon-button color="primary" variant="gradient" type="button" :disabled="paymentSaving" @click="submitPayment">
+                {{ paymentSaving ? "Đang lưu..." : "Xác nhận thu tiền" }}
+              </argon-button>
+            </div>
+
+            <h6 class="fee-section-title">Thêm điều chỉnh</h6>
+            <div class="row g-3">
+              <div class="col-12">
+                <input v-model="adjustmentForm.lineName" type="text" class="form-control" placeholder="Ví dụ: Hoàn tiền nghỉ dài ngày" />
+              </div>
+              <div class="col-md-6">
+                <select v-model="adjustmentForm.adjustmentType" class="form-select">
+                  <option value="charge">Phụ thu</option>
+                  <option value="discount">Giảm trừ</option>
+                  <option value="refund">Hoàn tiền</option>
+                  <option value="carry_forward">Khấu trừ số dư</option>
+                </select>
+              </div>
+              <div class="col-md-6">
+                <input v-model="adjustmentForm.amount" type="number" step="1000" class="form-control" placeholder="Số tiền (có thể bỏ trống)" />
+              </div>
+              <div class="col-md-6">
+                <input v-model="adjustmentForm.quantity" type="number" min="0" step="0.5" class="form-control" placeholder="Số lượng" />
+              </div>
+              <div class="col-md-6">
+                <input v-model="adjustmentForm.unitPrice" type="number" min="0" step="1000" class="form-control" placeholder="Đơn giá" />
+              </div>
+              <div class="col-12">
+                <textarea v-model="adjustmentForm.note" rows="2" class="form-control" placeholder="Lý do điều chỉnh"></textarea>
+              </div>
+            </div>
+            <div class="fee-actions">
+              <span></span>
+              <argon-button color="secondary" variant="outline" type="button" :disabled="adjustmentSaving" @click="submitAdjustment">
+                {{ adjustmentSaving ? "Đang lưu..." : "Lưu phiếu điều chỉnh" }}
+              </argon-button>
+            </div>
+          </template>
+          <div v-else class="text-sm text-secondary">Không tải được phiếu chi tiết.</div>
+        </div>
+      </aside>
+    </Transition>
   </div>
 </template>
 
 <style scoped>
-.fee-page {
-  padding: 1rem 1.5rem 1.5rem;
-}
-
-.fee-hero {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 1rem;
-  padding: 1.1rem 1.25rem;
-  margin-bottom: 1rem;
-  border: 1px solid #e7edf5;
-  border-radius: 1rem;
-  background: linear-gradient(135deg, #ffffff, #eef8ff);
-}
-
-.fee-hero-actions {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-}
-
 .fee-period-select {
   min-width: 20rem;
-}
-
-.fee-eyebrow {
-  display: inline-block;
-  margin-bottom: 0.25rem;
-  color: #0f766e;
-  font-size: 0.72rem;
-  font-weight: 700;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-}
-
-.fee-title {
-  color: #1f2a44;
-  font-weight: 700;
-}
-
-.fee-subtitle,
-.fee-detail-head small {
-  color: #64748b;
-}
-
-.fee-stats {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 1rem;
-  margin-bottom: 1rem;
-}
-
-.fee-stat-card,
-.fee-card {
-  border: 1px solid #e7edf5;
-  border-radius: 1rem;
-  box-shadow: 0 1rem 2rem -1.8rem rgba(15, 23, 42, 0.35);
-}
-
-.fee-stat-card {
-  display: flex;
-  flex-direction: column;
-  gap: 0.35rem;
-  padding: 1rem 1.1rem;
-  background: #fff;
-}
-
-.fee-stat-card span {
-  color: #64748b;
-  font-size: 0.82rem;
-}
-
-.fee-stat-card strong {
-  color: #1f2a44;
-  font-size: 1.35rem;
 }
 
 .fee-detail-head {
@@ -649,6 +728,10 @@ onMounted(async () => {
   flex-direction: column;
   gap: 0.15rem;
   margin-bottom: 0.9rem;
+}
+
+.fee-detail-head small {
+  color: #64748b;
 }
 
 .fee-alert-note {
@@ -674,24 +757,20 @@ onMounted(async () => {
 
 .fee-summary-box div,
 .fee-line-row,
-.fee-progress-row,
-.fee-actions {
+.fee-progress-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 0.75rem;
-}
-
-.fee-summary-box div,
-.fee-line-row,
-.fee-progress-row {
   padding: 0.75rem 0.85rem;
   border: 1px solid #e7edf5;
   border-radius: 0.9rem;
 }
 
-.fee-table-wrap {
-  overflow-x: visible;
+.fee-progress-inline {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
 }
 
 .fee-collection-table {
@@ -712,27 +791,33 @@ onMounted(async () => {
 }
 
 .fee-collection-table .fee-col-student {
-  width: 18%;
+  width: 15%;
 }
 
-.fee-collection-table .fee-col-amount {
-  width: 9%;
-}
-
-.fee-collection-table .fee-col-action {
+.fee-collection-table .fee-col-status {
   width: 10%;
 }
 
-.fee-head-student {
+.fee-collection-table .fee-col-amount {
+  width: 8%;
+}
+
+.fee-collection-table .fee-col-action {
+  width: 9%;
+}
+
+.fee-head-student,
+.fee-head-status {
   text-align: left;
 }
 
-.fee-head-amount {
+.fee-head-amount,
+.fee-head-action {
   text-align: right;
 }
 
-.fee-head-action {
-  text-align: right;
+.fee-status-cell {
+  white-space: nowrap;
 }
 
 .fee-student-cell,
@@ -761,6 +846,11 @@ onMounted(async () => {
   white-space: nowrap;
 }
 
+.fee-remaining--due {
+  color: #b91c1c;
+  font-weight: 700;
+}
+
 .fee-action-cell {
   white-space: normal;
 }
@@ -775,28 +865,29 @@ onMounted(async () => {
   margin: 1rem 0 0.65rem;
 }
 
-.fee-actions {
-  margin-top: 1rem;
-  justify-content: flex-end;
+.fee-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-top: 0.85rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid #e7edf5;
 }
 
-.fee-progress-row + .fee-progress-row {
-  margin-top: 0.75rem;
+.fee-pagination-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
 }
 
 @media (max-width: 991.98px) {
-  .fee-hero,
-  .fee-hero-actions {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
   .fee-period-select {
     min-width: 0;
   }
 
-  .fee-stats {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+  .fee-progress-inline {
+    grid-template-columns: 1fr;
   }
 
   .fee-collection-table {
