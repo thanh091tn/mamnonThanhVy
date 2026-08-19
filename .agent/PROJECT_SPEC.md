@@ -5,7 +5,7 @@
 MamnonThanhVy is a kindergarten/school management web application.
 
 Primary users:
-- Admin users manage school data, teachers, classes, students, attendance, fees, policies, and reports.
+- Admin users manage school data, teachers, classes, students, attendance, fees, policies, academic years, class transfers, and reports.
 - Teacher users can access teacher-specific workflows such as leave requests and attendance-related views.
 
 The application is split into:
@@ -57,7 +57,9 @@ Backend:
 - Start: `cd backend && npm start`
 - Dev watch: `cd backend && npm run dev`
 - Create DB/init schema: `cd backend && npm run db:create`
-- Seed DB: `cd backend && npm run db:seed`
+- Seed DB (demo data + default logins): `cd backend && npm run db:seed`
+- Full reset seed SQL: `cd backend && npm run db:deploy-reset-seed`
+- Demo teacher login helper: `cd backend && npm run db:demo-teacher`
 
 Windows helpers:
 - `run-web.cmd` starts the frontend dev server.
@@ -80,14 +82,16 @@ Backend:
 ## Folder Structure
 
 Important frontend paths:
-- `frontend/src/main.js`: app bootstrap.
+- `frontend/src/main.js`: app bootstrap (imports `panel-tables.css` and `fee-panel.css`).
 - `frontend/src/App.vue`: root app shell.
 - `frontend/src/router/index.js`: routes and auth guards.
 - `frontend/src/store/index.js`: Vuex UI/auth state.
 - `frontend/src/api/client.js`: Axios instance and auth interceptor.
 - `frontend/src/views/`: feature pages.
 - `frontend/src/components/`: reusable app components.
-- `frontend/src/examples/`: Argon Dashboard example/layout components.
+- `frontend/src/examples/`: Argon Dashboard example/layout components (including sidenav).
+- `frontend/src/assets/css/panel-tables.css`: shared panel table styles (Students/Teachers/Classes).
+- `frontend/src/assets/css/fee-panel.css`: shared fee admin page/drawer/status styles.
 - `frontend/src/assets/`: images, fonts, styles, dashboard assets.
 - `frontend/src/data/vnAdministrativeUnits.json`: Vietnam administrative data.
 
@@ -110,11 +114,17 @@ Authentication:
 
 School management:
 - Dashboard metrics.
-- Students CRUD and student detail.
+- Students CRUD and student detail (includes academic year placement).
+- Students list filter by academic year (dropdown), status, class, and name.
 - Teachers CRUD and teacher roles.
-- Classes CRUD.
+- Classes CRUD (classes can be linked to an academic year).
 - Class-teacher assignments.
-- Student class history.
+- Student class history (includes from/to academic year).
+
+Academic years / class transfer:
+- `academic_years` table with a single current year (`is_current`).
+- Year-end / class-transfer admin flow at `/year-end-transition`.
+- Bulk transfer or status update with preview and job tracking.
 
 Attendance:
 - Student attendance by class/date/session.
@@ -124,15 +134,14 @@ Attendance:
 - Manager/admin leave calendar.
 
 Fees:
-- Fee item templates.
-- Fee periods.
-- Discount policies.
-- Service subscriptions and usage entries.
-- Period generation is triggered automatically when a fee period is saved with status `published`.
-- Student fee periods.
-- Adjustments.
-- Payments.
-- Period reports.
+- Fee item templates (`/fee-items`).
+- Fee periods (`/fee-periods`).
+- Discount policies (`/fee-policies`).
+- Fee collection / statements (`/fee-collection`, nav label: **Thu học phí**).
+- Service subscriptions and usage entries exist in API/domain model; UI route exists but is hidden from sidenav.
+- Period generation: available via explicit “Sinh bảng tính” on Thu học phí, and also triggered when a fee period is saved with status `published`.
+- Student fee periods, adjustments, payments, period reports.
+- Fee admin screens use full-width list + right drawer for create/edit/detail (shared `fee-panel.css`).
 
 Uploads:
 - Authenticated avatar image upload.
@@ -141,6 +150,7 @@ Uploads:
 ## Frontend Routes
 
 Routes are defined in `frontend/src/router/index.js`.
+Nav labels are defined in `frontend/src/examples/Sidenav/SidenavList.vue`.
 
 Public routes:
 - `/signin`
@@ -148,21 +158,23 @@ Public routes:
 
 Authenticated routes:
 - `/dashboard`
-- `/school`
+- `/school` (Students / Teachers / Classes panels)
 - `/students/create`
 - `/students/:id/detail`
+- `/student-birthdays` (nav: Sinh nhật — học sinh theo tháng)
 - `/attendance`
 - `/profile`
 
 Admin-only routes:
 - `/leave-calendar`
-- `/fee-items`
-- `/fee-periods`
-- `/fee-policies`
-- `/fee-collection`
+- `/year-end-transition` (nav: Chuyển lớp)
+- `/fee-items` (nav: Khoản thu)
+- `/fee-periods` (nav: Kỳ thu)
+- `/fee-policies` (nav: Miễn giảm)
+- `/fee-collection` (nav: Thu học phí)
 
-Hidden/disabled frontend route:
-- `/fee-services` currently exists in backend/API/domain model and router, but is intentionally hidden from the current frontend navigation.
+Hidden from sidenav (route still registered):
+- `/fee-services` — exists in router + backend/API/domain model, intentionally hidden from navigation.
 
 Teacher-only route:
 - `/teacher-leave`
@@ -187,6 +199,7 @@ Mounted route groups:
 - `/api/classes`
 - `/api/attendance`
 - `/api/fees`
+- `/api/year-end-transition`
 
 Authentication:
 - Protected endpoints require `Authorization: Bearer <token>`.
@@ -218,15 +231,17 @@ Database is PostgreSQL.
 Schema is initialized and migrated incrementally in `backend/src/db.js` using `CREATE TABLE IF NOT EXISTS` and `ALTER TABLE ... ADD COLUMN IF NOT EXISTS`.
 
 Important tables include:
-- `students`
+- `academic_years`
+- `students` (includes `academic_year_id`)
 - `teachers`
 - `teacher_roles`
-- `classes`
+- `classes` (includes `academic_year_id`)
 - `class_teachers`
-- `student_class_history`
+- `student_class_history` (includes `from_academic_year_id`, `to_academic_year_id`)
 - `student_attendance`
 - `teacher_attendance`
 - `users`
+- `student_bulk_jobs`
 - `fee_periods`
 - `fee_item_templates`
 - `fee_period_items`
@@ -258,9 +273,12 @@ Follow existing patterns:
 - Reuse Argon/example layout components where the app already uses them.
 - Keep dashboard/admin screens dense, scannable, and operational.
 - Include loading, empty, error, and disabled states for user-facing flows.
-- Use existing table styles such as `frontend/src/assets/css/panel-tables.css` when working on panels.
+- Use `frontend/src/assets/css/panel-tables.css` for Students/Teachers/Classes panel tables.
+- Use `frontend/src/assets/css/fee-panel.css` for fee admin pages (hero, stats, badges, drawers, selectable lists).
+- Fee admin screens (`FeeItems`, `FeePeriods`, `FeePolicies`, `FeeCollection`): prefer full-width list + right drawer for forms/detail; lock body scroll while drawer is open; keep only one vertical scrollbar in the drawer body.
+- For fee admin tables, prefer fixed-layout operational tables with explicit column widths/alignment over wide free-flow tables that require horizontal scrolling.
 - Prefer Vue 3 Composition API and `<script setup>` when matching nearby files.
-- For fee admin screens, prefer fixed-layout operational tables with explicit column widths/alignment over wide free-flow tables that require horizontal scrolling.
+- Students list: academic year filter is a dropdown (ascending year names); class filter can narrow by selected year when classes are year-scoped.
 
 ## Coding Conventions
 
@@ -301,6 +319,7 @@ If a check cannot be run because local environment variables or PostgreSQL are m
 CI/CD:
 - Workflow verifies backend install, frontend install, and frontend build on pushes to `main`.
 - Deploy runs `scripts/deploy.sh`.
+- Setup details are documented in `DEPLOY_CICD.md`.
 
 Server assumptions:
 - Node.js 20
@@ -321,5 +340,6 @@ Deployment script behavior:
 - Do not change fee calculation/payment semantics casually.
 - Do not rewrite `backend/src/db.js` schema initialization wholesale.
 - Do not remove backward-compatible redirects or `requireManager` alias unless asked.
+- Do not re-enable `/fee-services` in sidenav unless asked.
 - Do not change deployment server details or scripts without confirming intent.
 - Do not commit secrets, `.env`, database passwords, JWT secrets, or uploaded private data.

@@ -32,7 +32,7 @@ export default createStore({
     isAbsolute: false,
     showNavs: true,
     showSidenav: true,
-    showNavbar: true,
+    showNavbar: false,
     showFooter: true,
     showMain: true,
     layout: "default",

@@ -34,6 +34,8 @@ const monthRangeLabel = computed(() => {
   return from && to ? `${from} - ${to}` : "";
 });
 
+const progressPercent = computed(() => Number(attendance.value.progressPercent || 0));
+
 const kpis = computed(() => {
   if (!data.value) return [];
   if (isAdmin.value) {
@@ -45,6 +47,7 @@ const kpis = computed(() => {
         meta: `${overview.studentCount || 0} hồ sơ`,
         icon: "ni ni-hat-3",
         tone: "teal",
+        to: "/school",
       },
       {
         label: "Giáo viên hoạt động",
@@ -52,6 +55,7 @@ const kpis = computed(() => {
         meta: `${overview.teacherCount || 0} giáo viên`,
         icon: "ni ni-badge",
         tone: "blue",
+        to: "/school",
       },
       {
         label: "Lớp học",
@@ -59,13 +63,15 @@ const kpis = computed(() => {
         meta: `${overview.unassignedClassCount || 0} lớp thiếu GV`,
         icon: "ni ni-books",
         tone: "violet",
+        to: "/school",
       },
       {
         label: "Điểm danh hôm nay",
-        value: `${attendance.value.progressPercent || 0}%`,
+        value: `${progressPercent.value}%`,
         meta: `${attendance.value.markedCount || 0}/${attendance.value.studentCount || 0} học sinh`,
         icon: "ni ni-check-bold",
         tone: "green",
+        to: "/attendance",
       },
     ];
   }
@@ -77,6 +83,7 @@ const kpis = computed(() => {
       meta: "Theo phân công hiện tại",
       icon: "ni ni-books",
       tone: "violet",
+      to: "/school",
     },
     {
       label: "Học sinh",
@@ -84,13 +91,15 @@ const kpis = computed(() => {
       meta: "Trong các lớp của bạn",
       icon: "ni ni-hat-3",
       tone: "teal",
+      to: "/school",
     },
     {
       label: "Đã điểm danh",
       value: attendance.value.markedCount || 0,
-      meta: `${attendance.value.progressPercent || 0}% hoàn tất`,
+      meta: `${progressPercent.value}% hoàn tất`,
       icon: "ni ni-check-bold",
       tone: "green",
+      to: "/attendance",
     },
     {
       label: "Chưa điểm danh",
@@ -98,6 +107,7 @@ const kpis = computed(() => {
       meta: "Cần xử lý hôm nay",
       icon: "ni ni-bullet-list-67",
       tone: "orange",
+      to: "/attendance",
     },
   ];
 });
@@ -112,6 +122,12 @@ function formatDate(value) {
 function currentMonthKey() {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function classStatus(row) {
+  if (Number(row.studentCount || 0) === 0) return { text: "Chưa có HS", done: false, muted: true };
+  if (Number(row.unmarkedCount || 0) === 0) return { text: "Xong", done: true, muted: false };
+  return { text: `${row.unmarkedCount} còn lại`, done: false, muted: false };
 }
 
 async function loadDashboard() {
@@ -143,8 +159,8 @@ watch(selectedMonth, () => {
 <template>
   <div class="dashboard-page page-fill">
     <section class="dashboard-hero">
-      <div>
-        <span class="dashboard-eyebrow">Tổng quan</span>
+      <div class="dashboard-hero-copy">
+        <span class="dashboard-eyebrow">Overview</span>
         <h4 class="dashboard-title">Vận hành hôm nay</h4>
         <p class="dashboard-subtitle">
           Theo dõi nhanh điểm danh, lớp học, giáo viên và các việc cần xử lý trong ngày.
@@ -172,7 +188,13 @@ watch(selectedMonth, () => {
 
     <template v-else-if="data">
       <section class="dashboard-kpis">
-        <article v-for="card in kpis" :key="card.label" class="dashboard-kpi" :class="`dashboard-kpi--${card.tone}`">
+        <RouterLink
+          v-for="card in kpis"
+          :key="card.label"
+          :to="card.to"
+          class="dashboard-kpi"
+          :class="`dashboard-kpi--${card.tone}`"
+        >
           <span class="dashboard-kpi-icon">
             <i :class="card.icon"></i>
           </span>
@@ -181,7 +203,7 @@ watch(selectedMonth, () => {
             <strong>{{ card.value }}</strong>
             <small>{{ card.meta }}</small>
           </div>
-        </article>
+        </RouterLink>
       </section>
 
       <section class="dashboard-panel dashboard-monthly-panel">
@@ -237,11 +259,11 @@ watch(selectedMonth, () => {
 
           <div class="dashboard-progress-shell">
             <div class="dashboard-progress-top">
-              <strong>{{ attendance.progressPercent || 0 }}%</strong>
+              <strong>{{ progressPercent }}%</strong>
               <span>Còn {{ attendance.unmarkedCount || 0 }} học sinh</span>
             </div>
             <div class="dashboard-progress-track">
-              <div class="dashboard-progress-fill" :style="{ width: `${attendance.progressPercent || 0}%` }"></div>
+              <div class="dashboard-progress-fill" :style="{ width: `${Math.min(100, progressPercent)}%` }"></div>
             </div>
           </div>
 
@@ -337,8 +359,8 @@ watch(selectedMonth, () => {
                 <strong>{{ row.name }}</strong>
                 <small>{{ row.studentCount }} học sinh</small>
               </div>
-              <span :class="{ done: row.studentCount === 0 || row.unmarkedCount === 0 }">
-                {{ row.studentCount === 0 ? "Chưa có HS" : row.unmarkedCount === 0 ? "Xong" : `${row.unmarkedCount} còn lại` }}
+              <span :class="{ done: classStatus(row).done, muted: classStatus(row).muted }">
+                {{ classStatus(row).text }}
               </span>
             </div>
             <div v-if="!byClass.length" class="dashboard-empty">
@@ -357,7 +379,9 @@ watch(selectedMonth, () => {
 <style scoped>
 .dashboard-page {
   gap: 1rem;
-  padding: 1rem 1.5rem 1.5rem;
+  width: 100%;
+  min-width: 0;
+  padding: 1rem 1.25rem 1.5rem;
 }
 
 .dashboard-hero {
@@ -366,19 +390,24 @@ watch(selectedMonth, () => {
   justify-content: space-between;
   gap: 1rem;
   padding: 1.2rem 1.25rem;
-  border: 1px solid #e5edf7;
+  border: 1px solid #e8eef8;
   border-radius: 1rem;
-  background: linear-gradient(135deg, #ffffff 0%, #f7fbff 52%, #eef8f6 100%);
+  background: linear-gradient(135deg, #ffffff 0%, #f7fbff 52%, #eef4ff 100%);
   box-shadow: 0 1rem 2.2rem -1.8rem rgba(15, 23, 42, 0.32);
+}
+
+.dashboard-hero-copy {
+  min-width: 0;
+  max-width: 48rem;
 }
 
 .dashboard-eyebrow {
   display: inline-block;
   margin-bottom: 0.35rem;
-  color: #0f766e;
+  color: #5e72e4;
   font-size: 0.72rem;
-  font-weight: 800;
-  letter-spacing: 0.1em;
+  font-weight: 700;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
 }
 
@@ -386,11 +415,11 @@ watch(selectedMonth, () => {
   margin: 0;
   color: #1f2a44;
   font-size: 1.45rem;
-  font-weight: 800;
+  font-weight: 700;
+  line-height: 1.25;
 }
 
 .dashboard-subtitle {
-  max-width: 48rem;
   margin: 0.35rem 0 0;
   color: #67748e;
   font-size: 0.9rem;
@@ -401,6 +430,7 @@ watch(selectedMonth, () => {
   display: flex;
   align-items: center;
   gap: 0.75rem;
+  flex-shrink: 0;
 }
 
 .dashboard-date {
@@ -408,15 +438,16 @@ watch(selectedMonth, () => {
   flex-direction: column;
   min-width: 130px;
   padding: 0.65rem 0.8rem;
-  border: 1px solid #dce8f6;
+  border: 1px solid rgba(94, 114, 228, 0.12);
   border-radius: 0.75rem;
-  background: rgba(255, 255, 255, 0.82);
+  background: rgba(255, 255, 255, 0.84);
 }
 
 .dashboard-date span {
   color: #8392ab;
   font-size: 0.7rem;
   font-weight: 700;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
 }
 
@@ -435,11 +466,14 @@ watch(selectedMonth, () => {
   display: flex;
   align-items: center;
   gap: 0.8rem;
+  min-width: 0;
   padding: 1rem;
   border: 1px solid #edf2f7;
   border-radius: 1rem;
   background: #fff;
   box-shadow: 0 0.7rem 1.6rem -1.45rem rgba(15, 23, 42, 0.3);
+  text-decoration: none;
+  color: inherit;
 }
 
 .dashboard-kpi-icon {
@@ -454,10 +488,10 @@ watch(selectedMonth, () => {
 }
 
 .dashboard-kpi--teal .dashboard-kpi-icon { background: #0f766e; }
-.dashboard-kpi--blue .dashboard-kpi-icon { background: #2563eb; }
-.dashboard-kpi--violet .dashboard-kpi-icon { background: #7c3aed; }
-.dashboard-kpi--green .dashboard-kpi-icon { background: #16a34a; }
-.dashboard-kpi--orange .dashboard-kpi-icon { background: #ea580c; }
+.dashboard-kpi--blue .dashboard-kpi-icon { background: #5e72e4; }
+.dashboard-kpi--violet .dashboard-kpi-icon { background: #825ee4; }
+.dashboard-kpi--green .dashboard-kpi-icon { background: #2dce89; }
+.dashboard-kpi--orange .dashboard-kpi-icon { background: #fb6340; }
 
 .dashboard-kpi-label {
   display: block;
@@ -495,10 +529,6 @@ watch(selectedMonth, () => {
   box-shadow: 0 0.7rem 1.6rem -1.45rem rgba(15, 23, 42, 0.28);
 }
 
-.dashboard-panel--wide {
-  min-height: 280px;
-}
-
 .dashboard-panel-header {
   display: flex;
   align-items: flex-start;
@@ -521,14 +551,10 @@ watch(selectedMonth, () => {
 }
 
 .dashboard-link {
-  color: #0f766e;
+  color: #5e72e4;
   font-size: 0.78rem;
   font-weight: 800;
   white-space: nowrap;
-}
-
-.dashboard-monthly-panel {
-  min-height: 320px;
 }
 
 .dashboard-month-select-wrap {
@@ -551,8 +577,8 @@ watch(selectedMonth, () => {
 }
 
 .dashboard-month-select:focus {
-  border-color: #0f766e;
-  box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.12);
+  border-color: #5e72e4;
+  box-shadow: 0 0 0 3px rgba(94, 114, 228, 0.12);
 }
 
 .dashboard-monthly-content {
@@ -593,19 +619,20 @@ watch(selectedMonth, () => {
 
 .dashboard-progress-shell {
   padding: 0.85rem;
-  border: 1px solid #e8f2ef;
+  border: 1px solid #e8eef8;
   border-radius: 0.8rem;
-  background: #f8fffd;
+  background: #f8faff;
 }
 
 .dashboard-progress-top {
   display: flex;
   justify-content: space-between;
+  gap: 0.5rem;
   margin-bottom: 0.55rem;
 }
 
 .dashboard-progress-top strong {
-  color: #0f766e;
+  color: #5e72e4;
   font-size: 1.2rem;
 }
 
@@ -619,13 +646,13 @@ watch(selectedMonth, () => {
   height: 0.55rem;
   overflow: hidden;
   border-radius: 999px;
-  background: #dcefeb;
+  background: #e4eaf6;
 }
 
 .dashboard-progress-fill {
   height: 100%;
   border-radius: inherit;
-  background: linear-gradient(90deg, #0f766e, #14b8a6);
+  background: linear-gradient(90deg, #5e72e4, #825ee4);
   transition: width 0.2s ease;
 }
 
@@ -658,6 +685,11 @@ watch(selectedMonth, () => {
   gap: 0.55rem;
 }
 
+.dashboard-class-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
 .dashboard-class-row,
 .dashboard-leave-row,
 .dashboard-mini-class {
@@ -665,16 +697,26 @@ watch(selectedMonth, () => {
   align-items: center;
   justify-content: space-between;
   gap: 0.75rem;
+  min-width: 0;
   padding: 0.75rem;
   border: 1px solid #edf2f7;
   border-radius: 0.75rem;
   background: #fff;
 }
 
+.dashboard-class-row > div,
+.dashboard-leave-row > div,
+.dashboard-mini-class > div {
+  min-width: 0;
+}
+
 .dashboard-class-row strong,
 .dashboard-leave-row strong,
 .dashboard-mini-class strong {
   display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   color: #344767;
   font-size: 0.86rem;
 }
@@ -688,11 +730,12 @@ watch(selectedMonth, () => {
 
 .dashboard-class-metric {
   text-align: right;
+  flex-shrink: 0;
 }
 
 .dashboard-class-metric span {
   display: block;
-  color: #ea580c;
+  color: #fb6340;
   font-weight: 800;
 }
 
@@ -719,7 +762,7 @@ watch(selectedMonth, () => {
 
 .dashboard-alert--info {
   background: #eff6ff;
-  color: #2563eb;
+  color: #5e72e4;
 }
 
 .dashboard-leave-row span,
@@ -736,6 +779,11 @@ watch(selectedMonth, () => {
 .dashboard-mini-class span.done {
   background: #ecfdf5;
   color: #0f766e;
+}
+
+.dashboard-mini-class span.muted {
+  background: #f1f5f9;
+  color: #67748e;
 }
 
 .dashboard-empty,
@@ -761,14 +809,15 @@ watch(selectedMonth, () => {
 
 @media (max-width: 1199.98px) {
   .dashboard-kpis,
-  .dashboard-grid {
+  .dashboard-grid,
+  .dashboard-class-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
 @media (max-width: 767.98px) {
   .dashboard-page {
-    padding: 0.9rem;
+    padding: 0.85rem 0.85rem 1.25rem;
   }
 
   .dashboard-hero,
@@ -777,10 +826,19 @@ watch(selectedMonth, () => {
     flex-direction: column;
   }
 
+  .dashboard-date {
+    min-width: 0;
+  }
+
   .dashboard-kpis,
+  .dashboard-status-row,
+  .dashboard-monthly-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .dashboard-grid,
   .dashboard-monthly-content,
-  .dashboard-status-row {
+  .dashboard-class-grid {
     grid-template-columns: 1fr;
   }
 
@@ -793,8 +851,12 @@ watch(selectedMonth, () => {
     width: 100%;
   }
 
-  .dashboard-monthly-summary {
-    grid-template-columns: 1fr;
+  .dashboard-kpi {
+    padding: 0.85rem 0.75rem;
+  }
+
+  .dashboard-kpi strong {
+    font-size: 1.2rem;
   }
 }
 </style>

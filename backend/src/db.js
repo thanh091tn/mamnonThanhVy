@@ -1109,7 +1109,7 @@ export function normalizeTeacherGender(v) {
   return { error: "gender must be male or female" };
 }
 
-const STUDENT_STATUSES = new Set(["active", "inactive", "graduated", "leave"]);
+const STUDENT_STATUSES = new Set(["active", "inactive", "graduated", "leave", "monitoring"]);
 
 /** Returns normalized status string, or { error } if invalid. */
 export function normalizeStudentStatus(v) {
@@ -1117,7 +1117,7 @@ export function normalizeStudentStatus(v) {
   const s = String(v).trim().toLowerCase();
   if (!STUDENT_STATUSES.has(s)) {
     return {
-      error: "status must be one of: active, inactive, graduated, leave",
+      error: "status must be one of: active, inactive, graduated, leave, monitoring",
     };
   }
   return s;

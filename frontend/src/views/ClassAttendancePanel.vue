@@ -166,7 +166,7 @@ defineExpose({ loadClasses, loadAttendance })
   <div class="py-4 container-fluid page-fill attendance-page">
     <div class="row">
       <div class="col-12">
-        <div class="card attendance-page-card">
+        <div class="card attendance-page-card page-rise">
           <div class="card-header attendance-page-header">
             <div class="attendance-title-block">
               <span class="attendance-eyebrow">Điểm danh</span>
@@ -174,15 +174,15 @@ defineExpose({ loadClasses, loadAttendance })
               <p class="mb-0 text-sm text-secondary">Xem nhanh tình hình đi học theo ngày hoặc tổng hợp theo tháng cho từng lớp.</p>
             </div>
             <div class="attendance-quick-stats">
-              <div class="attendance-quick-card">
+              <div class="attendance-quick-card page-rise-fast page-lift" style="--delay: 80ms">
                 <span>Lớp</span>
                 <strong>{{ selectedClass?.name || '—' }}</strong>
               </div>
-              <div class="attendance-quick-card attendance-quick-card--mode">
+              <div class="attendance-quick-card attendance-quick-card--mode page-rise-fast page-lift" style="--delay: 120ms">
                 <span>Chế độ</span>
                 <strong>{{ attendanceModeLabel }}</strong>
               </div>
-              <div class="attendance-quick-card attendance-quick-card--date">
+              <div class="attendance-quick-card attendance-quick-card--date page-rise-fast page-lift" style="--delay: 160ms">
                 <span>Thời gian</span>
                 <strong>{{ attendanceDateLabel }}</strong>
               </div>
@@ -258,27 +258,27 @@ defineExpose({ loadClasses, loadAttendance })
               </div>
 
               <div v-if="attendanceView === 'month' && summary" class="attendance-summary-grid">
-                <article class="attendance-stat">
+                <article class="attendance-stat page-rise-fast page-lift" style="--delay: 40ms">
                   <span>Sĩ số</span>
                   <strong>{{ summary.studentCount }}</strong>
                 </article>
-                <article class="attendance-stat stat-present">
+                <article class="attendance-stat stat-present page-rise-fast page-lift" style="--delay: 80ms">
                   <span>Đi học</span>
                   <strong>{{ summary.present }}</strong>
                 </article>
-                <article class="attendance-stat stat-absent">
+                <article class="attendance-stat stat-absent page-rise-fast page-lift" style="--delay: 120ms">
                   <span>Nghỉ</span>
                   <strong>{{ summary.absent }}</strong>
                 </article>
-                <article class="attendance-stat stat-late">
+                <article class="attendance-stat stat-late page-rise-fast page-lift" style="--delay: 160ms">
                   <span>Trễ</span>
                   <strong>{{ summary.late }}</strong>
                 </article>
-                <article class="attendance-stat stat-excused">
+                <article class="attendance-stat stat-excused page-rise-fast page-lift" style="--delay: 200ms">
                   <span>Có phép</span>
                   <strong>{{ summary.excused }}</strong>
                 </article>
-                <article class="attendance-stat">
+                <article class="attendance-stat page-rise-fast page-lift" style="--delay: 240ms">
                   <span>Chưa ghi nhận</span>
                   <strong>{{ summary.noRecord }}</strong>
                 </article>

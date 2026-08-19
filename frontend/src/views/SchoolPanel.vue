@@ -51,7 +51,7 @@ watch(tabs, (nextTabs) => {
 <template>
   <div class="page-fill">
     <div class="pt-4 pb-0 container-fluid school-tab-bar">
-      <div class="school-hub">
+      <div class="school-hub page-rise">
         <div class="school-hub-copy">
           <span class="school-eyebrow">School Hub</span>
           <h4 class="school-title mb-1">Quản lý trường học</h4>
@@ -60,15 +60,15 @@ watch(tabs, (nextTabs) => {
           </p>
         </div>
 
-        <div class="school-badge">
+        <div class="school-badge page-float">
           <i class="ni ni-building me-2"></i>
           <span>{{ tabs.find((t) => t.key === activeTab)?.label }}</span>
         </div>
       </div>
 
-      <div class="school-tab-shell">
+      <div class="school-tab-shell page-rise" style="--delay: 80ms">
         <ul class="nav nav-pills school-tabs" role="tablist">
-          <li v-for="t in tabs" :key="t.key" class="nav-item" role="presentation">
+          <li v-for="(t, i) in tabs" :key="t.key" class="nav-item page-rise-fast" :style="{ '--delay': `${120 + i * 40}ms` }" role="presentation">
             <button
               class="nav-link mb-0"
               :class="{ active: activeTab === t.key }"
@@ -89,16 +89,29 @@ watch(tabs, (nextTabs) => {
       </div>
     </div>
 
-    <StudentsPanel v-show="activeTab === 'students'" />
-    <TeachersPanel v-if="isAdmin" v-show="activeTab === 'teachers'" />
-    <ClassesPanel v-if="isAdmin" v-show="activeTab === 'classes'" />
-    <ClassAttendancePanel v-if="isAdmin" v-show="activeTab === 'attendance'" />
+    <div class="school-panel-stage page-rise" style="--delay: 160ms">
+      <StudentsPanel v-show="activeTab === 'students'" />
+      <TeachersPanel v-if="isAdmin" v-show="activeTab === 'teachers'" />
+      <ClassesPanel v-if="isAdmin" v-show="activeTab === 'classes'" />
+      <ClassAttendancePanel v-if="isAdmin" v-show="activeTab === 'attendance'" />
+    </div>
   </div>
 </template>
 
 <style scoped>
 .page-fill {
   gap: 0;
+}
+
+.school-panel-stage {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.school-panel-stage :deep(.page-fill) {
+  flex: 1;
 }
 
 .school-tab-bar {
@@ -204,7 +217,8 @@ watch(tabs, (nextTabs) => {
   border-color: #dbe4f2;
   background: #ffffff;
   color: #344767;
-  transform: translateY(-1px);
+  transform: translateY(-2px);
+  box-shadow: 0 0.7rem 1.4rem rgba(94, 114, 228, 0.12);
 }
 
 .school-tabs .nav-link.active {

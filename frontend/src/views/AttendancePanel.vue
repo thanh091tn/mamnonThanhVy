@@ -352,7 +352,7 @@ onMounted(() => {
 
 <template>
   <div class="att-page page-fill">
-    <section class="att-hero">
+    <section class="att-hero page-rise">
       <div class="att-hero-copy">
         <span class="att-hero-eyebrow">Attendance</span>
         <h4 class="att-hero-title mb-1">Điểm danh và theo dõi trong ngày</h4>
@@ -361,7 +361,7 @@ onMounted(() => {
         </p>
       </div>
 
-      <div class="att-hero-highlight">
+      <div class="att-hero-highlight page-float">
         <span class="att-hero-highlight-label">Lớp đang xem</span>
         <strong>{{ selectedClassName }}</strong>
         <small>{{ selectedDate || 'Chưa chọn ngày' }}</small>
@@ -369,7 +369,7 @@ onMounted(() => {
     </section>
 
     <!-- ===== TOOLBAR ===== -->
-    <div class="att-toolbar">
+    <div class="att-toolbar page-rise" style="--delay: 80ms">
       <div class="att-toolbar-left">
         <div class="att-filter-group">
           <span class="att-filter-label">Theo ngày</span>
@@ -426,25 +426,25 @@ onMounted(() => {
     </div>
 
     <div v-if="activeTab === 'students'" class="att-overview">
-      <article class="att-stat-card att-stat-card--neutral">
+      <article class="att-stat-card att-stat-card--neutral page-rise-fast page-lift" style="--delay: 120ms">
         <span class="att-stat-label">Tiến độ điểm danh</span>
         <strong class="att-stat-value">{{ attendanceProgress }}%</strong>
         <small class="att-stat-meta">{{ presentStudents.length + absentStudents.length }}/{{ totalStudents }} học sinh</small>
       </article>
 
-      <article class="att-stat-card att-stat-card--warning">
+      <article class="att-stat-card att-stat-card--warning page-rise-fast page-lift" style="--delay: 160ms">
         <span class="att-stat-label">Chưa điểm danh</span>
         <strong class="att-stat-value">{{ unmarkedStudents.length }}</strong>
         <small class="att-stat-meta">Cần xử lý trước khi chốt buổi học</small>
       </article>
 
-      <article class="att-stat-card att-stat-card--success">
+      <article class="att-stat-card att-stat-card--success page-rise-fast page-lift" style="--delay: 200ms">
         <span class="att-stat-label">Đi học</span>
         <strong class="att-stat-value">{{ presentStudents.length }}</strong>
         <small class="att-stat-meta">Đã được xác nhận có mặt</small>
       </article>
 
-      <article class="att-stat-card att-stat-card--danger">
+      <article class="att-stat-card att-stat-card--danger page-rise-fast page-lift" style="--delay: 240ms">
         <span class="att-stat-label">Nghỉ học</span>
         <strong class="att-stat-value">{{ absentStudents.length }}</strong>
         <small class="att-stat-meta">Các trường hợp vắng mặt trong ngày</small>
@@ -452,7 +452,7 @@ onMounted(() => {
     </div>
 
     <!-- ===== STUDENT ATTENDANCE (KANBAN) ===== -->
-    <div v-if="activeTab === 'students'" class="att-content">
+    <div v-if="activeTab === 'students'" class="att-content page-rise" style="--delay: 160ms">
       <argon-alert
         v-if="studentErr"
         color="danger"
@@ -467,7 +467,11 @@ onMounted(() => {
         <p>Chọn lớp và ngày để xem điểm danh.</p>
       </div>
       <div v-else-if="studentLoading" class="att-placeholder">
-        <div class="spinner-border text-primary" role="status"></div>
+        <div class="page-loading-dots" aria-hidden="true">
+          <div class="page-loading-dot"></div>
+          <div class="page-loading-dot"></div>
+          <div class="page-loading-dot"></div>
+        </div>
         <p>Đang tải...</p>
       </div>
       <div v-else-if="!studentRows.length" class="att-placeholder">
@@ -477,7 +481,7 @@ onMounted(() => {
 
       <div v-else class="att-columns">
         <!-- ── Chưa điểm danh ── -->
-        <div class="att-col">
+        <div class="att-col page-rise-fast" style="--delay: 180ms">
           <div class="att-col-header att-col-header--unmarked">
             <div class="att-col-header-left">
               <span class="att-col-icon att-col-icon--unmarked">
@@ -499,9 +503,10 @@ onMounted(() => {
             </button>
 
             <div
-              v-for="s in unmarkedStudents"
+              v-for="(s, i) in unmarkedStudents"
               :key="s.studentId"
-              class="att-card"
+              class="att-card page-rise-fast"
+              :style="{ '--delay': `${Math.min(i, 10) * 35}ms` }"
             >
               <div class="att-card-info">
                 <img
@@ -554,7 +559,7 @@ onMounted(() => {
         </div>
 
         <!-- ── Đi học ── -->
-        <div class="att-col">
+        <div class="att-col page-rise-fast" style="--delay: 220ms">
           <div class="att-col-header att-col-header--present">
             <div class="att-col-header-left">
               <span class="att-col-icon att-col-icon--present">
@@ -566,9 +571,10 @@ onMounted(() => {
           </div>
           <div class="att-col-body">
             <div
-              v-for="s in presentStudents"
+              v-for="(s, i) in presentStudents"
               :key="s.studentId"
-              class="att-card att-card--present"
+              class="att-card att-card--present page-rise-fast"
+              :style="{ '--delay': `${Math.min(i, 10) * 35}ms` }"
             >
               <div class="att-card-info">
                 <img
@@ -606,7 +612,7 @@ onMounted(() => {
         </div>
 
         <!-- ── Nghỉ học ── -->
-        <div class="att-col">
+        <div class="att-col page-rise-fast" style="--delay: 260ms">
           <div class="att-col-header att-col-header--absent">
             <div class="att-col-header-left">
               <span class="att-col-icon att-col-icon--absent">
@@ -618,9 +624,10 @@ onMounted(() => {
           </div>
           <div class="att-col-body">
             <div
-              v-for="s in absentStudents"
+              v-for="(s, i) in absentStudents"
               :key="s.studentId"
-              class="att-card att-card--absent"
+              class="att-card att-card--absent page-rise-fast"
+              :style="{ '--delay': `${Math.min(i, 10) * 35}ms` }"
             >
               <div class="att-card-info">
                 <img
@@ -662,7 +669,7 @@ onMounted(() => {
     <!-- Quản trị viên: không còn bảng điểm danh GV — dùng Lịch nghỉ GV -->
     <div
       v-else-if="activeTab === 'teachers' && isAdmin"
-      class="att-content"
+      class="att-content page-rise"
     >
       <div class="card">
         <div class="card-body py-5 text-center px-4">
@@ -683,7 +690,7 @@ onMounted(() => {
     <!-- Giáo viên: xin nghỉ phép trước -->
     <div
       v-else-if="activeTab === 'teachers' && isTeacher"
-      class="att-content att-teacher-self-wrap"
+      class="att-content att-teacher-self-wrap page-rise"
     >
       <div class="card att-teacher-leave-card mb-4">
         <div class="card-header pb-0">
@@ -1207,6 +1214,10 @@ onMounted(() => {
   background: linear-gradient(180deg, #ffffff, #fafbfc);
 }
 
+.att-placeholder .page-loading-dots {
+  min-height: 0;
+}
+
 .att-placeholder-icon {
   font-size: 2.5rem;
   opacity: 0.4;
@@ -1379,8 +1390,8 @@ onMounted(() => {
 }
 
 .att-card:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 0.35rem 0.9rem rgba(15, 23, 42, 0.08);
+  transform: translateY(-2px);
+  box-shadow: 0 0.7rem 1.4rem rgba(15, 23, 42, 0.1);
 }
 
 .att-card--present {
