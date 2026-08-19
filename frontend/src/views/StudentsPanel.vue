@@ -20,6 +20,7 @@ const canManageStudents = computed(() => isAdmin.value || isTeacher.value)
 
 const STATUS_OPTIONS = [
   { value: 'active', label: 'Đang học' },
+  { value: 'monitoring', label: 'Đang theo dõi' },
   { value: 'inactive', label: 'Nghỉ học' },
   { value: 'graduated', label: 'Tốt nghiệp' },
   { value: 'leave', label: 'Tạm nghỉ' },
@@ -529,6 +530,7 @@ function clearAvatar() {
 function statusBadgeClass(status) {
   const s = String(status || 'active').toLowerCase()
   if (s === 'active') return 'bg-gradient-success'
+  if (s === 'monitoring') return 'bg-gradient-primary'
   if (s === 'inactive') return 'bg-gradient-secondary'
   if (s === 'graduated') return 'bg-gradient-info'
   return 'bg-gradient-warning'
@@ -836,7 +838,7 @@ defineExpose({ load })
   <div class="py-4 container-fluid page-fill students-page">
     <div :class="studentsLayoutClass">
       <!-- LEFT FILTER SIDEBAR -->
-      <div :class="filterSidebarClass" class="student-filter-panel">
+      <div :class="filterSidebarClass" class="student-filter-panel page-rise">
         <div class="student-filter-heading">
           <span class="student-filter-kicker">Bộ lọc</span>
           <strong>{{ filteredItems.length }} học sinh</strong>
@@ -901,7 +903,7 @@ defineExpose({ load })
       </div>
 
       <!-- STUDENT TABLE CARD -->
-      <div class="card tw-min-w-0 tw-flex-1 student-list-card">
+      <div class="card tw-min-w-0 tw-flex-1 student-list-card page-rise" style="--delay: 80ms">
         <div class="card-header student-list-header">
           <div class="student-list-title">
             <span class="student-list-eyebrow">Hồ sơ học sinh</span>
@@ -911,19 +913,19 @@ defineExpose({ load })
             </p>
           </div>
           <div class="student-list-stats">
-            <div class="student-stat-card">
+            <div class="student-stat-card page-rise-fast page-lift" style="--delay: 80ms">
               <span>Tổng</span>
               <strong>{{ items.length }}</strong>
             </div>
-            <div class="student-stat-card student-stat-card--active">
+            <div class="student-stat-card student-stat-card--active page-rise-fast page-lift" style="--delay: 120ms">
               <span>Đang học</span>
               <strong>{{ activeStudentsCount }}</strong>
             </div>
-            <div class="student-stat-card student-stat-card--girl">
+            <div class="student-stat-card student-stat-card--girl page-rise-fast page-lift" style="--delay: 160ms">
               <span>Bé gái</span>
               <strong>{{ femaleStudentsCount }}</strong>
             </div>
-            <div class="student-stat-card student-stat-card--boy">
+            <div class="student-stat-card student-stat-card--boy page-rise-fast page-lift" style="--delay: 200ms">
               <span>Bé trai</span>
               <strong>{{ maleStudentsCount }}</strong>
             </div>

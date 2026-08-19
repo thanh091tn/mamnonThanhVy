@@ -11,6 +11,7 @@ const steps = [
 
 const statusLabels = {
   active: 'Đang học',
+  monitoring: 'Đang theo dõi',
   inactive: 'Thôi học',
   graduated: 'Tốt nghiệp/Ra trường',
   leave: 'Bảo lưu',
@@ -251,28 +252,34 @@ onBeforeUnmount(() => clearInterval(pollTimer.value))
 
 <template>
   <div class="container-fluid py-4 year-end-page">
-    <div class="year-end-hero">
+    <div class="year-end-hero page-rise">
       <div>
         <span class="year-end-eyebrow">Chuyển lớp</span>
         <h4>Quản lý chuyển lớp và trạng thái hàng loạt</h4>
         <p>Chọn học sinh, kiểm tra thay đổi trước/sau và thực thi an toàn có lưu lịch sử.</p>
       </div>
-      <div class="year-end-count">
+      <div class="year-end-count page-float">
         <strong>{{ selectedCount }}</strong>
         <span>đã chọn</span>
       </div>
     </div>
 
-    <div class="wizard-line">
-      <div v-for="step in steps" :key="step.key" class="wizard-step" :class="{ done: currentStep > step.key, active: currentStep === step.key }">
+    <div class="wizard-line page-rise" style="--delay: 80ms">
+      <div
+        v-for="(step, i) in steps"
+        :key="step.key"
+        class="wizard-step page-rise-fast"
+        :style="{ '--delay': `${100 + i * 50}ms` }"
+        :class="{ done: currentStep > step.key, active: currentStep === step.key }"
+      >
         <span><i :class="currentStep > step.key ? 'ni ni-check-bold' : step.icon"></i></span>
         <small>{{ step.label }}</small>
       </div>
     </div>
 
-    <div v-if="error" class="alert alert-danger border-0 shadow-sm">{{ error }}</div>
+    <div v-if="error" class="alert alert-danger border-0 shadow-sm page-rise">{{ error }}</div>
 
-    <section v-if="currentStep === 1" class="year-end-card">
+    <section v-if="currentStep === 1" class="year-end-card page-rise" style="--delay: 140ms">
       <div class="filter-grid">
         <label>
           <span>Tên học sinh</span>
@@ -336,14 +343,14 @@ onBeforeUnmount(() => clearInterval(pollTimer.value))
       </div>
     </section>
 
-    <section v-else-if="currentStep === 2" class="year-end-card">
+    <section v-else-if="currentStep === 2" class="year-end-card page-rise">
       <div class="action-grid">
-        <button class="action-tile" :class="{ active: config.action === 'transfer' }" @click="config.action = 'transfer'">
+        <button class="action-tile page-lift" :class="{ active: config.action === 'transfer' }" @click="config.action = 'transfer'">
           <i class="ni ni-curved-next"></i>
           <strong>Chuyển lớp</strong>
           <span>Chọn lớp mới cho danh sách học sinh.</span>
         </button>
-        <button class="action-tile" :class="{ active: config.action === 'status' }" @click="config.action = 'status'">
+        <button class="action-tile page-lift" :class="{ active: config.action === 'status' }" @click="config.action = 'status'">
           <i class="ni ni-badge"></i>
           <strong>Cập nhật trạng thái</strong>
           <span>Tốt nghiệp, thôi học hoặc bảo lưu.</span>
@@ -400,7 +407,7 @@ onBeforeUnmount(() => clearInterval(pollTimer.value))
       </div>
     </section>
 
-    <section v-else-if="currentStep === 3" class="year-end-card">
+    <section v-else-if="currentStep === 3" class="year-end-card page-rise">
       <div class="table-responsive mt-3 preview-table-wrap">
         <table class="table align-items-center mb-0 preview-table">
           <thead>
@@ -434,7 +441,7 @@ onBeforeUnmount(() => clearInterval(pollTimer.value))
       </div>
     </section>
 
-    <div class="wizard-actions">
+    <div class="wizard-actions page-rise" style="--delay: 180ms">
       <button class="btn btn-outline-secondary" :disabled="currentStep === 1 || executing" @click="prevStep">Quay lại</button>
       <button class="btn btn-primary" :disabled="!canGoNext() || loading" @click="nextStep">
         {{ currentStep === 3 ? 'Thực thi' : 'Tiếp tục' }}
@@ -442,7 +449,7 @@ onBeforeUnmount(() => clearInterval(pollTimer.value))
     </div>
 
     <div v-if="confirmModalOpen" class="confirm-modal-backdrop" @click.self="closeConfirmModal">
-      <div class="confirm-modal-card">
+      <div class="confirm-modal-card page-rise">
         <div class="confirm-modal-header">
           <h5>Thực thi cập nhật</h5>
           <p>{{ selectedCount }} học sinh sẽ được cập nhật.</p>
@@ -628,6 +635,7 @@ label span { display: block; margin-bottom: 0.35rem; color: #67748e; font-size: 
 }
 .action-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.85rem; }
 .action-tile { text-align: left; padding: 1rem; border: 1px solid #e9eef7; border-radius: 1rem; background: #fff; transition: all 0.2s ease; }
+.action-tile:hover { transform: translateY(-2px); box-shadow: 0 0.7rem 1.4rem rgba(15, 159, 143, 0.12); }
 .action-tile i { color: #0f9f8f; font-size: 1.4rem; }
 .action-tile strong, .action-tile span { display: block; }
 .action-tile strong { color: #1f2a44; font-weight: 800; }

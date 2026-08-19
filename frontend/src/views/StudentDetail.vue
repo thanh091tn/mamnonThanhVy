@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeMount, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useStore } from 'vuex'
 import { api } from '../api/client.js'
@@ -19,9 +19,13 @@ const store = useStore()
 const isAdmin = computed(() => store.state.authUser?.role === 'admin')
 const canManageStudents = computed(() => ['admin', 'teacher'].includes(store.state.authUser?.role))
 const studyInfoLocked = computed(() => !canManageStudents.value)
+/** Temporarily hidden on student detail page. */
+const showParentInfo = false
+const showEducationRegistryInfo = false
 
 const STATUS_OPTIONS = [
   { value: 'active', label: '\u0110ang h\u1ecdc' },
+  { value: 'monitoring', label: '\u0110ang theo d\u00f5i' },
   { value: 'inactive', label: 'Ngh\u1ec9 h\u1ecdc' },
   { value: 'graduated', label: 'T\u1ed1t nghi\u1ec7p' },
   { value: 'leave', label: 'T\u1ea1m ngh\u1ec9' },
@@ -125,15 +129,56 @@ const wardOptions = computed(() => wardsForProvinceName(form.value.province))
 const selectedHouseholdProvince = computed(() => findProvinceByName(form.value.householdProvince))
 const householdWardOptions = computed(() => wardsForProvinceName(form.value.householdProvince))
 
-function permanentAddressText() {
-  const parts = [form.value.houseNumber, form.value.street, form.value.ward, form.value.province]
+function currentAddressText() {
+  const parts = [
+    form.value.householdHouseNumber,
+    form.value.householdStreet,
+    form.value.householdWard,
+    form.value.householdProvince,
+  ]
     .map((value) => String(value || '').trim())
     .filter(Boolean)
   return parts.join(', ')
 }
 
-function syncCurrentAddressFromPermanent() {
-  form.value.hamlet = permanentAddressText()
+function addressesMatch() {
+  return (
+    String(form.value.householdHouseNumber || '').trim() === String(form.value.houseNumber || '').trim() &&
+    String(form.value.householdStreet || '').trim() === String(form.value.street || '').trim() &&
+    String(form.value.householdProvince || '').trim() === String(form.value.province || '').trim() &&
+    String(form.value.householdWard || '').trim() === String(form.value.ward || '').trim()
+  )
+}
+
+function hasCurrentAddress() {
+  return [
+    form.value.householdHouseNumber,
+    form.value.householdStreet,
+    form.value.householdProvince,
+    form.value.householdWard,
+  ].some((value) => String(value || '').trim())
+}
+
+function hasPermanentAddress() {
+  return [form.value.houseNumber, form.value.street, form.value.province, form.value.ward].some((value) =>
+    String(value || '').trim()
+  )
+}
+
+/** Khi tick: Địa chỉ thường trú = Địa chỉ hiện tại */
+function syncPermanentAddressFromCurrent() {
+  form.value.houseNumber = form.value.householdHouseNumber
+  form.value.street = form.value.householdStreet
+  form.value.province = form.value.householdProvince
+  form.value.ward = form.value.householdWard
+  form.value.hamlet = currentAddressText()
+}
+
+function seedCurrentAddressFromPermanent() {
+  form.value.householdHouseNumber = form.value.houseNumber
+  form.value.householdStreet = form.value.street
+  form.value.householdProvince = form.value.province
+  form.value.householdWard = form.value.ward
 }
 
 watch(
@@ -157,14 +202,19 @@ watch(
 watch(
   () => currentAddressSame.value,
   (checked) => {
-    if (checked) syncCurrentAddressFromPermanent()
+    if (checked) syncPermanentAddressFromCurrent()
   }
 )
 
 watch(
-  () => [form.value.houseNumber, form.value.street, form.value.ward, form.value.province],
+  () => [
+    form.value.householdHouseNumber,
+    form.value.householdStreet,
+    form.value.householdWard,
+    form.value.householdProvince,
+  ],
   () => {
-    if (currentAddressSame.value) syncCurrentAddressFromPermanent()
+    if (currentAddressSame.value) syncPermanentAddressFromCurrent()
   }
 )
 
@@ -217,9 +267,13 @@ function fillForm(row) {
   }
   initialAcademicYearIdSnapshot.value = form.value.academicYearId === '' ? '' : String(form.value.academicYearId)
   initialClassIdSnapshot.value = form.value.classId === '' ? '' : String(form.value.classId)
-  const permanentAddress = permanentAddressText()
-  currentAddressSame.value = !form.value.hamlet || form.value.hamlet === permanentAddress
-  if (currentAddressSame.value) syncCurrentAddressFromPermanent()
+  if (!hasCurrentAddress() && hasPermanentAddress()) {
+    seedCurrentAddressFromPermanent()
+    currentAddressSame.value = true
+  } else {
+    currentAddressSame.value = !hasCurrentAddress() || addressesMatch()
+  }
+  if (currentAddressSame.value) syncPermanentAddressFromCurrent()
 }
 
 function defaultAvatarSrc(gender) {
@@ -299,7 +353,7 @@ async function loadStudent() {
 }
 
 function buildPayload() {
-  if (currentAddressSame.value) syncCurrentAddressFromPermanent()
+  if (currentAddressSame.value) syncPermanentAddressFromCurrent()
   const fullName = fullNameFromParts(form.value.lastName, form.value.firstName)
   return {
     name: fullName,
@@ -403,28 +457,79 @@ async function removeStudent() {
   }
 }
 
+onBeforeMount(() => {
+  store.state.showFooter = false
+})
+
+const activeSection = ref('student-info')
+let sectionObserver = null
+
+function setupSectionObserver() {
+  const ids = ['student-info', 'study-info', 'family-info', 'parent-account', 'address-info', 'extra-info', 'note-info']
+  const nodes = ids.map((id) => document.getElementById(id)).filter(Boolean)
+  if (!nodes.length || typeof IntersectionObserver === 'undefined') return
+  sectionObserver?.disconnect()
+  sectionObserver = new IntersectionObserver(
+    (entries) => {
+      const visible = entries
+        .filter((entry) => entry.isIntersecting)
+        .sort((a, b) => b.intersectionRatio - a.intersectionRatio)
+      if (visible[0]?.target?.id) activeSection.value = visible[0].target.id
+    },
+    { rootMargin: '-20% 0px -55% 0px', threshold: [0.15, 0.35, 0.55] }
+  )
+  nodes.forEach((node) => sectionObserver.observe(node))
+}
+
 onMounted(async () => {
   await loadMetadata()
   await loadStudent()
+  await nextTick()
+  setupSectionObserver()
+})
+
+onBeforeUnmount(() => {
+  sectionObserver?.disconnect()
+  sectionObserver = null
+  store.state.showFooter = true
 })
 </script>
 
 <template>
   <div class="student-profile-page">
-    <header class="profile-topbar">
-      <button type="button" class="profile-back" @click="goBack">
-        <i class="ni ni-bold-left"></i>
-        <span>{{ isCreateMode ? 'Thêm hồ sơ học sinh' : 'Sửa hồ sơ học sinh' }}</span>
-      </button>
-      <div class="profile-actions">
-        <button type="button" class="btn btn-sm btn-outline-secondary mb-0" :disabled="saving" @click="goBack">Hủy</button>
-        <argon-button color="success" variant="gradient" size="sm" type="button" :disabled="saving || loading || !canManageStudents" @click="save">
-          {{ saving ? 'Đang lưu...' : isCreateMode ? 'Tạo' : 'Lưu' }}
-        </argon-button>
-      </div>
-    </header>
-
     <div class="profile-shell">
+      <header class="profile-topbar">
+        <button type="button" class="profile-back" @click="goBack">
+          <i class="ni ni-bold-left" aria-hidden="true"></i>
+          <span>{{ isCreateMode ? 'Thêm hồ sơ học sinh' : 'Sửa hồ sơ học sinh' }}</span>
+        </button>
+        <div class="profile-actions">
+          <button
+            v-if="!isCreateMode"
+            type="button"
+            class="btn btn-sm btn-outline-danger profile-action-btn"
+            :disabled="saving || loading || !canManageStudents"
+            @click="removeStudent"
+          >
+            Xóa
+          </button>
+          <button type="button" class="btn btn-sm btn-outline-secondary profile-action-btn" :disabled="saving" @click="goBack">
+            Hủy
+          </button>
+          <argon-button
+            class="profile-action-btn"
+            color="success"
+            variant="gradient"
+            size="sm"
+            type="button"
+            :disabled="saving || loading || !canManageStudents"
+            @click="save"
+          >
+            {{ saving ? 'Đang lưu...' : isCreateMode ? 'Tạo' : 'Lưu' }}
+          </argon-button>
+        </div>
+      </header>
+
       <aside class="profile-sidebar">
         <div class="profile-avatar-wrap">
           <img :src="formAvatarSrc()" alt="" class="profile-avatar" referrerpolicy="no-referrer" @error="onFormAvatarImgError" />
@@ -439,26 +544,22 @@ onMounted(async () => {
             <i class="ni ni-camera-compact"></i>
           </label>
         </div>
+        <p class="profile-sidebar-name">{{ displayName }}</p>
         <p v-if="uploadingAvatar" class="profile-upload-note">Đang tải ảnh...</p>
         <p v-if="avatarUploadErr" class="profile-upload-error">{{ avatarUploadErr }}</p>
 
         <nav class="profile-nav">
-          <a href="#student-info" class="active">Thông tin học sinh</a>
-          <a href="#study-info">Thông tin học tập</a>
-          <a href="#family-info">Thông tin gia đình</a>
-          <a href="#parent-account">Tài khoản phụ huynh</a>
-          <a href="#address-info">Thông tin địa chỉ</a>
-          <a href="#extra-info">Thông tin phục vụ CSDLQG ngành Giáo dục</a>
-          <a href="#note-info">Ghi chú</a>
+          <a href="#student-info" :class="{ active: activeSection === 'student-info' }">Thông tin học sinh</a>
+          <a href="#study-info" :class="{ active: activeSection === 'study-info' }">Thông tin học tập</a>
+          <a v-if="showParentInfo" href="#family-info" :class="{ active: activeSection === 'family-info' }">Thông tin gia đình</a>
+          <a v-if="showParentInfo" href="#parent-account" :class="{ active: activeSection === 'parent-account' }">Tài khoản phụ huynh</a>
+          <a href="#address-info" :class="{ active: activeSection === 'address-info' }">Thông tin địa chỉ</a>
+          <a v-if="showEducationRegistryInfo" href="#extra-info" :class="{ active: activeSection === 'extra-info' }">Thông tin phục vụ CSDLQG ngành Giáo dục</a>
+          <a href="#note-info" :class="{ active: activeSection === 'note-info' }">Ghi chú</a>
         </nav>
       </aside>
 
       <main class="profile-main">
-        <div class="profile-status-row">
-          <span class="profile-status-dot">!</span>
-          <span>Có thể thay đổi trạng thái từ <strong>Đã nghỉ</strong> → <strong>Đang học</strong> bất cứ lúc nào</span>
-        </div>
-
         <argon-alert v-if="loadErr" color="danger" icon="ni ni-fat-remove" class="mb-3">
           {{ loadErr }}
         </argon-alert>
@@ -471,17 +572,10 @@ onMounted(async () => {
         </div>
 
         <form v-else class="profile-form" @submit.prevent="save">
-          <div class="profile-floating-actions">
-            <button v-if="!isCreateMode" type="button" class="btn btn-sm btn-outline-danger mb-0" :disabled="saving" @click="removeStudent">Xóa hồ sơ</button>
-            <argon-button color="success" variant="outline" size="sm" type="submit" :disabled="saving || !canManageStudents">
-              {{ saving ? 'Đang lưu...' : isCreateMode ? 'Tạo học sinh' : 'Bảo lưu/Đã nghỉ' }}
-            </argon-button>
-          </div>
-
           <section id="student-info" class="profile-card profile-card-mint">
             <h6 class="profile-section-title">Thông tin học sinh</h6>
             <div class="profile-grid profile-grid-3">
-              <div class="field field-wide">
+              <div class="field field-span-2">
                 <label>Họ và tên *</label>
                 <div class="split-name-grid">
                   <argon-input v-model="form.lastName" placeholder="Họ" name="lastName" autocomplete="family-name" />
@@ -553,6 +647,7 @@ onMounted(async () => {
                 <select v-model="form.status" class="form-control" :disabled="studyInfoLocked">
                   <option v-for="o in STATUS_OPTIONS" :key="o.value" :value="o.value">{{ o.label }}</option>
                 </select>
+                <p class="field-hint">Có thể đổi từ Đã nghỉ → Đang học bất cứ lúc nào</p>
               </div>
             </div>
             <div v-if="classIsChanging && isAdmin && !studyInfoLocked" class="profile-subpanel">
@@ -569,7 +664,7 @@ onMounted(async () => {
             </div>
           </section>
 
-          <section id="family-info" class="profile-card">
+          <section v-if="showParentInfo" id="family-info" class="profile-card">
             <h6 class="profile-section-title">Thông tin gia đình</h6>
             <div class="family-band mother-band">Thông tin của mẹ</div>
             <div class="profile-grid profile-grid-3">
@@ -596,7 +691,7 @@ onMounted(async () => {
             </div>
           </section>
 
-          <section id="parent-account" class="profile-card profile-card-mint">
+          <section v-if="showParentInfo" id="parent-account" class="profile-card profile-card-mint">
             <h6 class="profile-section-title">Thông tin phụ huynh</h6>
             <p class="profile-muted">Thông tin đăng nhập luôn đồng nhất với Số điện thoại/email khai báo ở trên</p>
             <div class="account-table">
@@ -610,60 +705,63 @@ onMounted(async () => {
           </section>
 
           <section id="address-info" class="profile-card profile-card-address">
-            <h6 class="profile-section-title">Thông tin địa chỉ</h6>
-            <p class="profile-subtitle">Hộ khẩu</p>
-            <div class="profile-grid profile-grid-4 address-group">
-              <div class="field"><label>Số nhà</label><argon-input v-model="form.householdHouseNumber" placeholder="Số nhà hộ khẩu" name="householdHouseNumber" /></div>
-              <div class="field"><label>Đường</label><argon-input v-model="form.householdStreet" placeholder="Đường hộ khẩu" name="householdStreet" /></div>
-              <div class="field">
-                <label>Tỉnh/Thành phố</label>
-                <searchable-dropdown v-model="form.householdProvince" :options="provinces" placeholder="Chọn Tỉnh/Thành phố" />
-              </div>
-              <div class="field">
-                <label>Phường/Xã</label>
-                <searchable-dropdown
-                  v-model="form.householdWard"
-                  :options="householdWardOptions"
-                  :disabled="!selectedHouseholdProvince"
-                  :placeholder="selectedHouseholdProvince ? 'Chọn Xã/Phường' : 'Chọn tỉnh trước'"
-                />
-              </div>
-            </div>
-            <p class="profile-subtitle">Địa chỉ thường trú</p>
-            <div class="profile-grid profile-grid-4 address-group">
-              <div class="field"><label>Số nhà</label><argon-input v-model="form.houseNumber" placeholder="Nhập số nhà" name="houseNumber" /></div>
-              <div class="field"><label>Đường/Thôn/Xóm</label><argon-input v-model="form.street" placeholder="Nhập Đường/Thôn/Xóm" name="street" /></div>
-              <div class="field">
-                <label>Tỉnh/Thành phố</label>
-                <searchable-dropdown v-model="form.province" :options="provinces" placeholder="Chọn Tỉnh/Thành phố" />
-              </div>
-              <div class="field">
-                <label>Phường/Xã</label>
-                <searchable-dropdown
-                  v-model="form.ward"
-                  :options="wardOptions"
-                  :disabled="!selectedProvince"
-                  :placeholder="selectedProvince ? 'Chọn Xã/Phường' : 'Chọn tỉnh trước'"
-                />
-              </div>
-            </div>
-            <div class="address-current-header">
-              <p class="profile-subtitle">Địa chỉ hiện tại</p>
+            <div class="address-section-head">
+              <h6 class="profile-section-title">Thông tin địa chỉ</h6>
               <label class="same-address">
                 <input v-model="currentAddressSame" type="checkbox" />
                 <span>Lấy theo Địa chỉ thường trú</span>
               </label>
             </div>
-            <argon-input
-              class="address-current-input"
-              v-model="form.hamlet"
-              placeholder="Nhập địa chỉ hiện tại"
-              name="hamlet"
-              :disabled="currentAddressSame"
-            />
+
+            <div class="address-block address-block-current">
+              <div class="address-block-head">
+                <span class="address-block-label">Địa chỉ hiện tại</span>
+              </div>
+              <div class="profile-grid profile-grid-4 address-group">
+                <div class="field"><label>Số nhà</label><argon-input v-model="form.householdHouseNumber" placeholder="Nhập số nhà" name="householdHouseNumber" /></div>
+                <div class="field"><label>Đường</label><argon-input v-model="form.householdStreet" placeholder="Nhập đường" name="householdStreet" /></div>
+                <div class="field">
+                  <label>Tỉnh/Thành phố</label>
+                  <searchable-dropdown v-model="form.householdProvince" :options="provinces" placeholder="Chọn Tỉnh/Thành phố" />
+                </div>
+                <div class="field">
+                  <label>Phường/Xã</label>
+                  <searchable-dropdown
+                    v-model="form.householdWard"
+                    :options="householdWardOptions"
+                    :disabled="!selectedHouseholdProvince"
+                    :placeholder="selectedHouseholdProvince ? 'Chọn Xã/Phường' : 'Chọn tỉnh trước'"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div class="address-block" :class="currentAddressSame ? 'address-block-locked' : 'address-block-permanent'">
+              <div class="address-block-head">
+                <span class="address-block-label">Địa chỉ thường trú</span>
+                <span v-if="currentAddressSame" class="address-sync-hint">Đang lấy theo địa chỉ hiện tại</span>
+              </div>
+              <div class="profile-grid profile-grid-4 address-group">
+                <div class="field"><label>Số nhà</label><argon-input v-model="form.houseNumber" placeholder="Nhập số nhà" name="houseNumber" :disabled="currentAddressSame" /></div>
+                <div class="field"><label>Đường/Thôn/Xóm</label><argon-input v-model="form.street" placeholder="Nhập Đường/Thôn/Xóm" name="street" :disabled="currentAddressSame" /></div>
+                <div class="field">
+                  <label>Tỉnh/Thành phố</label>
+                  <searchable-dropdown v-model="form.province" :options="provinces" placeholder="Chọn Tỉnh/Thành phố" :disabled="currentAddressSame" />
+                </div>
+                <div class="field">
+                  <label>Phường/Xã</label>
+                  <searchable-dropdown
+                    v-model="form.ward"
+                    :options="wardOptions"
+                    :disabled="currentAddressSame || !selectedProvince"
+                    :placeholder="selectedProvince ? 'Chọn Xã/Phường' : 'Chọn tỉnh trước'"
+                  />
+                </div>
+              </div>
+            </div>
           </section>
 
-          <section id="extra-info" class="profile-card">
+          <section v-if="showEducationRegistryInfo" id="extra-info" class="profile-card">
             <h6 class="profile-section-title">Thông tin phục vụ CSDLQG ngành Giáo dục</h6>
             <div class="profile-grid profile-grid-3">
               <div class="field"><label>Quốc tịch</label><argon-input v-model="form.nationality" placeholder="VD: Việt Nam" name="nationality" /></div>
@@ -708,96 +806,160 @@ onMounted(async () => {
 
 <style scoped>
 .student-profile-page {
+  --profile-topbar-h: 3.15rem;
+  --profile-page-x: 1.25rem;
+  --profile-gap: 1rem;
+  --profile-accent: #0f9f7a;
+  --profile-accent-soft: #edf9f4;
+  --profile-border: #e4ebf2;
+  --profile-text: #1f2a44;
+  --profile-muted: #667085;
   min-height: 100vh;
-  background: #f4f7fb;
-  color: #1f2a44;
+  margin: 0 -1.5rem;
+  padding: 1rem var(--profile-page-x) 1.75rem;
+  background: #f3f6fa;
+  color: var(--profile-text);
+}
+
+.profile-shell {
+  display: grid;
+  grid-template-columns: 15.5rem minmax(0, 1fr);
+  grid-template-areas:
+    "topbar topbar"
+    "sidebar main";
+  gap: var(--profile-gap);
+  align-items: start;
 }
 
 .profile-topbar {
+  grid-area: topbar;
   position: sticky;
-  top: 0;
+  top: 0.65rem;
   z-index: 20;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 1rem;
-  min-height: 3.2rem;
-  padding: 0.6rem 1.25rem;
-  border-bottom: 1px solid #e9eef7;
+  gap: 0.85rem;
+  height: var(--profile-topbar-h);
+  padding: 0 0.9rem 0 0.75rem;
+  border: 1px solid var(--profile-border);
+  border-radius: 0.85rem;
   background: #ffffff;
+  box-shadow: 0 0.2rem 0.7rem rgba(31, 42, 68, 0.04);
 }
 
 .profile-back {
   display: inline-flex;
   align-items: center;
-  gap: 0.55rem;
+  gap: 0.45rem;
+  height: 2.15rem;
+  margin: 0;
+  padding: 0 0.35rem;
   border: 0;
+  border-radius: 0.5rem;
   background: transparent;
-  color: #1f2a44;
-  font-size: 1rem;
+  color: var(--profile-text);
+  font-size: 0.92rem;
   font-weight: 800;
+  line-height: 1;
   cursor: pointer;
+  white-space: nowrap;
+}
+
+.profile-back i {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1rem;
+  font-size: 0.82rem;
+  line-height: 1;
+  color: var(--profile-accent);
+}
+
+.profile-back:hover {
+  background: var(--profile-accent-soft);
+  color: #0f766e;
 }
 
 .profile-actions {
   display: inline-flex;
   align-items: center;
-  gap: 0.45rem;
+  justify-content: flex-end;
+  flex-shrink: 0;
+  gap: 0.4rem;
+  height: 2.15rem;
 }
 
-.profile-shell {
-  display: grid;
-  grid-template-columns: 14.75rem minmax(0, 1fr);
-  gap: 1.25rem;
-  padding: 0.9rem 1rem 1.5rem;
+.profile-actions :deep(.profile-action-btn),
+.profile-actions .profile-action-btn {
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+  height: 2.15rem !important;
+  min-height: 2.15rem !important;
+  margin: 0 !important;
+  padding: 0 0.85rem !important;
+  border-radius: 0.55rem !important;
+  font-size: 0.78rem !important;
+  font-weight: 700 !important;
+  line-height: 1 !important;
+  white-space: nowrap;
 }
 
 .profile-sidebar {
+  grid-area: sidebar;
   position: sticky;
-  top: 4.1rem;
+  top: calc(var(--profile-topbar-h) + 1.4rem);
   align-self: start;
-  min-height: calc(100vh - 5rem);
-  padding: 1.25rem 1rem;
-  border: 1px solid #eef2f7;
-  border-radius: 0.85rem;
+  padding: 1.15rem 0.9rem 1rem;
+  border: 1px solid var(--profile-border);
+  border-radius: 0.9rem;
   background: #ffffff;
-  box-shadow: 0 0.5rem 1.25rem rgba(31, 42, 68, 0.04);
+  box-shadow: 0 0.35rem 1rem rgba(31, 42, 68, 0.035);
 }
 
 .profile-avatar-wrap {
   position: relative;
-  width: 6.25rem;
-  height: 6.25rem;
-  margin: 0 auto 1.25rem;
+  width: 5.75rem;
+  height: 5.75rem;
+  margin: 0.15rem auto 0.75rem;
 }
 
 .profile-avatar {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  border: 3px solid #e8f5ef;
   border-radius: 999px;
   background: #eef6f2;
 }
 
 .profile-avatar-edit {
   position: absolute;
-  right: -0.1rem;
-  bottom: 0.45rem;
+  right: -0.05rem;
+  bottom: 0.3rem;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 1.8rem;
-  height: 1.8rem;
+  width: 1.7rem;
+  height: 1.7rem;
   border: 3px solid #ffffff;
   border-radius: 999px;
   background: #8ee2c4;
   color: #08956f;
   cursor: pointer;
-  box-shadow: 0 0.25rem 0.65rem rgba(15, 118, 110, 0.18);
+  box-shadow: 0 0.2rem 0.55rem rgba(15, 118, 110, 0.16);
 }
 
-.profile-avatar-edit input {
-  display: none;
+.profile-avatar-edit input { display: none; }
+
+.profile-sidebar-name {
+  margin: 0 0 0.85rem;
+  color: var(--profile-text);
+  font-size: 0.86rem;
+  font-weight: 800;
+  line-height: 1.3;
+  text-align: center;
 }
 
 .profile-upload-note,
@@ -813,86 +975,63 @@ onMounted(async () => {
 .profile-nav {
   display: flex;
   flex-direction: column;
-  gap: 0.45rem;
+  gap: 0.3rem;
+  padding-top: 0.35rem;
+  border-top: 1px solid #eef2f6;
 }
 
 .profile-nav a {
   display: flex;
   align-items: center;
-  min-height: 2.45rem;
-  padding: 0.62rem 0.9rem;
-  border-radius: 0.35rem;
-  color: #1f2a44;
-  font-size: 0.84rem;
-  font-weight: 800;
+  min-height: 2.3rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.55rem;
+  color: #445066;
+  font-size: 0.8rem;
+  font-weight: 750;
   line-height: 1.28;
   text-decoration: none;
-  overflow-wrap: anywhere;
+  transition: background 0.15s ease, color 0.15s ease;
 }
 
-.profile-nav a:hover,
+.profile-nav a:hover {
+  background: #f3faf7;
+  color: #0f766e;
+}
+
 .profile-nav a.active {
-  background: #bfeedd;
+  background: #dff5eb;
   color: #0f766e;
 }
 
 .profile-main {
+  grid-area: main;
   min-width: 0;
 }
 
-.profile-status-row {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.45rem;
-  margin: 0.3rem 0 0.75rem;
-  color: #667085;
-  font-size: 0.78rem;
-  font-style: italic;
-  font-weight: 650;
-}
-
-.profile-status-dot {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 1rem;
-  height: 1rem;
-  border-radius: 999px;
-  background: #bfeedd;
-  color: #0f766e;
-  font-style: normal;
-}
-
 .profile-form {
-  position: relative;
   display: flex;
   flex-direction: column;
   gap: 0.85rem;
 }
 
-.profile-floating-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 0.45rem;
-  margin-bottom: -0.1rem;
-}
-
 .profile-card {
-  padding: 1rem;
-  border: 1px solid #dfe7f0;
-  border-radius: 0.85rem;
+  scroll-margin-top: calc(var(--profile-topbar-h) + 1.5rem);
+  padding: 1.05rem 1.1rem 1.15rem;
+  border: 1px solid var(--profile-border);
+  border-radius: 0.9rem;
   background: #ffffff;
+  box-shadow: 0 0.2rem 0.75rem rgba(31, 42, 68, 0.025);
 }
 
 .profile-card-mint {
-  border-color: #cfeee3;
-  background: #edf9f4;
+  border-color: #d5ebe2;
+  background: linear-gradient(180deg, #f5fbf8 0%, #ffffff 42%);
 }
 
 .profile-card-address {
-  padding: 0.95rem 1rem 1rem;
-  border-color: #cfe8f6;
-  background: #f8fbff;
+  border-color: #d5ebe2;
+  background: #ffffff;
 }
 
 .profile-card-header {
@@ -900,74 +1039,147 @@ onMounted(async () => {
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
-  margin-bottom: 0.8rem;
+  margin-bottom: 0.85rem;
 }
 
 .profile-section-title {
-  margin: 0 0 0.9rem;
-  color: #1f2a44;
-  font-size: 0.98rem;
+  margin: 0 0 0.85rem;
+  color: var(--profile-text);
+  font-size: 0.95rem;
   font-weight: 850;
 }
 
 .profile-subtitle {
   margin: 0.4rem 0 0.8rem;
-  color: #1f2a44;
+  color: var(--profile-text);
   font-size: 0.82rem;
   font-weight: 800;
 }
 
-.profile-card-address .profile-subtitle {
-  display: inline-flex;
+.address-section-head {
+  display: flex;
   align-items: center;
-  min-height: 1.45rem;
-  margin: 0 0 0.5rem;
-  padding: 0.2rem 0.55rem;
-  border-radius: 0.35rem;
-  background: #e8f5ff;
-  color: #126a8f;
-  font-size: 0.78rem;
-  letter-spacing: 0;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.85rem;
 }
 
-.profile-card-address .profile-grid {
-  gap: 0.55rem 0.65rem;
+.address-section-head .profile-section-title { margin: 0; }
+
+.address-block {
+  margin-top: 0.7rem;
+  border: 1px solid #e3ebe7;
+  border-radius: 0.75rem;
+  background: #fbfcfd;
+  overflow: hidden;
 }
+
+.address-block-current {
+  border-color: #cfe8de;
+  background: linear-gradient(180deg, #f3faf7 0%, #fbfcfd 100%);
+}
+
+.address-block-permanent {
+  border-color: #dde5ec;
+  background: #fbfcfd;
+}
+
+.address-block-locked {
+  border-color: #d7e5df;
+  background: #f4f8f6;
+}
+
+.address-block-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.65rem;
+  padding: 0.55rem 0.8rem;
+  border-bottom: 1px solid #e6eee9;
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.address-block-current .address-block-head {
+  border-bottom-color: #d7ebe3;
+  background: rgba(237, 249, 244, 0.85);
+}
+
+.address-block-label {
+  color: #0f766e;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.address-block-permanent .address-block-label,
+.address-block-locked .address-block-label {
+  color: #355066;
+}
+
+.address-sync-hint {
+  color: #0f9f7a;
+  font-size: 0.72rem;
+  font-weight: 700;
+  font-style: italic;
+}
+
+.profile-card-address .profile-grid { gap: 0.55rem 0.65rem; }
 
 .address-group {
-  margin-bottom: 0.75rem;
-  padding: 0.7rem 0.8rem;
-  border: 1px solid #d9eaf7;
-  border-radius: 0.65rem;
-  background: #ffffff;
-}
-
-.address-group + .profile-subtitle {
-  margin-top: 0.15rem;
+  margin: 0;
+  padding: 0.75rem 0.8rem 0.85rem;
+  border: 0;
+  background: transparent;
 }
 
 .profile-card-address .field label {
-  color: #385468;
+  color: #4a5d6d;
   font-size: 0.74rem;
   margin-bottom: 0.32rem;
+}
+
+.profile-card :deep(.form-control),
+.profile-card select.form-control,
+.profile-card :deep(.dp__input) {
+  min-height: 2.35rem;
+  border-color: #d7e1ea;
+  border-radius: 0.55rem;
+  background-color: #ffffff;
+}
+
+.profile-card :deep(.form-control:focus),
+.profile-card select.form-control:focus {
+  border-color: #8ed2bb;
+  box-shadow: 0 0 0 0.15rem rgba(15, 159, 122, 0.12);
 }
 
 .profile-card-address :deep(.form-control),
 .profile-card-address select.form-control {
   min-height: 2.25rem;
-  border-color: #d7e6f2;
-  background-color: #fbfdff;
+  border-color: #d5e3db;
 }
 
+.profile-card-address :deep(input:disabled),
+.profile-card-address :deep(.form-control:disabled),
+.address-block-locked :deep(input),
+.address-block-locked :deep(.form-control) {
+  color: #667085;
+  border-color: #d9e4de;
+  background-color: #eef3f0;
+  cursor: not-allowed;
+  opacity: 1;
+}
+
+.profile-card :deep(.mb-3),
+.profile-card :deep(.form-group),
 .profile-card-address :deep(.mb-3),
 .profile-card-address :deep(.form-group) {
   margin-bottom: 0 !important;
 }
 
 .profile-muted {
-  margin: -0.4rem 0 0.9rem;
-  color: #667085;
-  font-size: 0.82rem;
+  margin: -0.35rem 0 0.85rem;
+  color: var(--profile-muted);
+  font-size: 0.8rem;
   font-style: italic;
   font-weight: 650;
 }
@@ -982,7 +1194,7 @@ onMounted(async () => {
 
 .profile-grid {
   display: grid;
-  gap: 0.85rem;
+  gap: 0.8rem 0.85rem;
 }
 
 .profile-grid-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -991,49 +1203,35 @@ onMounted(async () => {
 
 .field-full { grid-column: 1 / -1; }
 .field-wide { grid-column: span 1; }
+.field-span-2 { grid-column: span 2; }
+
+.field-hint {
+  margin: 0.35rem 0 0;
+  color: #7a8799;
+  font-size: 0.72rem;
+  font-weight: 600;
+  line-height: 1.35;
+}
 
 .field label,
 .account-head {
   display: block;
   margin-bottom: 0.35rem;
-  color: #1f2a44;
-  font-size: 0.78rem;
+  color: #334155;
+  font-size: 0.76rem;
   font-weight: 800;
 }
 
 .split-name-grid {
   display: grid;
-  grid-template-columns: 1.6fr 1fr;
-  gap: 0.5rem;
-}
-
-:deep(.form-control),
-select.form-control,
-textarea.form-control {
-  min-height: 2rem;
-  border: 1px solid #d9e2ee;
-  border-radius: 0.35rem;
-  background-color: #ffffff;
-  color: #1f2a44;
-  font-size: 0.86rem;
-}
-
-:deep(.form-control:focus),
-select.form-control:focus,
-textarea.form-control:focus {
-  border-color: #56c9ad;
-  box-shadow: 0 0 0 0.18rem rgba(86, 201, 173, 0.15);
-}
-
-.profile-card-mint :deep(.form-control),
-.profile-card-mint select.form-control {
-  background-color: rgba(255, 255, 255, 0.92);
+  grid-template-columns: 1.35fr 1fr;
+  gap: 0.55rem;
 }
 
 .profile-subpanel {
-  grid-column: 1 / -1;
+  margin-top: 0.85rem;
   padding: 0.85rem;
-  border: 1px solid #cfeee3;
+  border: 1px solid #d7ebe3;
   border-radius: 0.65rem;
   background: #f7fffc;
 }
@@ -1063,97 +1261,128 @@ textarea.form-control:focus {
 .same-address {
   display: inline-flex;
   align-items: center;
-  gap: 0.5rem;
-  margin-bottom: 0;
-  color: #1f2a44;
-  font-size: 0.84rem;
-  font-weight: 750;
-}
-
-.address-current-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
-  margin: 0.05rem 0 0;
-  padding: 0.7rem 0.8rem 0.5rem;
-  border: 1px solid #d9eaf7;
-  border-bottom: 0;
-  border-radius: 0.65rem 0.65rem 0 0;
-  background: #ffffff;
-}
-
-.address-current-header .profile-subtitle {
+  gap: 0.45rem;
   margin: 0;
+  padding: 0.35rem 0.7rem;
+  border: 1px solid #cfe8de;
+  border-radius: 999px;
+  background: var(--profile-accent-soft);
+  color: #0f766e;
+  font-size: 0.76rem;
+  font-weight: 750;
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+}
+
+.same-address:hover {
+  background: #e2f5ee;
+  border-color: #b7dfd0;
 }
 
 .same-address input {
-  width: 1rem;
-  height: 1rem;
-  accent-color: #12b886;
+  width: 0.95rem;
+  height: 0.95rem;
+  margin: 0;
+  accent-color: #0f9f7a;
+  cursor: pointer;
 }
 
-.address-current-input {
-  display: block;
-  padding: 0 0.8rem 0.75rem;
-  border: 1px solid #d9eaf7;
-  border-top: 0;
-  border-radius: 0 0 0.65rem 0.65rem;
-  background: #ffffff;
-}
-
-:global(html) {
-  scroll-behavior: smooth;
-}
+:global(html) { scroll-behavior: smooth; }
 
 @media (max-width: 1199.98px) {
-  .profile-grid-4 {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
+  .profile-grid-4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .field-span-2 { grid-column: 1 / -1; }
 }
 
 @media (max-width: 991.98px) {
+  .student-profile-page {
+    margin: 0 -1rem;
+    padding: 0.85rem 1rem 1.4rem;
+  }
+
   .profile-shell {
     grid-template-columns: 1fr;
+    grid-template-areas:
+      "topbar"
+      "sidebar"
+      "main";
   }
 
   .profile-sidebar {
     position: static;
-    min-height: auto;
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 0.75rem 1rem;
+    align-items: center;
+  }
+
+  .profile-avatar-wrap {
+    margin: 0;
+    width: 4.5rem;
+    height: 4.5rem;
+  }
+
+  .profile-sidebar-name {
+    margin: 0;
+    text-align: left;
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  .profile-upload-note,
+  .profile-upload-error {
+    grid-column: 1 / -1;
+    margin: 0;
+    text-align: left;
   }
 
   .profile-nav {
+    grid-column: 1 / -1;
     flex-direction: row;
     overflow-x: auto;
+    padding-top: 0.65rem;
+    gap: 0.35rem;
   }
 
-  .profile-nav a {
-    white-space: nowrap;
-  }
+  .profile-nav a { white-space: nowrap; }
 
   .profile-grid-3,
-  .profile-grid-4 {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
+  .profile-grid-4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+
+  .field-span-2 { grid-column: 1 / -1; }
 }
 
 @media (max-width: 575.98px) {
-  .profile-topbar,
+  .student-profile-page { margin: 0; }
+
+  .profile-topbar {
+    height: auto;
+    min-height: var(--profile-topbar-h);
+    padding: 0.55rem 0.7rem;
+    flex-wrap: wrap;
+  }
+
   .profile-actions {
-    align-items: stretch;
+    width: 100%;
+    height: auto;
+    flex-wrap: wrap;
+    justify-content: flex-start;
+  }
+
+  .address-section-head {
+    align-items: flex-start;
     flex-direction: column;
   }
+
+  .same-address { white-space: normal; }
+
+  .field-span-2 { grid-column: 1 / -1; }
 
   .profile-grid-2,
   .profile-grid-3,
   .profile-grid-4,
   .split-name-grid,
-  .account-table {
-    grid-template-columns: 1fr;
-  }
-
-  .profile-floating-actions {
-    flex-direction: column;
-  }
+  .account-table { grid-template-columns: 1fr; }
 }
 </style>

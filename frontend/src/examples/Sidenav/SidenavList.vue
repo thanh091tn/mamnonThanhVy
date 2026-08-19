@@ -90,6 +90,18 @@ const getRoute = () => route.path.split("/")[1];
         </sidenav-item>
       </li>
 
+      <li class="nav-item">
+        <sidenav-item
+          to="/student-birthdays"
+          :class="getRoute() === 'student-birthdays' ? 'active' : ''"
+          :navText="isRTL ? 'Birthdays' : 'Sinh nhật'"
+        >
+          <template #icon>
+            <i class="ni ni-favourite-28 text-danger text-sm"></i>
+          </template>
+        </sidenav-item>
+      </li>
+
       <li v-if="authUser?.role === 'teacher'" class="nav-item">
         <sidenav-item
           to="/teacher-leave"

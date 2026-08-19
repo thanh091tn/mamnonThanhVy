@@ -74,6 +74,7 @@ function exportStatusLabelText(status) {
   if (s === "inactive") return "Ngh\u1ec9 h\u1ecdc";
   if (s === "graduated") return "T\u1ed1t nghi\u1ec7p";
   if (s === "leave") return "T\u1ea1m ngh\u1ec9";
+  if (s === "monitoring") return "\u0110ang theo d\u00f5i";
   return "\u0110ang h\u1ecdc";
 }
 
@@ -410,6 +411,105 @@ router.get("/", async (req, res, next) => {
     }
     const r = await pool.query(`${studentSelect} ${where} ${studentNameOrder}`, params);
     res.json(r.rows.map(mapStudentRow));
+  } catch (e) {
+    next(e);
+  }
+});
+
+router.get("/birthdays", async (req, res, next) => {
+  try {
+    const now = new Date();
+    let month = Number(req.query.month);
+    if (!Number.isInteger(month) || month < 1 || month > 12) {
+      month = now.getMonth() + 1;
+    }
+
+    const params = [];
+    const whereParts = [
+      `s.date_of_birth IS NOT NULL`,
+      `NULLIF(TRIM(s.date_of_birth::text), '') IS NOT NULL`,
+    ];
+
+    if (req.user?.role === "teacher") {
+      if (req.user.teacherId == null) {
+        return res.json({ month, year: now.getFullYear(), counts: Array(12).fill(0), items: [] });
+      }
+      params.push(req.user.teacherId);
+      whereParts.push(`EXISTS (
+        SELECT 1 FROM class_teachers ct
+        WHERE ct.class_id = s.class_id AND ct.teacher_id = $${params.length}
+      )`);
+    }
+
+    // Prefer currently enrolled-ish statuses for birthday list
+    const statusFilter = String(req.query.status || "active,monitoring,leave").trim();
+    if (statusFilter && statusFilter !== "all") {
+      const statuses = statusFilter
+        .split(",")
+        .map((s) => s.trim().toLowerCase())
+        .filter(Boolean);
+      if (statuses.length) {
+        params.push(statuses);
+        whereParts.push(`COALESCE(s.status, 'active') = ANY($${params.length}::text[])`);
+      }
+    }
+
+    const whereSql = `WHERE ${whereParts.join(" AND ")}`;
+
+    const countParams = [...params];
+    const countSql = `
+      SELECT EXTRACT(MONTH FROM s.date_of_birth::date)::int AS month, COUNT(*)::int AS count
+      FROM students s
+      ${whereSql}
+      AND s.date_of_birth::text ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}'
+      GROUP BY 1
+    `;
+    const countResult = await pool.query(countSql, countParams);
+    const counts = Array(12).fill(0);
+    for (const row of countResult.rows) {
+      const m = Number(row.month);
+      if (m >= 1 && m <= 12) counts[m - 1] = Number(row.count) || 0;
+    }
+
+    params.push(month);
+    const listSql = `
+      SELECT s.id, s.name, s.last_name, s.first_name, s.date_of_birth, s.gender, s.avatar, s.status,
+             c.name AS class_name,
+             EXTRACT(DAY FROM s.date_of_birth::date)::int AS birthday_day,
+             EXTRACT(MONTH FROM s.date_of_birth::date)::int AS birthday_month
+      FROM students s
+      LEFT JOIN classes c ON c.id = s.class_id
+      ${whereSql}
+      AND s.date_of_birth::text ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}'
+      AND EXTRACT(MONTH FROM s.date_of_birth::date) = $${params.length}
+      ORDER BY EXTRACT(DAY FROM s.date_of_birth::date),
+               NULLIF(TRIM(s.first_name), '') NULLS LAST,
+               NULLIF(TRIM(s.name), '') NULLS LAST,
+               s.id
+    `;
+    const listResult = await pool.query(listSql, params);
+    const year = now.getFullYear();
+    const items = listResult.rows.map((row) => {
+      const dob = String(row.date_of_birth).slice(0, 10);
+      const birthYear = Number(dob.slice(0, 4));
+      const ageTurning = Number.isFinite(birthYear) ? year - birthYear : null;
+      const fullName = [row.last_name, row.first_name].map((v) => String(v || "").trim()).filter(Boolean).join(" ")
+        || String(row.name || "").trim();
+      return {
+        id: row.id,
+        name: fullName,
+        dateOfBirth: dob,
+        birthdayDay: Number(row.birthday_day),
+        birthdayMonth: Number(row.birthday_month),
+        ageTurning,
+        className: row.class_name || "",
+        gender: row.gender === "female" ? "female" : "male",
+        avatar: row.avatar || "",
+        status: row.status || "active",
+      };
+    });
+
+    res.json({ month, year, counts, items });
   } catch (e) {
     next(e);
   }

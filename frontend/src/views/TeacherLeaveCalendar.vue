@@ -157,7 +157,7 @@ onMounted(() => {
   <div class="page-fill py-4 container-fluid">
     <div class="row mb-3">
       <div class="col-12">
-        <div class="card">
+        <div class="card page-rise">
           <div class="card-header pb-0 d-flex flex-wrap align-items-center justify-content-between gap-2">
             <div>
               <h5 class="mb-0">Lịch nghỉ giáo viên</h5>
@@ -175,7 +175,7 @@ onMounted(() => {
             <template v-else>
               <argon-alert v-if="err" color="danger">{{ err }}</argon-alert>
 
-              <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
+              <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3 page-rise" style="--delay: 80ms">
                 <div class="d-flex align-items-center gap-2">
                   <argon-button color="secondary" size="sm" @click="prevMonth" :disabled="loading">
                     Tháng trước
@@ -191,11 +191,15 @@ onMounted(() => {
                 </argon-button>
               </div>
 
-              <div v-if="loading" class="text-center py-5 text-secondary">Đang tải...</div>
+              <div v-if="loading" class="page-loading-dots" aria-label="Đang tải">
+                <div class="page-loading-dot"></div>
+                <div class="page-loading-dot"></div>
+                <div class="page-loading-dot"></div>
+              </div>
 
-              <div v-else class="leave-cal-wrap">
+              <div v-else class="leave-cal-wrap page-rise" style="--delay: 120ms">
                 <div class="leave-cal-grid">
-                  <div v-for="(w, i) in weekdayLabels" :key="'w' + i" class="leave-cal-head">
+                  <div v-for="(w, i) in weekdayLabels" :key="'w' + i" class="leave-cal-head page-rise-fast" :style="{ '--delay': `${i * 30}ms` }">
                     {{ w }}
                   </div>
 
@@ -205,7 +209,8 @@ onMounted(() => {
                     <button
                       v-else
                       type="button"
-                      class="leave-cal-cell leave-cal-day"
+                      class="leave-cal-cell leave-cal-day page-rise-fast"
+                      :style="{ '--delay': `${80 + idx * 16}ms` }"
                       :class="{
                         'leave-cal-today': isToday(cell.dateStr),
                         'leave-cal-selected': selectedDateStr === cell.dateStr,
@@ -236,7 +241,7 @@ onMounted(() => {
                   </template>
                 </div>
 
-                <div v-if="selectedDateStr" class="leave-cal-detail card bg-gray-100 mt-3">
+                <div v-if="selectedDateStr" class="leave-cal-detail card bg-gray-100 mt-3 page-rise">
                   <div class="card-body py-3">
                     <h6 class="text-sm font-weight-bold mb-2">Chi tiết {{ selectedDateStr }}</h6>
 
@@ -328,12 +333,13 @@ onMounted(() => {
   text-align: left;
   vertical-align: top;
   cursor: pointer;
-  transition: box-shadow 0.15s ease, border-color 0.15s ease;
+  transition: box-shadow 0.18s ease, border-color 0.18s ease, transform 0.18s ease, background 0.18s ease;
 }
 
 .leave-cal-day:hover {
   border-color: #5e72e4;
-  box-shadow: 0 0 0 1px rgba(94, 114, 228, 0.2);
+  box-shadow: 0 0.7rem 1.4rem rgba(94, 114, 228, 0.14);
+  transform: translateY(-2px);
 }
 
 .leave-cal-today {

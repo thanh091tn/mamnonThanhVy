@@ -244,7 +244,7 @@ defineExpose({ load })
   <div class="py-4 container-fluid page-fill classes-page">
     <div class="row">
       <div class="col-12">
-        <div class="card class-list-card">
+        <div class="card class-list-card page-rise">
           <div class="card-header class-list-header">
             <div class="class-list-title">
               <span class="class-list-eyebrow">Tổ chức lớp</span>
@@ -252,19 +252,19 @@ defineExpose({ load })
               <p class="mb-0 text-sm text-secondary">Theo dõi lớp học, phòng học và giáo viên phụ trách trong một bảng gọn hơn.</p>
             </div>
             <div class="class-list-stats">
-              <div class="class-stat-card">
+              <div class="class-stat-card page-rise-fast page-lift" style="--delay: 80ms">
                 <span>Tổng lớp</span>
                 <strong>{{ items.length }}</strong>
               </div>
-              <div class="class-stat-card class-stat-card--assigned">
+              <div class="class-stat-card class-stat-card--assigned page-rise-fast page-lift" style="--delay: 120ms">
                 <span>Có GV</span>
                 <strong>{{ assignedClassesCount }}</strong>
               </div>
-              <div class="class-stat-card class-stat-card--teacher">
+              <div class="class-stat-card class-stat-card--teacher page-rise-fast page-lift" style="--delay: 160ms">
                 <span>GV phân công</span>
                 <strong>{{ teacherAssignmentCount }}</strong>
               </div>
-              <div class="class-stat-card class-stat-card--room">
+              <div class="class-stat-card class-stat-card--room page-rise-fast page-lift" style="--delay: 200ms">
                 <span>Phòng</span>
                 <strong>{{ roomCount }}</strong>
               </div>

@@ -14,6 +14,7 @@ import FeePolicies from '../views/FeePolicies.vue'
 import FeeCollection from '../views/FeeCollection.vue'
 import FeeServices from '../views/FeeServices.vue'
 import StudentDetail from '../views/StudentDetail.vue'
+import StudentBirthdays from '../views/StudentBirthdays.vue'
 import YearEndTransition from '../views/YearEndTransition.vue'
 
 const routes = [
@@ -53,6 +54,12 @@ const routes = [
     path: '/attendance',
     name: 'Attendance',
     component: AttendancePanel,
+    meta: { requiresAuth: true },
+  },
+  {
+    path: '/student-birthdays',
+    name: 'StudentBirthdays',
+    component: StudentBirthdays,
     meta: { requiresAuth: true },
   },
   {

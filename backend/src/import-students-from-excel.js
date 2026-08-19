@@ -54,6 +54,9 @@ function mapStatus(value) {
   const text = cleanText(value).toLowerCase();
   if (text === "dang hoc" || text === "đang học") return "active";
   if (text === "nghi hoc" || text === "nghỉ học") return "inactive";
+  if (text === "dang theo doi" || text === "đang theo dõi") return "monitoring";
+  if (text === "tot nghiep" || text === "tốt nghiệp") return "graduated";
+  if (text === "tam nghi" || text === "tạm nghỉ") return "leave";
   return "active";
 }
 

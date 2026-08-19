@@ -257,7 +257,7 @@ defineExpose({ load })
   <div class="py-4 container-fluid page-fill teacher-page">
     <div class="row">
       <div class="col-12">
-        <div class="card teacher-list-card">
+        <div class="card teacher-list-card page-rise">
           <div class="card-header teacher-list-header">
             <div class="teacher-list-title">
               <span class="teacher-list-eyebrow">Nhân sự</span>
@@ -265,19 +265,19 @@ defineExpose({ load })
               <p class="mb-0 text-sm text-secondary">Quản lý hồ sơ, vai trò sử dụng và trạng thái làm việc của giáo viên.</p>
             </div>
             <div class="teacher-list-stats">
-              <div class="teacher-stat-card">
+              <div class="teacher-stat-card page-rise-fast page-lift" style="--delay: 80ms">
                 <span>Tổng</span>
                 <strong>{{ items.length }}</strong>
               </div>
-              <div class="teacher-stat-card teacher-stat-card--active">
+              <div class="teacher-stat-card teacher-stat-card--active page-rise-fast page-lift" style="--delay: 120ms">
                 <span>Đang dạy</span>
                 <strong>{{ activeTeachersCount }}</strong>
               </div>
-              <div class="teacher-stat-card teacher-stat-card--leave">
+              <div class="teacher-stat-card teacher-stat-card--leave page-rise-fast page-lift" style="--delay: 160ms">
                 <span>Tạm nghỉ</span>
                 <strong>{{ leaveTeachersCount }}</strong>
               </div>
-              <div class="teacher-stat-card teacher-stat-card--role">
+              <div class="teacher-stat-card teacher-stat-card--role page-rise-fast page-lift" style="--delay: 200ms">
                 <span>Vai trò</span>
                 <strong>{{ roleCount }}</strong>
               </div>
