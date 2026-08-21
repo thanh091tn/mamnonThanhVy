@@ -12,7 +12,8 @@ SET is_current = CASE WHEN name = '2025-2026' THEN TRUE ELSE FALSE END
 WHERE is_current IS DISTINCT FROM CASE WHEN name = '2025-2026' THEN TRUE ELSE FALSE END;
 
 UPDATE students
-SET academic_year_id = (SELECT id FROM academic_years WHERE name = '2025-2026')
+SET academic_year_id = (SELECT id FROM academic_years WHERE name = '2025-2026'),
+    updated_at = NOW()
 WHERE academic_year_id IS DISTINCT FROM (SELECT id FROM academic_years WHERE name = '2025-2026');
 
 SELECT

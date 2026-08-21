@@ -115,6 +115,7 @@ Authentication:
 School management:
 - Dashboard metrics.
 - Students CRUD and student detail (includes academic year placement).
+- Students table stores `created_at` / `updated_at`; API returns `createdAt` / `updatedAt`.
 - Students list filter by academic year (dropdown), status, class, and name.
 - Teachers CRUD and teacher roles.
 - Classes CRUD (classes can be linked to an academic year).

@@ -243,6 +243,7 @@ const studentSelect = `
          s.doc2_health_check, s.doc2_residence_confirmation, s.doc2_birth_certificate_04,
          s.disability_type, s.policy_beneficiary, s.eye_disease,
          s.guardian_name, s.guardian_occupation, s.guardian_birth_year,
+         s.created_at, s.updated_at,
          c.name AS class_name, ay.name AS academic_year_name
   FROM students s
   LEFT JOIN classes c ON c.id = s.class_id
@@ -903,6 +904,7 @@ async function updateStudentExtraFields(client, studentId, body) {
     sets.push(`${snake} = $${values.length}`);
   }
   if (!sets.length) return;
+  sets.push("updated_at = NOW()");
   values.push(studentId);
   await client.query(`UPDATE students SET ${sets.join(", ")} WHERE id = $${values.length}`, values);
 }
@@ -1147,7 +1149,8 @@ router.put("/:id", async (req, res, next) => {
            mother_login=$35, mother_id_number=$36, mother_occupation=$37,
            id_number=$38, id_issued_place=$39, id_issued_date=$40, area=$41, bhyt_number=$42,
            disability_type=$43, policy_beneficiary=$44, eye_disease=$45,
-           guardian_name=$46, guardian_occupation=$47, guardian_birth_year=$48
+           guardian_name=$46, guardian_occupation=$47, guardian_birth_year=$48,
+           updated_at = NOW()
          WHERE id = $49`,
         [
           nextName, personName.lastName, personName.firstName, nextGrade, nextEmail, nextDob, nextClassId, nextAcademicYearId,

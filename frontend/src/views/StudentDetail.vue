@@ -106,6 +106,8 @@ const initialAcademicYearIdSnapshot = ref('')
 const initialClassIdSnapshot = ref('')
 const classChangeEffectiveDate = ref(new Date().toISOString().slice(0, 10))
 const classChangeNote = ref('')
+const createdAt = ref('')
+const updatedAt = ref('')
 
 const filteredClassOptions = computed(() => {
   if (!form.value.academicYearId) return classOptions.value
@@ -247,6 +249,17 @@ const displayName = computed(() => {
   return isCreateMode.value ? 'Thêm học sinh' : 'Học sinh'
 })
 
+function formatDateTime(value) {
+  if (!value) return '—'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return '—'
+  const day = String(date.getDate()).padStart(2, '0')
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const hour = String(date.getHours()).padStart(2, '0')
+  const minute = String(date.getMinutes()).padStart(2, '0')
+  return `${day}.${month}.${date.getFullYear()} ${hour}:${minute}`
+}
+
 function fillForm(row) {
   const split = splitFullName(row.name)
   currentAddressSame.value = false
@@ -265,6 +278,8 @@ function fillForm(row) {
     gender: row.gender === 'female' ? 'female' : 'male',
     ...Object.fromEntries(Object.keys(EXTRA_FIELDS_DEFAULTS).map((key) => [key, row[key] || ''])),
   }
+  createdAt.value = row.createdAt || ''
+  updatedAt.value = row.updatedAt || ''
   initialAcademicYearIdSnapshot.value = form.value.academicYearId === '' ? '' : String(form.value.academicYearId)
   initialClassIdSnapshot.value = form.value.classId === '' ? '' : String(form.value.classId)
   if (!hasCurrentAddress() && hasPermanentAddress()) {
@@ -641,6 +656,14 @@ onBeforeUnmount(() => {
               <div class="field">
                 <label>Ngày nhập học *</label>
                 <app-date-field v-model="form.joinDate" name="joinDate" :disabled="studyInfoLocked" />
+              </div>
+              <div v-if="!isCreateMode" class="field">
+                <label>Ngày tạo hồ sơ</label>
+                <div class="field-readonly" aria-readonly="true">{{ formatDateTime(createdAt) }}</div>
+              </div>
+              <div v-if="!isCreateMode" class="field">
+                <label>Ngày cập nhật</label>
+                <div class="field-readonly" aria-readonly="true">{{ formatDateTime(updatedAt) }}</div>
               </div>
               <div class="field">
                 <label>Trạng thái *</label>
@@ -1193,6 +1216,22 @@ onBeforeUnmount(() => {
   font-size: 0.72rem;
   font-weight: 600;
   line-height: 1.35;
+}
+
+.field-readonly {
+  display: flex;
+  align-items: center;
+  min-height: 2.25rem;
+  padding: 0.45rem 0.75rem;
+  border: 1px solid #d9e4de;
+  border-radius: 0.5rem;
+  background: #eef3f0;
+  color: #667085;
+  font-size: 0.875rem;
+  font-weight: 650;
+  line-height: 1.3;
+  cursor: default;
+  user-select: text;
 }
 
 .field label,
