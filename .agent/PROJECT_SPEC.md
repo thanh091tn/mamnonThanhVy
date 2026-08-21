@@ -161,7 +161,7 @@ Authenticated routes:
 - `/school` (Students / Teachers / Classes panels)
 - `/students/create`
 - `/students/:id/detail`
-- `/student-birthdays` (nav: Sinh nhật — học sinh theo tháng)
+- `/student-birthdays` (nav: Sinh nhật — học sinh theo tháng, nhóm theo lớp; xuất Excel theo tháng đang chọn)
 - `/attendance`
 - `/profile`
 
