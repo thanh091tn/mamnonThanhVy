@@ -352,6 +352,17 @@ function displayValue(value) {
   return text || '—'
 }
 
+function formatDateTime(value) {
+  if (!value) return '—'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return '—'
+  const day = String(date.getDate()).padStart(2, '0')
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const hour = String(date.getHours()).padStart(2, '0')
+  const minute = String(date.getMinutes()).padStart(2, '0')
+  return `${day}.${month}.${date.getFullYear()} ${hour}:${minute}`
+}
+
 function genderLabel(value) {
   const found = GENDER_OPTIONS.find((o) => o.value === value)
   return found ? found.label : displayValue(value)
@@ -961,12 +972,13 @@ defineExpose({ load })
                 <thead>
                   <tr>
                     <th scope="col">Avatar</th>
-                    <th scope="col">Tên</th>
+                    <th scope="col">Họ và tên</th>
                     <th scope="col">Lớp</th>
-                    <th scope="col">Ghi chú</th>
                     <th scope="col">SĐT ba</th>
                     <th scope="col">SĐT mẹ</th>
-                    <th scope="col">Giới tính</th>
+                    <th scope="col">Ghi chú</th>
+                    <th scope="col">Ngày sửa</th>
+                    <th scope="col">Ngày tạo</th>
                     <th scope="col">Trạng thái</th>
                   </tr>
                 </thead>
@@ -994,16 +1006,19 @@ defineExpose({ load })
                       <p class="mb-0 text-xs font-weight-bold">{{ s.className || '—' }}</p>
                     </td>
                     <td>
-                      <p class="mb-0 text-xs text-secondary">{{ s.grade || '—' }}</p>
-                    </td>
-                    <td>
                       <p class="mb-0 text-xs text-secondary">{{ s.fatherPhone || '—' }}</p>
                     </td>
                     <td>
                       <p class="mb-0 text-xs text-secondary">{{ s.motherPhone || '—' }}</p>
                     </td>
                     <td>
-                      <p class="mb-0 text-xs text-secondary">{{ s.gender === 'female' ? 'Bé gái' : 'Bé trai' }}</p>
+                      <p class="mb-0 text-xs text-secondary">{{ s.grade || '—' }}</p>
+                    </td>
+                    <td>
+                      <p class="mb-0 text-xs text-secondary text-nowrap">{{ formatDateTime(s.updatedAt) }}</p>
+                    </td>
+                    <td>
+                      <p class="mb-0 text-xs text-secondary text-nowrap">{{ formatDateTime(s.createdAt) }}</p>
                     </td>
                     <td class="align-middle text-sm">
                       <span class="badge badge-sm text-white" :class="statusBadgeClass(s.status)">
@@ -1012,7 +1027,7 @@ defineExpose({ load })
                     </td>
                   </tr>
                   <tr v-if="!filteredItems.length" class="panel-table-empty">
-                    <td colspan="8">{{ items.length ? 'Không có học sinh phù hợp bộ lọc.' : 'Chưa có học sinh nào.' }}</td>
+                    <td colspan="9">{{ items.length ? 'Không có học sinh phù hợp bộ lọc.' : 'Chưa có học sinh nào.' }}</td>
                   </tr>
                 </tbody>
               </table>
@@ -1287,7 +1302,23 @@ defineExpose({ load })
             </section>
 
             <section class="student-view-card">
-              <h6>Thông tin phục vụ CSDLQG ngành Giáo dục</h6>
+              <div class="student-view-two-cols">
+                <div class="student-info-list">
+                  <div class="student-info-row">
+                    <span>Ngày tạo</span>
+                    <strong>{{ formatDateTime(viewingStudent?.createdAt) }}</strong>
+                  </div>
+                </div>
+                <div class="student-info-list">
+                  <div class="student-info-row">
+                    <span>Ngày sửa</span>
+                    <strong>{{ formatDateTime(viewingStudent?.updatedAt) }}</strong>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <section class="student-view-card">
               <div class="student-view-two-cols">
                 <div class="student-info-list">
                   <div class="student-info-row">
