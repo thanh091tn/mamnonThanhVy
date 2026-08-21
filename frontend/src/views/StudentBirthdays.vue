@@ -29,9 +29,13 @@ const counts = ref(Array(12).fill(0))
 const items = ref([])
 const loading = ref(false)
 const loadErr = ref('')
+const exporting = ref(false)
+const exportButtonLabel = computed(() => (exporting.value ? 'Đang tải...' : 'Xuất Excel'))
 
 const todayDay = new Date().getDate()
 const todayMonth = new Date().getMonth() + 1
+
+const selectedClassKey = ref('all')
 
 const selectedMeta = computed(() => MONTHS.find((m) => m.value === selectedMonth.value) || MONTHS[0])
 const totalInMonth = computed(() => items.value.length)
@@ -41,22 +45,43 @@ const upcomingInMonth = computed(() => {
   return items.value.filter((row) => row.birthdayDay >= todayDay).length
 })
 
-const dayGroups = computed(() => {
+function classKey(row) {
+  if (row?.classId) return `class-${row.classId}`
+  return 'unassigned'
+}
+
+const classGroups = computed(() => {
   const map = new Map()
   for (const row of items.value) {
-    const day = Number(row.birthdayDay) || 0
-    if (!map.has(day)) map.set(day, [])
-    map.get(day).push(row)
+    const key = classKey(row)
+    if (!map.has(key)) {
+      map.set(key, {
+        key,
+        classId: row.classId || null,
+        className: String(row.className || '').trim() || 'Chưa xếp lớp',
+        students: [],
+      })
+    }
+    map.get(key).students.push(row)
   }
-  return [...map.entries()]
-    .sort((a, b) => a[0] - b[0])
-    .map(([day, students]) => ({
-      day,
-      students,
-      isToday: selectedMonth.value === todayMonth && day === todayDay,
-      isPast: selectedMonth.value === todayMonth && day < todayDay,
-    }))
+  return [...map.values()].map((group) => {
+    group.students.sort((a, b) => (Number(a.birthdayDay) || 0) - (Number(b.birthdayDay) || 0))
+    return {
+      ...group,
+      hasToday: group.students.some((row) => isTodayBirthday(row)),
+      todayCount: group.students.filter((row) => isTodayBirthday(row)).length,
+    }
+  })
 })
+
+const visibleClassGroups = computed(() => {
+  if (selectedClassKey.value === 'all') return classGroups.value
+  return classGroups.value.filter((group) => group.key === selectedClassKey.value)
+})
+
+function selectClass(key) {
+  selectedClassKey.value = selectedClassKey.value === key ? 'all' : key
+}
 
 function avatarSrc(row) {
   const custom = String(row.avatar || '').trim()
@@ -116,6 +141,42 @@ function nextMonth() {
   selectedMonth.value = selectedMonth.value === 12 ? 1 : selectedMonth.value + 1
 }
 
+function exportFileNameFromDisposition(disposition) {
+  const fallback = `sinh-nhat-thang-${String(selectedMonth.value).padStart(2, '0')}-${year.value}.xls`
+  const value = String(disposition || '')
+  const utf8Match = value.match(/filename\*=UTF-8''([^;]+)/i)
+  if (utf8Match) return decodeURIComponent(utf8Match[1])
+  const asciiMatch = value.match(/filename="?([^";]+)"?/i)
+  return asciiMatch ? asciiMatch[1] : fallback
+}
+
+async function exportBirthdays() {
+  if (!items.value.length || exporting.value) return
+  exporting.value = true
+  loadErr.value = ''
+  try {
+    const response = await api.get('/students/birthdays/export', {
+      params: { month: selectedMonth.value },
+      responseType: 'blob',
+    })
+    const blob = new Blob([response.data], {
+      type: response.headers['content-type'] || 'application/vnd.ms-excel',
+    })
+    const url = window.URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = exportFileNameFromDisposition(response.headers['content-disposition'])
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+    window.URL.revokeObjectURL(url)
+  } catch (e) {
+    loadErr.value = e.response?.data?.error || e.message || 'Không xuất được file Excel'
+  } finally {
+    exporting.value = false
+  }
+}
+
 async function loadBirthdays() {
   loading.value = true
   loadErr.value = ''
@@ -128,6 +189,9 @@ async function loadBirthdays() {
     items.value = Array.isArray(data?.items) ? data.items : []
     if (Number(data?.month) >= 1 && Number(data?.month) <= 12) {
       selectedMonth.value = Number(data.month)
+    }
+    if (selectedClassKey.value !== 'all' && !items.value.some((row) => classKey(row) === selectedClassKey.value)) {
+      selectedClassKey.value = 'all'
     }
   } catch (e) {
     loadErr.value = e.response?.data?.error || e.message || 'Không tải được danh sách sinh nhật'
@@ -168,6 +232,15 @@ onMounted(loadBirthdays)
             <i class="ni ni-bold-right"></i>
           </button>
         </div>
+        <button
+          type="button"
+          class="bday-export-btn"
+          :disabled="exporting || !items.length"
+          @click="exportBirthdays"
+        >
+          <i class="ni ni-cloud-download-95"></i>
+          {{ exportButtonLabel }}
+        </button>
       </div>
 
       <div class="bday-hero-metrics">
@@ -237,7 +310,7 @@ onMounted(loadBirthdays)
       <span>Đang tải danh sách...</span>
     </div>
 
-    <div v-else-if="!dayGroups.length" class="bday-empty">
+    <div v-else-if="!classGroups.length" class="bday-empty">
       <div class="bday-empty-cake" aria-hidden="true">
         <span></span>
         <span></span>
@@ -247,58 +320,84 @@ onMounted(loadBirthdays)
       <p>Hãy chọn tháng khác, hoặc kiểm tra ngày sinh trên hồ sơ học sinh.</p>
     </div>
 
-    <div v-else class="bday-timeline">
+    <div v-else class="bday-class-board">
+      <div v-if="classGroups.length > 1" class="bday-class-strip" role="tablist" aria-label="Lọc theo lớp">
+        <button
+          type="button"
+          role="tab"
+          class="bday-class-chip"
+          :class="{ active: selectedClassKey === 'all' }"
+          :aria-selected="selectedClassKey === 'all'"
+          @click="selectedClassKey = 'all'"
+        >
+          Tất cả
+          <em>{{ totalInMonth }}</em>
+        </button>
+        <button
+          v-for="group in classGroups"
+          :key="`chip-${group.key}`"
+          type="button"
+          role="tab"
+          class="bday-class-chip"
+          :class="{ active: selectedClassKey === group.key, today: group.hasToday }"
+          :aria-selected="selectedClassKey === group.key"
+          @click="selectClass(group.key)"
+        >
+          {{ group.className }}
+          <em>{{ group.students.length }}</em>
+        </button>
+      </div>
+
       <article
-        v-for="(group, gi) in dayGroups"
-        :key="group.day"
-        class="bday-day-block"
-        :class="{ 'is-today': group.isToday, 'is-past': group.isPast }"
-        :style="{ '--delay': `${gi * 40}ms` }"
+        v-for="(group, gi) in visibleClassGroups"
+        :key="group.key"
+        class="bday-class-block"
+        :class="{ 'has-today': group.hasToday }"
+        :style="{ '--delay': `${gi * 50}ms` }"
       >
-        <div class="bday-day-rail">
-          <div class="bday-day-badge">
-            <strong>{{ String(group.day).padStart(2, '0') }}</strong>
-            <span>/{{ String(selectedMonth).padStart(2, '0') }}</span>
-          </div>
-          <div class="bday-day-line" aria-hidden="true"></div>
-        </div>
-
-        <div class="bday-day-body">
-          <div class="bday-day-caption">
+        <header class="bday-class-head">
+          <div class="bday-class-mark" aria-hidden="true">{{ group.className.slice(0, 1) }}</div>
+          <div class="bday-class-copy">
             <h3>
-              {{ weekdayLabel(group.day) }}, ngày {{ group.day }}
-              <small v-if="group.isToday">· Hôm nay</small>
+              {{ group.className }}
+              <small v-if="group.hasToday">· {{ group.todayCount }} bé hôm nay</small>
             </h3>
-            <span>{{ group.students.length }} bé</span>
+            <p>{{ group.students.length }} sinh nhật trong {{ selectedMeta.label.toLowerCase() }}</p>
           </div>
+          <span class="bday-class-count">{{ group.students.length }}</span>
+        </header>
 
-          <div class="bday-card-grid">
-            <button
-              v-for="row in group.students"
-              :key="row.id"
-              type="button"
-              class="bday-card"
-              @click="openStudent(row)"
-            >
-              <div class="bday-card-media">
-                <img
-                  :src="avatarSrc(row)"
-                  alt=""
-                  referrerpolicy="no-referrer"
-                  @error="onAvatarError($event, row)"
-                />
-                <span v-if="isTodayBirthday(row)" class="bday-card-spark" aria-hidden="true"></span>
+        <div class="bday-card-grid">
+          <button
+            v-for="row in group.students"
+            :key="row.id"
+            type="button"
+            class="bday-card"
+            :class="{ 'is-today': isTodayBirthday(row) }"
+            @click="openStudent(row)"
+          >
+            <div class="bday-card-date" :class="{ 'is-today': isTodayBirthday(row) }">
+              <strong>{{ String(row.birthdayDay).padStart(2, '0') }}</strong>
+              <span>/{{ String(selectedMonth).padStart(2, '0') }}</span>
+            </div>
+            <div class="bday-card-media">
+              <img
+                :src="avatarSrc(row)"
+                alt=""
+                referrerpolicy="no-referrer"
+                @error="onAvatarError($event, row)"
+              />
+              <span v-if="isTodayBirthday(row)" class="bday-card-spark" aria-hidden="true"></span>
+            </div>
+            <div class="bday-card-info">
+              <strong>{{ row.name }}</strong>
+              <span>{{ weekdayLabel(row.birthdayDay) }}</span>
+              <div class="bday-card-meta">
+                <em>{{ formatDob(row.dateOfBirth) }}</em>
+                <b v-if="row.ageTurning != null">{{ row.ageTurning }} tuổi</b>
               </div>
-              <div class="bday-card-info">
-                <strong>{{ row.name }}</strong>
-                <span>{{ row.className || 'Chưa xếp lớp' }}</span>
-                <div class="bday-card-meta">
-                  <em>{{ formatDob(row.dateOfBirth) }}</em>
-                  <b v-if="row.ageTurning != null">{{ row.ageTurning }} tuổi</b>
-                </div>
-              </div>
-            </button>
-          </div>
+            </div>
+          </button>
         </div>
       </article>
     </div>
@@ -443,6 +542,34 @@ onMounted(loadBirthdays)
   color: var(--bday-muted);
   font-size: 0.86rem;
   font-weight: 600;
+}
+
+.bday-export-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-top: 0.85rem;
+  min-height: 2.35rem;
+  padding: 0.4rem 0.9rem;
+  border: 0;
+  border-radius: 999px;
+  background: linear-gradient(160deg, #1aa884, #0f9f7a);
+  color: #ffffff;
+  font-size: 0.82rem;
+  font-weight: 750;
+  box-shadow: 0 0.45rem 1rem rgba(15, 159, 122, 0.22);
+  transition: transform 0.18s ease, box-shadow 0.18s ease, opacity 0.18s ease;
+}
+
+.bday-export-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 0.65rem 1.2rem rgba(15, 159, 122, 0.28);
+}
+
+.bday-export-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  box-shadow: none;
 }
 
 .bday-hero-metrics {
@@ -681,125 +808,164 @@ onMounted(loadBirthdays)
   font-weight: 600;
 }
 
-.bday-timeline {
+.bday-class-board {
   display: flex;
   flex-direction: column;
   gap: 1rem;
 }
 
-.bday-day-block {
-  display: grid;
-  grid-template-columns: 5.2rem minmax(0, 1fr);
-  gap: 0.85rem;
-  animation: bday-rise 0.45s ease both;
-  animation-delay: var(--delay);
-}
-
-.bday-day-block.is-past {
-  opacity: 0.7;
-}
-
-.bday-day-rail {
+.bday-class-strip {
   display: flex;
-  flex-direction: column;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  margin-bottom: 0.15rem;
+  animation: bday-rise 0.5s ease backwards;
+}
+
+.bday-class-chip {
+  display: inline-flex;
   align-items: center;
-}
-
-.bday-day-badge {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  width: 4.4rem;
-  height: 4.4rem;
-  border-radius: 1.15rem;
-  background: #ffffff;
-  border: 1px solid #e1ebf3;
-  box-shadow: 0 0.45rem 1rem rgba(28, 43, 58, 0.05);
-}
-
-.bday-day-badge strong {
-  font-family: var(--bday-display);
-  font-size: 1.45rem;
-  font-weight: 700;
-  line-height: 1;
-}
-
-.bday-day-badge span {
-  color: var(--bday-muted);
-  font-size: 0.72rem;
-  font-weight: 700;
-}
-
-.bday-day-block.is-today .bday-day-badge {
-  border-color: transparent;
-  background: linear-gradient(160deg, #ff9d7a, #ff7d55);
-  color: #ffffff;
-  box-shadow: 0 0.65rem 1.4rem rgba(255, 125, 85, 0.35);
-}
-
-.bday-day-block.is-today .bday-day-badge span {
-  color: rgba(255, 255, 255, 0.85);
-}
-
-.bday-day-line {
-  flex: 1;
-  width: 2px;
-  margin-top: 0.45rem;
+  gap: 0.4rem;
+  min-height: 2.35rem;
+  padding: 0.35rem 0.7rem;
+  border: 1px solid #dce8f0;
   border-radius: 999px;
-  background: linear-gradient(180deg, #d7e8e1, transparent);
+  background: rgba(255, 255, 255, 0.88);
+  color: var(--bday-muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+  transition: transform 0.18s ease, background 0.18s ease, border-color 0.18s ease, color 0.18s ease;
 }
 
-.bday-day-body {
+.bday-class-chip em {
+  min-width: 1.15rem;
+  padding: 0.08rem 0.38rem;
+  border-radius: 999px;
+  background: #eef6f2;
+  color: var(--bday-ink);
+  font-style: normal;
+  font-size: 0.7rem;
+  font-weight: 800;
+}
+
+.bday-class-chip:hover {
+  transform: translateY(-1px);
+  border-color: #b7dfd0;
+  color: var(--bday-ink);
+}
+
+.bday-class-chip.today em {
+  background: #fff1ea;
+  color: #d4572f;
+}
+
+.bday-class-chip.active {
+  border-color: transparent;
+  background: linear-gradient(160deg, #1aa884, #0f9f7a);
+  color: #fff;
+  box-shadow: 0 0.45rem 1rem rgba(15, 159, 122, 0.22);
+}
+
+.bday-class-chip.active em {
+  background: rgba(255, 255, 255, 0.2);
+  color: #fff;
+}
+
+.bday-class-block {
   min-width: 0;
   padding: 0.95rem;
   border: 1px solid rgba(225, 235, 243, 0.95);
-  border-radius: 1.2rem;
-  background: rgba(255, 255, 255, 0.86);
+  border-radius: 1.25rem;
+  background: rgba(255, 255, 255, 0.9);
   box-shadow: 0 0.55rem 1.4rem rgba(28, 43, 58, 0.035);
+  animation: bday-rise 0.45s ease backwards;
+  animation-delay: var(--delay);
 }
 
-.bday-day-block.is-today .bday-day-body {
+.bday-class-block.has-today {
   border-color: rgba(255, 143, 107, 0.28);
   background: linear-gradient(180deg, #fffaf7, #ffffff);
 }
 
-.bday-day-caption {
+.bday-class-head {
   display: flex;
-  align-items: baseline;
-  justify-content: space-between;
+  align-items: center;
   gap: 0.75rem;
-  margin-bottom: 0.75rem;
+  margin-bottom: 0.85rem;
 }
 
-.bday-day-caption h3 {
+.bday-class-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.7rem;
+  height: 2.7rem;
+  border-radius: 0.95rem;
+  background: linear-gradient(160deg, #e8f8f2, #d7f1e8);
+  color: var(--bday-mint);
+  font-family: var(--bday-display);
+  font-size: 1.15rem;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.bday-class-block.has-today .bday-class-mark {
+  background: linear-gradient(160deg, #ff9d7a, #ff7d55);
+  color: #fff;
+}
+
+.bday-class-copy {
+  min-width: 0;
+  flex: 1;
+}
+
+.bday-class-copy h3 {
   margin: 0;
-  font-size: 0.95rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 1.05rem;
   font-weight: 800;
 }
 
-.bday-day-caption small {
+.bday-class-copy small {
   color: #d4572f;
   font-size: 0.78rem;
   font-weight: 750;
 }
 
-.bday-day-caption span {
+.bday-class-copy p {
+  margin: 0.15rem 0 0;
   color: var(--bday-muted);
   font-size: 0.78rem;
+  font-weight: 650;
+}
+
+.bday-class-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 2.1rem;
+  height: 2.1rem;
+  padding: 0 0.55rem;
+  border-radius: 999px;
+  background: var(--bday-mint-soft);
+  color: #0f766e;
+  font-family: var(--bday-display);
+  font-size: 1.05rem;
   font-weight: 700;
 }
 
 .bday-card-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(15.5rem, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(16.5rem, 1fr));
   gap: 0.7rem;
 }
 
 .bday-card {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
+  gap: 0.7rem;
   width: 100%;
   padding: 0.7rem;
   border: 1px solid #e6eef5;
@@ -814,6 +980,47 @@ onMounted(loadBirthdays)
   border-color: #b7dfd0;
   background: #ffffff;
   box-shadow: 0 0.7rem 1.4rem rgba(15, 159, 122, 0.12);
+}
+
+.bday-card.is-today {
+  border-color: rgba(255, 143, 107, 0.4);
+  background: #fff8f4;
+}
+
+.bday-card-date {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 3.15rem;
+  height: 3.15rem;
+  border-radius: 0.9rem;
+  background: #ffffff;
+  border: 1px solid #e1ebf3;
+  flex-shrink: 0;
+}
+
+.bday-card-date strong {
+  font-family: var(--bday-display);
+  font-size: 1.15rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.bday-card-date span {
+  color: var(--bday-muted);
+  font-size: 0.66rem;
+  font-weight: 700;
+}
+
+.bday-card-date.is-today {
+  border-color: transparent;
+  background: linear-gradient(160deg, #ff9d7a, #ff7d55);
+  color: #fff;
+}
+
+.bday-card-date.is-today span {
+  color: rgba(255, 255, 255, 0.85);
 }
 
 .bday-card-media {
@@ -947,18 +1154,8 @@ onMounted(loadBirthdays)
     align-items: flex-start;
   }
 
-  .bday-day-block {
-    grid-template-columns: 3.6rem minmax(0, 1fr);
-  }
-
-  .bday-day-badge {
-    width: 3.4rem;
-    height: 3.4rem;
-    border-radius: 0.95rem;
-  }
-
-  .bday-day-badge strong {
-    font-size: 1.15rem;
+  .bday-class-head {
+    align-items: flex-start;
   }
 
   .bday-card-grid {

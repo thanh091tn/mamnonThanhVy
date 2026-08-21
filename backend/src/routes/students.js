@@ -243,6 +243,7 @@ const studentSelect = `
          s.doc2_health_check, s.doc2_residence_confirmation, s.doc2_birth_certificate_04,
          s.disability_type, s.policy_beneficiary, s.eye_disease,
          s.guardian_name, s.guardian_occupation, s.guardian_birth_year,
+         s.created_at, s.updated_at,
          c.name AS class_name, ay.name AS academic_year_name
   FROM students s
   LEFT JOIN classes c ON c.id = s.class_id
@@ -474,6 +475,7 @@ router.get("/birthdays", async (req, res, next) => {
     params.push(month);
     const listSql = `
       SELECT s.id, s.name, s.last_name, s.first_name, s.date_of_birth, s.gender, s.avatar, s.status,
+             s.class_id,
              c.name AS class_name,
              EXTRACT(DAY FROM s.date_of_birth::date)::int AS birthday_day,
              EXTRACT(MONTH FROM s.date_of_birth::date)::int AS birthday_month
@@ -482,7 +484,8 @@ router.get("/birthdays", async (req, res, next) => {
       ${whereSql}
       AND s.date_of_birth::text ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}'
       AND EXTRACT(MONTH FROM s.date_of_birth::date) = $${params.length}
-      ORDER BY EXTRACT(DAY FROM s.date_of_birth::date),
+      ORDER BY COALESCE(NULLIF(TRIM(c.name), ''), 'zzzz'),
+               EXTRACT(DAY FROM s.date_of_birth::date),
                NULLIF(TRIM(s.first_name), '') NULLS LAST,
                NULLIF(TRIM(s.name), '') NULLS LAST,
                s.id
@@ -502,6 +505,7 @@ router.get("/birthdays", async (req, res, next) => {
         birthdayDay: Number(row.birthday_day),
         birthdayMonth: Number(row.birthday_month),
         ageTurning,
+        classId: row.class_id != null ? Number(row.class_id) : null,
         className: row.class_name || "",
         gender: row.gender === "female" ? "female" : "male",
         avatar: row.avatar || "",
@@ -510,6 +514,181 @@ router.get("/birthdays", async (req, res, next) => {
     });
 
     res.json({ month, year, counts, items });
+  } catch (e) {
+    next(e);
+  }
+});
+
+const birthdayExportHeaders = [
+  "STT",
+  "Lớp",
+  "Họ và tên",
+  "Giới tính",
+  "Ngày sinh",
+  "Thứ",
+  "Ngày",
+  "Tuổi",
+  "SĐT mẹ",
+  "SĐT cha",
+];
+
+function formatExportDateDotted(value) {
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    const day = String(value.getDate()).padStart(2, "0");
+    const month = String(value.getMonth() + 1).padStart(2, "0");
+    return `${day}.${month}.${value.getFullYear()}`;
+  }
+  const text = cleanExportText(value);
+  const iso = text.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (iso) return `${iso[3]}.${iso[2]}.${iso[1]}`;
+  return formatExportDate(value).replace(/\//g, ".");
+}
+
+function weekdayVi(year, month, day) {
+  const date = new Date(year, month - 1, Number(day) || 1);
+  if (Number.isNaN(date.getTime())) return "";
+  const labels = ["Chủ nhật", "Thứ hai", "Thứ ba", "Thứ tư", "Thứ năm", "Thứ sáu", "Thứ bảy"];
+  return labels[date.getDay()] || "";
+}
+
+function excelXmlBirthdayWorksheet(name, rows) {
+  const columns = birthdayExportHeaders
+    .map((_, index) => {
+      if (index === 0 || index === 6 || index === 7) return '<Column ss:Width="48"/>';
+      if (index === 2) return '<Column ss:Width="196"/>';
+      if (index === 4) return '<Column ss:Width="110"/>';
+      return '<Column ss:Width="120"/>';
+    })
+    .join("");
+  const header = `<Row ss:Height="28">${birthdayExportHeaders.map((label) => excelXmlCell(label, "Header")).join("")}</Row>`;
+  const body = rows
+    .map((row) => `<Row>${row.map((value) => excelXmlCell(value)).join("")}</Row>`)
+    .join("");
+
+  return `
+    <Worksheet ss:Name="${escapeXml(name)}">
+      <Table>
+        ${columns}
+        ${header}
+        ${body}
+      </Table>
+    </Worksheet>`;
+}
+
+function buildBirthdayExportWorkbookXml(sheetName, rows) {
+  const worksheets = excelXmlBirthdayWorksheet(sheetName, rows);
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<?mso-application progid="Excel.Sheet"?>
+<Workbook
+  xmlns="urn:schemas-microsoft-com:office:spreadsheet"
+  xmlns:o="urn:schemas-microsoft-com:office:office"
+  xmlns:x="urn:schemas-microsoft-com:office:excel"
+  xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet"
+  xmlns:html="http://www.w3.org/TR/REC-html40">
+  <Styles>
+    <Style ss:ID="Default" ss:Name="Normal">
+      <Alignment ss:Vertical="Center"/>
+      <Font ss:FontName="Arial" ss:Size="10"/>
+    </Style>
+    <Style ss:ID="Header">
+      <Alignment ss:Horizontal="Center" ss:Vertical="Center" ss:WrapText="1"/>
+      <Font ss:FontName="Arial" ss:Size="10" ss:Bold="1" ss:Color="#1F2A44"/>
+      <Interior ss:Color="#D7F1E8" ss:Pattern="Solid"/>
+    </Style>
+  </Styles>
+  ${worksheets}
+</Workbook>`;
+}
+
+router.get("/birthdays/export", async (req, res, next) => {
+  try {
+    const now = new Date();
+    let month = Number(req.query.month);
+    if (!Number.isInteger(month) || month < 1 || month > 12) {
+      month = now.getMonth() + 1;
+    }
+    const year = now.getFullYear();
+
+    const params = [];
+    const whereParts = [
+      `s.date_of_birth IS NOT NULL`,
+      `NULLIF(TRIM(s.date_of_birth::text), '') IS NOT NULL`,
+    ];
+
+    if (req.user?.role === "teacher") {
+      if (req.user.teacherId == null) {
+        return res.status(403).json({ error: "Teacher is not assigned to any class" });
+      }
+      params.push(req.user.teacherId);
+      whereParts.push(`EXISTS (
+        SELECT 1 FROM class_teachers ct
+        WHERE ct.class_id = s.class_id AND ct.teacher_id = $${params.length}
+      )`);
+    }
+
+    const statusFilter = String(req.query.status || "active,monitoring,leave").trim();
+    if (statusFilter && statusFilter !== "all") {
+      const statuses = statusFilter
+        .split(",")
+        .map((s) => s.trim().toLowerCase())
+        .filter(Boolean);
+      if (statuses.length) {
+        params.push(statuses);
+        whereParts.push(`COALESCE(s.status, 'active') = ANY($${params.length}::text[])`);
+      }
+    }
+
+    params.push(month);
+    const listSql = `
+      SELECT s.id, s.name, s.last_name, s.first_name, s.date_of_birth, s.gender,
+             s.mother_phone, s.father_phone, s.class_id,
+             c.name AS class_name,
+             to_char(s.date_of_birth::date, 'DD.MM.YYYY') AS date_of_birth_export,
+             EXTRACT(YEAR FROM s.date_of_birth::date)::int AS birth_year,
+             EXTRACT(DAY FROM s.date_of_birth::date)::int AS birthday_day
+      FROM students s
+      LEFT JOIN classes c ON c.id = s.class_id
+      WHERE ${whereParts.join(" AND ")}
+      AND s.date_of_birth::text ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}'
+      AND EXTRACT(MONTH FROM s.date_of_birth::date) = $${params.length}
+      ORDER BY COALESCE(NULLIF(TRIM(c.name), ''), 'zzzz'),
+               EXTRACT(DAY FROM s.date_of_birth::date),
+               NULLIF(TRIM(s.first_name), '') NULLS LAST,
+               NULLIF(TRIM(s.name), '') NULLS LAST,
+               s.id
+    `;
+    const listResult = await pool.query(listSql, params);
+
+    const exportRows = listResult.rows.map((row, index) => {
+      const birthYear = Number(row.birth_year);
+      const ageTurning = Number.isFinite(birthYear) ? year - birthYear : "";
+      const fullName = [row.last_name, row.first_name].map((v) => String(v || "").trim()).filter(Boolean).join(" ")
+        || String(row.name || "").trim();
+      const className = cleanExportText(row.class_name) || "Chưa xếp lớp";
+      const day = Number(row.birthday_day) || 0;
+      return [
+        index + 1,
+        className,
+        fullName,
+        exportGenderLabelText(row.gender === "female" ? "female" : "male"),
+        row.date_of_birth_export || formatExportDateDotted(row.date_of_birth),
+        weekdayVi(year, month, day),
+        day || "",
+        ageTurning,
+        cleanExportText(row.mother_phone),
+        cleanExportText(row.father_phone),
+      ];
+    });
+
+    const monthLabel = String(month).padStart(2, "0");
+    const sheetName = `Sinh nhật T${monthLabel}`;
+    const buffer = Buffer.from(`\ufeff${buildBirthdayExportWorkbookXml(sheetName, exportRows)}`, "utf8");
+    res.setHeader("Content-Type", "application/vnd.ms-excel; charset=utf-8");
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename="sinh-nhat-thang-${monthLabel}-${year}.xls"`
+    );
+    res.send(buffer);
   } catch (e) {
     next(e);
   }
@@ -725,6 +904,7 @@ async function updateStudentExtraFields(client, studentId, body) {
     sets.push(`${snake} = $${values.length}`);
   }
   if (!sets.length) return;
+  sets.push("updated_at = NOW()");
   values.push(studentId);
   await client.query(`UPDATE students SET ${sets.join(", ")} WHERE id = $${values.length}`, values);
 }
@@ -969,7 +1149,8 @@ router.put("/:id", async (req, res, next) => {
            mother_login=$35, mother_id_number=$36, mother_occupation=$37,
            id_number=$38, id_issued_place=$39, id_issued_date=$40, area=$41, bhyt_number=$42,
            disability_type=$43, policy_beneficiary=$44, eye_disease=$45,
-           guardian_name=$46, guardian_occupation=$47, guardian_birth_year=$48
+           guardian_name=$46, guardian_occupation=$47, guardian_birth_year=$48,
+           updated_at = NOW()
          WHERE id = $49`,
         [
           nextName, personName.lastName, personName.firstName, nextGrade, nextEmail, nextDob, nextClassId, nextAcademicYearId,

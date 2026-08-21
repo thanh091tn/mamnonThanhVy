@@ -106,6 +106,8 @@ const initialAcademicYearIdSnapshot = ref('')
 const initialClassIdSnapshot = ref('')
 const classChangeEffectiveDate = ref(new Date().toISOString().slice(0, 10))
 const classChangeNote = ref('')
+const createdAt = ref('')
+const updatedAt = ref('')
 
 const filteredClassOptions = computed(() => {
   if (!form.value.academicYearId) return classOptions.value
@@ -247,6 +249,17 @@ const displayName = computed(() => {
   return isCreateMode.value ? 'Thêm học sinh' : 'Học sinh'
 })
 
+function formatDateTime(value) {
+  if (!value) return '—'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return '—'
+  const day = String(date.getDate()).padStart(2, '0')
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const hour = String(date.getHours()).padStart(2, '0')
+  const minute = String(date.getMinutes()).padStart(2, '0')
+  return `${day}.${month}.${date.getFullYear()} ${hour}:${minute}`
+}
+
 function fillForm(row) {
   const split = splitFullName(row.name)
   currentAddressSame.value = false
@@ -265,6 +278,8 @@ function fillForm(row) {
     gender: row.gender === 'female' ? 'female' : 'male',
     ...Object.fromEntries(Object.keys(EXTRA_FIELDS_DEFAULTS).map((key) => [key, row[key] || ''])),
   }
+  createdAt.value = row.createdAt || ''
+  updatedAt.value = row.updatedAt || ''
   initialAcademicYearIdSnapshot.value = form.value.academicYearId === '' ? '' : String(form.value.academicYearId)
   initialClassIdSnapshot.value = form.value.classId === '' ? '' : String(form.value.classId)
   if (!hasCurrentAddress() && hasPermanentAddress()) {
@@ -642,6 +657,14 @@ onBeforeUnmount(() => {
                 <label>Ngày nhập học *</label>
                 <app-date-field v-model="form.joinDate" name="joinDate" :disabled="studyInfoLocked" />
               </div>
+              <div v-if="!isCreateMode" class="field">
+                <label>Ngày tạo hồ sơ</label>
+                <div class="field-readonly" aria-readonly="true">{{ formatDateTime(createdAt) }}</div>
+              </div>
+              <div v-if="!isCreateMode" class="field">
+                <label>Ngày cập nhật</label>
+                <div class="field-readonly" aria-readonly="true">{{ formatDateTime(updatedAt) }}</div>
+              </div>
               <div class="field">
                 <label>Trạng thái *</label>
                 <select v-model="form.status" class="form-control" :disabled="studyInfoLocked">
@@ -705,13 +728,7 @@ onBeforeUnmount(() => {
           </section>
 
           <section id="address-info" class="profile-card profile-card-address">
-            <div class="address-section-head">
-              <h6 class="profile-section-title">Thông tin địa chỉ</h6>
-              <label class="same-address">
-                <input v-model="currentAddressSame" type="checkbox" />
-                <span>Lấy theo Địa chỉ thường trú</span>
-              </label>
-            </div>
+            <h6 class="profile-section-title">Thông tin địa chỉ</h6>
 
             <div class="address-block address-block-current">
               <div class="address-block-head">
@@ -739,7 +756,11 @@ onBeforeUnmount(() => {
             <div class="address-block" :class="currentAddressSame ? 'address-block-locked' : 'address-block-permanent'">
               <div class="address-block-head">
                 <span class="address-block-label">Địa chỉ thường trú</span>
-                <span v-if="currentAddressSame" class="address-sync-hint">Đang lấy theo địa chỉ hiện tại</span>
+                <label class="same-address" :class="{ checked: currentAddressSame }">
+                  <input v-model="currentAddressSame" type="checkbox" />
+                  <i class="ni ni-check-bold" aria-hidden="true"></i>
+                  <span>Lấy theo Địa chỉ hiện tại</span>
+                </label>
               </div>
               <div class="profile-grid profile-grid-4 address-group">
                 <div class="field"><label>Số nhà</label><argon-input v-model="form.houseNumber" placeholder="Nhập số nhà" name="houseNumber" :disabled="currentAddressSame" /></div>
@@ -1056,37 +1077,27 @@ onBeforeUnmount(() => {
   font-weight: 800;
 }
 
-.address-section-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
-  margin-bottom: 0.85rem;
-}
-
-.address-section-head .profile-section-title { margin: 0; }
-
 .address-block {
   margin-top: 0.7rem;
   border: 1px solid #e3ebe7;
-  border-radius: 0.75rem;
+  border-radius: 0.55rem;
   background: #fbfcfd;
   overflow: hidden;
 }
 
-.address-block-current {
-  border-color: #cfe8de;
-  background: linear-gradient(180deg, #f3faf7 0%, #fbfcfd 100%);
+.address-block:first-of-type {
+  margin-top: 0;
 }
 
-.address-block-permanent {
-  border-color: #dde5ec;
+.address-block-current {
+  border-color: #cfe8de;
   background: #fbfcfd;
 }
 
+.address-block-permanent,
 .address-block-locked {
-  border-color: #d7e5df;
-  background: #f4f8f6;
+  border-color: #e2e8ee;
+  background: #fbfcfd;
 }
 
 .address-block-head {
@@ -1094,42 +1105,36 @@ onBeforeUnmount(() => {
   align-items: center;
   justify-content: space-between;
   gap: 0.65rem;
-  padding: 0.55rem 0.8rem;
+  min-height: 2.15rem;
+  padding: 0.45rem 0.8rem;
   border-bottom: 1px solid #e6eee9;
-  background: rgba(255, 255, 255, 0.72);
 }
 
 .address-block-current .address-block-head {
   border-bottom-color: #d7ebe3;
-  background: rgba(237, 249, 244, 0.85);
+  background: #eaf7f1;
+}
+
+.address-block-permanent .address-block-head,
+.address-block-locked .address-block-head {
+  border-bottom-color: #e6edf2;
+  background: #eef2f6;
 }
 
 .address-block-label {
-  color: #0f766e;
-  font-size: 0.78rem;
+  color: #0f9f7a;
+  font-size: 0.8rem;
   font-weight: 800;
 }
-
-.address-block-permanent .address-block-label,
-.address-block-locked .address-block-label {
-  color: #355066;
-}
-
-.address-sync-hint {
-  color: #0f9f7a;
-  font-size: 0.72rem;
-  font-weight: 700;
-  font-style: italic;
-}
-
-.profile-card-address .profile-grid { gap: 0.55rem 0.65rem; }
 
 .address-group {
   margin: 0;
   padding: 0.75rem 0.8rem 0.85rem;
   border: 0;
-  background: transparent;
+  background: #fbfcfd;
 }
+
+.profile-card-address .profile-grid { gap: 0.55rem 0.65rem; }
 
 .profile-card-address .field label {
   color: #4a5d6d;
@@ -1213,6 +1218,22 @@ onBeforeUnmount(() => {
   line-height: 1.35;
 }
 
+.field-readonly {
+  display: flex;
+  align-items: center;
+  min-height: 2.25rem;
+  padding: 0.45rem 0.75rem;
+  border: 1px solid #d9e4de;
+  border-radius: 0.5rem;
+  background: #eef3f0;
+  color: #667085;
+  font-size: 0.875rem;
+  font-weight: 650;
+  line-height: 1.3;
+  cursor: default;
+  user-select: text;
+}
+
 .field label,
 .account-head {
   display: block;
@@ -1261,13 +1282,12 @@ onBeforeUnmount(() => {
 .same-address {
   display: inline-flex;
   align-items: center;
-  gap: 0.45rem;
+  gap: 0.28rem;
   margin: 0;
-  padding: 0.35rem 0.7rem;
-  border: 1px solid #cfe8de;
-  border-radius: 999px;
-  background: var(--profile-accent-soft);
-  color: #0f766e;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #0f9f7a;
   font-size: 0.76rem;
   font-weight: 750;
   cursor: pointer;
@@ -1275,17 +1295,25 @@ onBeforeUnmount(() => {
   white-space: nowrap;
 }
 
+.same-address i {
+  font-size: 0.78rem;
+  opacity: 0.35;
+}
+
+.same-address.checked i {
+  opacity: 1;
+}
+
 .same-address:hover {
-  background: #e2f5ee;
-  border-color: #b7dfd0;
+  color: #0b7d60;
 }
 
 .same-address input {
-  width: 0.95rem;
-  height: 0.95rem;
-  margin: 0;
-  accent-color: #0f9f7a;
-  cursor: pointer;
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
 }
 
 :global(html) { scroll-behavior: smooth; }
@@ -1368,11 +1396,6 @@ onBeforeUnmount(() => {
     height: auto;
     flex-wrap: wrap;
     justify-content: flex-start;
-  }
-
-  .address-section-head {
-    align-items: flex-start;
-    flex-direction: column;
   }
 
   .same-address { white-space: normal; }

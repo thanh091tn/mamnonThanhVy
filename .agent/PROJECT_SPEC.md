@@ -115,6 +115,7 @@ Authentication:
 School management:
 - Dashboard metrics.
 - Students CRUD and student detail (includes academic year placement).
+- Students table stores `created_at` / `updated_at`; API returns `createdAt` / `updatedAt`.
 - Students list filter by academic year (dropdown), status, class, and name.
 - Teachers CRUD and teacher roles.
 - Classes CRUD (classes can be linked to an academic year).
@@ -161,7 +162,7 @@ Authenticated routes:
 - `/school` (Students / Teachers / Classes panels)
 - `/students/create`
 - `/students/:id/detail`
-- `/student-birthdays` (nav: Sinh nhật — học sinh theo tháng)
+- `/student-birthdays` (nav: Sinh nhật — học sinh theo tháng, nhóm theo lớp; xuất Excel theo tháng đang chọn)
 - `/attendance`
 - `/profile`
 

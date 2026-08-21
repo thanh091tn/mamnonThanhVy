@@ -124,6 +124,7 @@ async function buildPreview(studentIds, action, config, effectiveDate) {
   const studentResult = await pool.query(
     `SELECT s.id, s.name, s.last_name, s.first_name, s.grade, s.email, s.date_of_birth,
             s.class_id, s.academic_year_id, s.avatar, s.join_date, s.status, s.gender,
+            s.created_at, s.updated_at,
             c.name AS class_name, c.level AS class_level, ay.name AS academic_year_name
      FROM students s
      LEFT JOIN classes c ON c.id = s.class_id
@@ -274,7 +275,7 @@ async function applyTransition(studentIds, action, config, effectiveDate, note, 
           ]
         );
         await client.query(
-          `UPDATE students SET class_id = $1, academic_year_id = $2 WHERE id = $3`,
+          `UPDATE students SET class_id = $1, academic_year_id = $2, updated_at = NOW() WHERE id = $3`,
           [targetClassId, targetYearId, row.id]
         );
       } else {
@@ -289,7 +290,7 @@ async function applyTransition(studentIds, action, config, effectiveDate, note, 
            VALUES ($1, $2, $2, $3, $3, $4, $5, 'status_update', $6, $7)`,
           [row.id, row.class_id, row.academic_year_id, effectiveDate, note, row.status ?? "active", nextStatus]
         );
-        await client.query(`UPDATE students SET status = $1 WHERE id = $2`, [nextStatus, row.id]);
+        await client.query(`UPDATE students SET status = $1, updated_at = NOW() WHERE id = $2`, [nextStatus, row.id]);
       }
     }
     await client.query("COMMIT");
@@ -399,7 +400,7 @@ router.get("/students", async (req, res, next) => {
     }
     const result = await pool.query(
       `SELECT s.id, s.name, s.last_name, s.first_name, s.grade, s.email, s.date_of_birth, s.class_id,
-              s.avatar, s.join_date, s.status, s.gender,
+              s.avatar, s.join_date, s.status, s.gender, s.created_at, s.updated_at,
               c.name AS class_name
        FROM students s
        LEFT JOIN classes c ON c.id = s.class_id

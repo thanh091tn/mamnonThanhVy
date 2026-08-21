@@ -280,6 +280,22 @@ export async function initDb() {
     await client.query(`ALTER TABLE students ADD COLUMN IF NOT EXISTS guardian_name TEXT DEFAULT '';`);
     await client.query(`ALTER TABLE students ADD COLUMN IF NOT EXISTS guardian_occupation TEXT DEFAULT '';`);
     await client.query(`ALTER TABLE students ADD COLUMN IF NOT EXISTS guardian_birth_year VARCHAR(10) DEFAULT '';`);
+    await client.query(`ALTER TABLE students ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ;`);
+    await client.query(`ALTER TABLE students ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ;`);
+    await client.query(`
+      UPDATE students
+      SET created_at = COALESCE(created_at, join_date::timestamptz, NOW())
+      WHERE created_at IS NULL
+    `);
+    await client.query(`
+      UPDATE students
+      SET updated_at = COALESCE(updated_at, created_at, NOW())
+      WHERE updated_at IS NULL
+    `);
+    await client.query(`ALTER TABLE students ALTER COLUMN created_at SET DEFAULT NOW();`);
+    await client.query(`ALTER TABLE students ALTER COLUMN updated_at SET DEFAULT NOW();`);
+    await client.query(`ALTER TABLE students ALTER COLUMN created_at SET NOT NULL;`);
+    await client.query(`ALTER TABLE students ALTER COLUMN updated_at SET NOT NULL;`);
 
     await client.query(`
       CREATE TABLE IF NOT EXISTS student_class_history (
@@ -878,6 +894,12 @@ function dateToApi(d) {
   return String(d).slice(0, 10);
 }
 
+function timestampToApi(value) {
+  if (!value) return "";
+  if (value instanceof Date && !Number.isNaN(value.getTime())) return value.toISOString();
+  return String(value);
+}
+
 export function mapStudentRow(row) {
   return {
     id: row.id,
@@ -965,6 +987,8 @@ export function mapStudentRow(row) {
     guardianName: row.guardian_name ?? "",
     guardianOccupation: row.guardian_occupation ?? "",
     guardianBirthYear: row.guardian_birth_year ?? "",
+    createdAt: timestampToApi(row.created_at),
+    updatedAt: timestampToApi(row.updated_at),
   };
 }
 
