@@ -15,7 +15,8 @@ const FILE_CLASSES = [
   { file: "DanhSachHocSinh-La.xlsx", className: "Lá", level: "Lá" },
 ];
 
-const DEFAULT_DIR = "C:\\Users\\Thanh\\Downloads\\drive-download-20260821T110507Z-1-001";
+const LOCAL_WINDOWS_DIR = "C:\\Users\\Thanh\\Downloads\\drive-download-20260821T110507Z-1-001";
+const FILE_LIST = FILE_CLASSES.map((item) => item.file).join(", ");
 
 function cleanText(value) {
   return String(value ?? "")
@@ -74,10 +75,24 @@ function mapGender(nuMark, idNumber) {
   return "male";
 }
 
+function looksLikeWindowsPath(value) {
+  return /^[A-Za-z]:[\\/]/.test(String(value || "").trim()) || String(value || "").includes("\\");
+}
+
 function resolveSourceDir() {
   const argDir = process.argv.find((arg, idx) => idx >= 2 && !arg.startsWith("--"));
   const configured = cleanText(process.env.STUDENTS_XLSX_DIR);
-  const dir = argDir || configured || DEFAULT_DIR;
+  const dir = cleanText(argDir || configured || (process.platform === "win32" ? LOCAL_WINDOWS_DIR : ""));
+  if (!dir) {
+    throw new Error(
+      `Thiếu thư mục Excel. Copy 6 file (${FILE_LIST}) lên server rồi chạy: npm run db:import-csdlqg -- /đường/dẫn/thư-mục`
+    );
+  }
+  if (process.platform !== "win32" && looksLikeWindowsPath(dir)) {
+    throw new Error(
+      `Đường dẫn Windows không dùng được trên server Linux. Copy 6 file Excel lên server, rồi truyền path Linux, ví dụ: npm run db:import-csdlqg -- /var/www/mamnonThanhVy/backend/csdlqg`
+    );
+  }
   return path.resolve(dir);
 }
 
