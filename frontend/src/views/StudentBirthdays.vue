@@ -1,12 +1,9 @@
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue'
-import { useRouter } from 'vue-router'
 import { api } from '../api/client.js'
 import ArgonAlert from '@/components/ArgonAlert.vue'
 import defaultAvatarMale from '@/assets/img/logos/betrai.png'
 import defaultAvatarFemale from '@/assets/img/logos/begai.png'
-
-const router = useRouter()
 
 const MONTHS = [
   { value: 1, short: 'Th1', label: 'Tháng Một' },
@@ -126,11 +123,6 @@ function weekdayLabel(day) {
 
 function isTodayBirthday(row) {
   return selectedMonth.value === todayMonth && Number(row.birthdayDay) === todayDay
-}
-
-function openStudent(row) {
-  if (!row?.id) return
-  router.push({ name: 'StudentDetail', params: { id: row.id } })
 }
 
 function prevMonth() {
@@ -290,16 +282,14 @@ onMounted(loadBirthdays)
         <p>{{ todayItems.map((s) => s.name).join(', ') }}</p>
       </div>
       <div class="bday-today-faces">
-        <button
+        <div
           v-for="row in todayItems.slice(0, 6)"
           :key="`today-${row.id}`"
-          type="button"
           class="bday-today-face"
           :title="row.name"
-          @click="openStudent(row)"
         >
           <img :src="avatarSrc(row)" alt="" @error="onAvatarError($event, row)" />
-        </button>
+        </div>
       </div>
     </section>
 
@@ -368,18 +358,12 @@ onMounted(loadBirthdays)
         </header>
 
         <div class="bday-card-grid">
-          <button
+          <article
             v-for="row in group.students"
             :key="row.id"
-            type="button"
             class="bday-card"
             :class="{ 'is-today': isTodayBirthday(row) }"
-            @click="openStudent(row)"
           >
-            <div class="bday-card-date" :class="{ 'is-today': isTodayBirthday(row) }">
-              <strong>{{ String(row.birthdayDay).padStart(2, '0') }}</strong>
-              <span>/{{ String(selectedMonth).padStart(2, '0') }}</span>
-            </div>
             <div class="bday-card-media">
               <img
                 :src="avatarSrc(row)"
@@ -397,7 +381,7 @@ onMounted(loadBirthdays)
                 <b v-if="row.ageTurning != null">{{ row.ageTurning }} tuổi</b>
               </div>
             </div>
-          </button>
+          </article>
         </div>
       </article>
     </div>
@@ -729,12 +713,7 @@ onMounted(loadBirthdays)
   overflow: hidden;
   background: #fff;
   box-shadow: 0 0.3rem 0.7rem rgba(28, 43, 58, 0.12);
-  transition: transform 0.18s ease;
-}
-
-.bday-today-face:hover {
-  transform: translateY(-3px) scale(1.04);
-  z-index: 2;
+  pointer-events: none;
 }
 
 .bday-today-face img {
@@ -958,13 +937,13 @@ onMounted(loadBirthdays)
 
 .bday-card-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(16.5rem, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(18rem, 1fr));
   gap: 0.7rem;
 }
 
 .bday-card {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 0.7rem;
   width: 100%;
   padding: 0.7rem;
@@ -972,14 +951,7 @@ onMounted(loadBirthdays)
   border-radius: 1rem;
   background: #fbfcfe;
   text-align: left;
-  transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease, background 0.18s ease;
-}
-
-.bday-card:hover {
-  transform: translateY(-2px);
-  border-color: #b7dfd0;
-  background: #ffffff;
-  box-shadow: 0 0.7rem 1.4rem rgba(15, 159, 122, 0.12);
+  cursor: default;
 }
 
 .bday-card.is-today {
@@ -987,45 +959,10 @@ onMounted(loadBirthdays)
   background: #fff8f4;
 }
 
-.bday-card-date {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  width: 3.15rem;
-  height: 3.15rem;
-  border-radius: 0.9rem;
-  background: #ffffff;
-  border: 1px solid #e1ebf3;
-  flex-shrink: 0;
-}
-
-.bday-card-date strong {
-  font-family: var(--bday-display);
-  font-size: 1.15rem;
-  font-weight: 700;
-  line-height: 1;
-}
-
-.bday-card-date span {
-  color: var(--bday-muted);
-  font-size: 0.66rem;
-  font-weight: 700;
-}
-
-.bday-card-date.is-today {
-  border-color: transparent;
-  background: linear-gradient(160deg, #ff9d7a, #ff7d55);
-  color: #fff;
-}
-
-.bday-card-date.is-today span {
-  color: rgba(255, 255, 255, 0.85);
-}
-
 .bday-card-media {
   position: relative;
   flex-shrink: 0;
+  margin-top: 0.1rem;
 }
 
 .bday-card-media img {
@@ -1055,12 +992,13 @@ onMounted(loadBirthdays)
 
 .bday-card-info strong {
   display: block;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow: visible;
+  white-space: normal;
+  word-break: break-word;
   color: var(--bday-ink);
   font-size: 0.9rem;
   font-weight: 800;
+  line-height: 1.3;
 }
 
 .bday-card-info > span {
