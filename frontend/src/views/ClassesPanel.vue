@@ -527,6 +527,14 @@ defineExpose({ load })
                     <span>Chưa ghi nhận</span>
                     <strong>{{ attendanceSummary.noRecord }}</strong>
                   </div>
+                  <div class="class-attendance-stat stat-breakfast">
+                    <span>Ăn sáng</span>
+                    <strong>{{ attendanceSummary.breakfastCount || 0 }}</strong>
+                  </div>
+                  <div class="class-attendance-stat stat-lunch">
+                    <span>Ăn trưa</span>
+                    <strong>{{ attendanceSummary.lunchCount || 0 }}</strong>
+                  </div>
                 </div>
 
                 <div class="student-attendance-panel mt-3">
@@ -549,6 +557,8 @@ defineExpose({ load })
                           <th scope="col">Nghỉ</th>
                           <th scope="col">Trễ</th>
                           <th scope="col">Có phép</th>
+                          <th scope="col">Ăn sáng</th>
+                          <th scope="col">Ăn trưa</th>
                           <th scope="col">Chưa ghi nhận</th>
                         </tr>
                       </thead>
@@ -564,10 +574,12 @@ defineExpose({ load })
                           <td class="stat-absent-text">{{ row.absent }}</td>
                           <td class="stat-late-text">{{ row.late }}</td>
                           <td class="stat-excused-text">{{ row.excused }}</td>
+                          <td class="stat-breakfast-text">{{ row.breakfastDays || 0 }}</td>
+                          <td class="stat-lunch-text">{{ row.lunchDays || 0 }}</td>
                           <td>{{ row.noRecord }}</td>
                         </tr>
                         <tr v-if="!studentAttendanceRows.length">
-                          <td colspan="7" class="text-center text-sm text-secondary py-4">
+                          <td colspan="9" class="text-center text-sm text-secondary py-4">
                             Chưa có học sinh trong lớp này.
                           </td>
                         </tr>
@@ -810,6 +822,10 @@ defineExpose({ load })
 .stat-present strong { color: #2dce89; }
 .stat-absent strong { color: #f5365c; }
 .stat-late strong { color: #fb6340; }
+.stat-breakfast strong,
+.stat-breakfast-text { color: #d97706; }
+.stat-lunch strong,
+.stat-lunch-text { color: #0284c7; }
 .stat-excused strong { color: #11cdef; }
 
 .student-attendance-panel {
@@ -870,6 +886,8 @@ defineExpose({ load })
 .stat-absent-text { color: #f5365c !important; }
 .stat-late-text { color: #fb6340 !important; }
 .stat-excused-text { color: #11cdef !important; }
+.stat-breakfast-text { color: #d97706 !important; }
+.stat-lunch-text { color: #0284c7 !important; }
 
 @media (max-width: 991.98px) {
   .class-list-header {

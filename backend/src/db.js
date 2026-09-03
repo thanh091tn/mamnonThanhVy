@@ -344,6 +344,14 @@ export async function initDb() {
       CREATE INDEX IF NOT EXISTS idx_student_att_student_date
       ON student_attendance(student_id, attendance_date);
     `);
+    await client.query(`
+      ALTER TABLE student_attendance
+      ADD COLUMN IF NOT EXISTS ate_breakfast BOOLEAN NOT NULL DEFAULT FALSE;
+    `);
+    await client.query(`
+      ALTER TABLE student_attendance
+      ADD COLUMN IF NOT EXISTS ate_lunch BOOLEAN NOT NULL DEFAULT FALSE;
+    `);
 
     await client.query(`
       CREATE TABLE IF NOT EXISTS teacher_attendance (
@@ -1080,6 +1088,8 @@ export function mapStudentAttendanceRow(row) {
     session: row.session ?? "full",
     status: row.status ?? "present",
     note: row.note ?? "",
+    ateBreakfast: row.ate_breakfast === true,
+    ateLunch: row.ate_lunch === true,
     recordedByTeacherId:
       row.recorded_by_teacher_id != null ? row.recorded_by_teacher_id : null,
     createdAt:

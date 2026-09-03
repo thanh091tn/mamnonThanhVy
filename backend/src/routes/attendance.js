@@ -12,6 +12,28 @@ const SESSIONS = new Set(["full", "morning", "afternoon"]);
 const TEACHER_LEAVE_TYPES = new Set(["full_day", "half_day", "date_range"]);
 const TEACHER_LEAVE_SESSIONS = new Set(["morning", "afternoon"]);
 
+function parseOptionalBoolean(value) {
+  if (value === undefined || value === null || value === "") return null;
+  if (value === true || value === "true" || value === 1 || value === "1") return true;
+  if (value === false || value === "false" || value === 0 || value === "0") return false;
+  return undefined;
+}
+
+function mealFlagsForStatus(status, item) {
+  if (status === "absent") {
+    return { ateBreakfast: false, ateLunch: false };
+  }
+  const ateBreakfast = parseOptionalBoolean(item?.ateBreakfast);
+  const ateLunch = parseOptionalBoolean(item?.ateLunch);
+  if (ateBreakfast === undefined) {
+    return { error: "ateBreakfast must be boolean" };
+  }
+  if (ateLunch === undefined) {
+    return { error: "ateLunch must be boolean" };
+  }
+  return { ateBreakfast, ateLunch };
+}
+
 function isValidDate(s) {
   return /^\d{4}-\d{2}-\d{2}$/.test(s) && !isNaN(Date.parse(s));
 }
@@ -145,6 +167,8 @@ router.get("/students", async (req, res, next) => {
               sa.session,
               sa.status,
               sa.note,
+              sa.ate_breakfast,
+              sa.ate_lunch,
               sa.recorded_by_teacher_id,
               sa.created_at,
               sa.updated_at
@@ -174,6 +198,8 @@ router.get("/students", async (req, res, next) => {
           session,
           status: null,
           note: "",
+          ateBreakfast: false,
+          ateLunch: false,
           id: null,
         };
       }
@@ -212,7 +238,10 @@ router.get("/students/classes/:classId/month-summary", async (req, res, next) =>
       [cid]
     );
     const rows = await pool.query(
-      `SELECT status, COUNT(*)::int AS count
+      `SELECT status,
+              COUNT(*)::int AS count,
+              COUNT(*) FILTER (WHERE ate_breakfast)::int AS breakfast_count,
+              COUNT(*) FILTER (WHERE ate_lunch)::int AS lunch_count
        FROM student_attendance
        WHERE class_id = $1
          AND attendance_date >= $2::date
@@ -221,8 +250,12 @@ router.get("/students/classes/:classId/month-summary", async (req, res, next) =>
       [cid, bounds.from, bounds.to]
     );
     const summary = { present: 0, absent: 0, late: 0, excused: 0 };
+    let breakfastCount = 0;
+    let lunchCount = 0;
     for (const row of rows.rows) {
       if (summary[row.status] !== undefined) summary[row.status] = Number(row.count) || 0;
+      breakfastCount += Number(row.breakfast_count) || 0;
+      lunchCount += Number(row.lunch_count) || 0;
     }
     const totalRecords = Object.values(summary).reduce((sum, n) => sum + n, 0);
     const studentCount = meta.rows[0]?.student_count ?? 0;
@@ -240,6 +273,8 @@ router.get("/students/classes/:classId/month-summary", async (req, res, next) =>
       expectedRecords,
       totalRecords,
       noRecord: Math.max(expectedRecords - totalRecords, 0),
+      breakfastCount,
+      lunchCount,
       ...summary,
     });
   } catch (e) {
@@ -277,7 +312,9 @@ router.get("/students/classes/:classId/student-month-summary", async (req, res, 
                 COUNT(*) FILTER (WHERE status = 'present')::int AS present,
                 COUNT(*) FILTER (WHERE status = 'absent')::int AS absent,
                 COUNT(*) FILTER (WHERE status = 'late')::int AS late,
-                COUNT(*) FILTER (WHERE status = 'excused')::int AS excused
+                COUNT(*) FILTER (WHERE status = 'excused')::int AS excused,
+                COUNT(*) FILTER (WHERE ate_breakfast)::int AS breakfast_days,
+                COUNT(*) FILTER (WHERE ate_lunch)::int AS lunch_days
          FROM student_attendance
          WHERE class_id = $1
            AND attendance_date >= $2::date
@@ -292,7 +329,9 @@ router.get("/students/classes/:classId/student-month-summary", async (req, res, 
               COALESCE(a.present, 0)::int AS present,
               COALESCE(a.absent, 0)::int AS absent,
               COALESCE(a.late, 0)::int AS late,
-              COALESCE(a.excused, 0)::int AS excused
+              COALESCE(a.excused, 0)::int AS excused,
+              COALESCE(a.breakfast_days, 0)::int AS breakfast_days,
+              COALESCE(a.lunch_days, 0)::int AS lunch_days
        FROM active_students s
        LEFT JOIN attendance_counts a ON a.student_id = s.id
        ORDER BY s.name`,
@@ -318,6 +357,8 @@ router.get("/students/classes/:classId/student-month-summary", async (req, res, 
           absent: Number(row.absent) || 0,
           late: Number(row.late) || 0,
           excused: Number(row.excused) || 0,
+          breakfastDays: Number(row.breakfast_days) || 0,
+          lunchDays: Number(row.lunch_days) || 0,
           noRecord: Math.max(daysInMonth - totalRecords, 0),
         };
       }),
@@ -367,7 +408,7 @@ router.get("/students/student/:studentId", async (req, res, next) => {
 /**
  * PUT /students/bulk
  * Upsert attendance for multiple students at once.
- * Body: { classId, date, session, items: [{ studentId, status, note? }] }
+ * Body: { classId, date, session, items: [{ studentId, status, note?, ateBreakfast?, ateLunch? }] }
  */
 router.put("/students/bulk", async (req, res, next) => {
   const client = await pool.connect();
@@ -386,6 +427,7 @@ router.put("/students/bulk", async (req, res, next) => {
     const cid = access.classId;
 
     const studentIds = [];
+    const prepared = [];
     for (const it of items) {
       const studentId = Number(it.studentId);
       if (!Number.isInteger(studentId) || studentId < 1) {
@@ -395,6 +437,15 @@ router.put("/students/bulk", async (req, res, next) => {
       const st = String(it.status || "present").toLowerCase();
       if (!STUDENT_ATT_STATUSES.has(st))
         return res.status(400).json({ error: `Invalid status: ${it.status}` });
+      const meals = mealFlagsForStatus(st, it);
+      if (meals.error) return res.status(400).json({ error: meals.error });
+      prepared.push({
+        studentId,
+        status: st,
+        note: it.note != null ? String(it.note) : "",
+        ateBreakfast: meals.ateBreakfast,
+        ateLunch: meals.ateLunch,
+      });
     }
 
     const ownedStudents = await client.query(
@@ -410,21 +461,32 @@ router.put("/students/bulk", async (req, res, next) => {
     const upserted = [];
     const recordedByTeacherId =
       req.user?.role === "teacher" && req.user.teacherId != null ? req.user.teacherId : null;
-    for (const it of items) {
-      const st = String(it.status || "present").toLowerCase();
-      const note = it.note != null ? String(it.note) : "";
+    for (const it of prepared) {
       const r = await client.query(
         `INSERT INTO student_attendance
-           (student_id, class_id, attendance_date, session, status, note, recorded_by_teacher_id, updated_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
+           (student_id, class_id, attendance_date, session, status, note,
+            ate_breakfast, ate_lunch, recorded_by_teacher_id, updated_at)
+         VALUES ($1, $2, $3, $4, $5, $6, COALESCE($7, FALSE), COALESCE($8, FALSE), $9, NOW())
          ON CONFLICT (student_id, attendance_date, session)
          DO UPDATE SET status = EXCLUDED.status,
                        note = EXCLUDED.note,
+                       ate_breakfast = COALESCE($7, student_attendance.ate_breakfast),
+                       ate_lunch = COALESCE($8, student_attendance.ate_lunch),
                        class_id = EXCLUDED.class_id,
                        recorded_by_teacher_id = EXCLUDED.recorded_by_teacher_id,
                        updated_at = NOW()
          RETURNING *`,
-        [Number(it.studentId), cid, date, session, st, note, recordedByTeacherId]
+        [
+          it.studentId,
+          cid,
+          date,
+          session,
+          it.status,
+          it.note,
+          it.ateBreakfast,
+          it.ateLunch,
+          recordedByTeacherId,
+        ]
       );
       upserted.push(r.rows[0]);
     }

@@ -93,6 +93,21 @@ const presentStudents = computed(() =>
 const absentStudents = computed(() =>
   filteredRows.value.filter((r) => r.status === 'absent')
 )
+const breakfastCount = computed(() =>
+  filteredRows.value.filter((r) => r.status === 'present' && r.ateBreakfast).length
+)
+const lunchCount = computed(() =>
+  filteredRows.value.filter((r) => r.status === 'present' && r.ateLunch).length
+)
+const mealSavingIds = ref([])
+
+function asMealBool(value) {
+  return value === true || value === 'true'
+}
+
+function isMealSaving(studentId) {
+  return mealSavingIds.value.includes(studentId)
+}
 
 const selectedClassName = computed(() => {
   const found = classes.value.find((c) => String(c.id) === String(selectedClassId.value))
@@ -135,7 +150,13 @@ async function loadStudentAttendance() {
     })
     studentRows.value = data.map((r) => {
       const st = r.status === 'present' || r.status === 'absent' ? r.status : null
-      return { ...r, status: st, note: r.note || '' }
+      return {
+        ...r,
+        status: st,
+        note: r.note || '',
+        ateBreakfast: st === 'present' && asMealBool(r.ateBreakfast),
+        ateLunch: st === 'present' && asMealBool(r.ateLunch),
+      }
     })
   } catch (e) {
     studentErr.value =
@@ -149,13 +170,23 @@ async function markStudent(studentId, newStatus) {
   const row = studentRows.value.find((r) => r.studentId === studentId)
   if (!row) return
   row.status = newStatus
+  if (newStatus !== 'present') {
+    row.ateBreakfast = false
+    row.ateLunch = false
+  }
   studentErr.value = ''
   try {
     await api.put('/attendance/students/bulk', {
       classId: Number(selectedClassId.value),
       date: selectedDate.value,
       session: 'full',
-      items: [{ studentId, status: newStatus, note: row.note }],
+      items: [{
+        studentId,
+        status: newStatus,
+        note: row.note,
+        ateBreakfast: !!row.ateBreakfast,
+        ateLunch: !!row.ateLunch,
+      }],
     })
   } catch (e) {
     studentErr.value =
@@ -168,6 +199,8 @@ async function unmarkStudent(studentId) {
   const row = studentRows.value.find((r) => r.studentId === studentId)
   if (!row) return
   row.status = null
+  row.ateBreakfast = false
+  row.ateLunch = false
   studentErr.value = ''
   try {
     await api.delete('/attendance/students/record', {
@@ -187,7 +220,11 @@ async function unmarkStudent(studentId) {
 async function markAllPresent() {
   const toMark = unmarkedStudents.value
   if (!toMark.length) return
-  toMark.forEach((r) => (r.status = 'present'))
+  toMark.forEach((r) => {
+    r.status = 'present'
+    r.ateBreakfast = false
+    r.ateLunch = false
+  })
   studentSaving.value = true
   studentErr.value = ''
   try {
@@ -199,6 +236,70 @@ async function markAllPresent() {
         studentId: r.studentId,
         status: 'present',
         note: r.note,
+        ateBreakfast: false,
+        ateLunch: false,
+      })),
+    })
+  } catch (e) {
+    studentErr.value =
+      e.response?.data?.error || e.message || 'Save failed'
+    await loadStudentAttendance()
+  } finally {
+    studentSaving.value = false
+  }
+}
+
+async function toggleMeal(studentId, meal) {
+  const row = studentRows.value.find((r) => r.studentId === studentId)
+  if (!row || row.status !== 'present' || isMealSaving(studentId)) return
+  if (meal === 'breakfast') row.ateBreakfast = !row.ateBreakfast
+  else row.ateLunch = !row.ateLunch
+  mealSavingIds.value = [...mealSavingIds.value, studentId]
+  studentErr.value = ''
+  try {
+    await api.put('/attendance/students/bulk', {
+      classId: Number(selectedClassId.value),
+      date: selectedDate.value,
+      session: 'full',
+      items: [{
+        studentId,
+        status: 'present',
+        note: row.note,
+        ateBreakfast: !!row.ateBreakfast,
+        ateLunch: !!row.ateLunch,
+      }],
+    })
+  } catch (e) {
+    studentErr.value =
+      e.response?.data?.error || e.message || 'Save failed'
+    await loadStudentAttendance()
+  } finally {
+    mealSavingIds.value = mealSavingIds.value.filter((id) => id !== studentId)
+  }
+}
+
+async function markMealsForPresent(meal) {
+  const targets = presentStudents.value.filter((r) =>
+    meal === 'breakfast' ? !r.ateBreakfast : !r.ateLunch
+  )
+  if (!targets.length) return
+  targets.forEach((r) => {
+    if (meal === 'breakfast') r.ateBreakfast = true
+    else r.ateLunch = true
+  })
+  studentSaving.value = true
+  studentErr.value = ''
+  try {
+    await api.put('/attendance/students/bulk', {
+      classId: Number(selectedClassId.value),
+      date: selectedDate.value,
+      session: 'full',
+      items: targets.map((r) => ({
+        studentId: r.studentId,
+        status: 'present',
+        note: r.note,
+        ateBreakfast: !!r.ateBreakfast,
+        ateLunch: !!r.ateLunch,
       })),
     })
   } catch (e) {
@@ -449,6 +550,18 @@ onMounted(() => {
         <strong class="att-stat-value">{{ absentStudents.length }}</strong>
         <small class="att-stat-meta">Các trường hợp vắng mặt trong ngày</small>
       </article>
+
+      <article class="att-stat-card att-stat-card--breakfast page-rise-fast page-lift" style="--delay: 280ms">
+        <span class="att-stat-label">Tổng ăn sáng</span>
+        <strong class="att-stat-value">{{ breakfastCount }}</strong>
+        <small class="att-stat-meta">Suất đã check trong ngày</small>
+      </article>
+
+      <article class="att-stat-card att-stat-card--lunch page-rise-fast page-lift" style="--delay: 320ms">
+        <span class="att-stat-label">Tổng ăn trưa</span>
+        <strong class="att-stat-value">{{ lunchCount }}</strong>
+        <small class="att-stat-meta">Suất đã check trong ngày</small>
+      </article>
     </div>
 
     <!-- ===== STUDENT ATTENDANCE (KANBAN) ===== -->
@@ -570,6 +683,24 @@ onMounted(() => {
             <span class="att-col-count">{{ presentStudents.length }}/{{ totalStudents }}</span>
           </div>
           <div class="att-col-body">
+            <div v-if="presentStudents.length" class="att-meal-bulk">
+              <button
+                type="button"
+                class="att-mark-all att-mark-all--breakfast"
+                :disabled="studentSaving || breakfastCount === presentStudents.length"
+                @click="markMealsForPresent('breakfast')"
+              >
+                Tick ăn sáng cả cột
+              </button>
+              <button
+                type="button"
+                class="att-mark-all att-mark-all--lunch"
+                :disabled="studentSaving || lunchCount === presentStudents.length"
+                @click="markMealsForPresent('lunch')"
+              >
+                Tick ăn trưa cả cột
+              </button>
+            </div>
             <div
               v-for="(s, i) in presentStudents"
               :key="s.studentId"
@@ -585,6 +716,32 @@ onMounted(() => {
                   @error="onAvatarError($event, s)"
                 />
                 <span class="att-card-name">{{ s.studentName }}</span>
+              </div>
+              <div class="att-meal-row">
+                <button
+                  type="button"
+                  class="att-meal-chip att-meal-chip--breakfast"
+                  :class="{ active: s.ateBreakfast }"
+                  :disabled="isMealSaving(s.studentId)"
+                  @click="toggleMeal(s.studentId, 'breakfast')"
+                >
+                  <span class="att-meal-check" :class="{ checked: s.ateBreakfast }" aria-hidden="true">
+                    <i v-if="s.ateBreakfast" class="ni ni-check-bold"></i>
+                  </span>
+                  Ăn sáng
+                </button>
+                <button
+                  type="button"
+                  class="att-meal-chip att-meal-chip--lunch"
+                  :class="{ active: s.ateLunch }"
+                  :disabled="isMealSaving(s.studentId)"
+                  @click="toggleMeal(s.studentId, 'lunch')"
+                >
+                  <span class="att-meal-check" :class="{ checked: s.ateLunch }" aria-hidden="true">
+                    <i v-if="s.ateLunch" class="ni ni-check-bold"></i>
+                  </span>
+                  Ăn trưa
+                </button>
               </div>
               <div class="att-card-btns">
                 <button
@@ -997,7 +1154,7 @@ onMounted(() => {
 
 .att-overview {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 0.75rem;
 }
 
@@ -1027,6 +1184,14 @@ onMounted(() => {
 
 .att-stat-card--danger {
   background: linear-gradient(180deg, #fff4f4, #ffeaea);
+}
+
+.att-stat-card--breakfast {
+  background: linear-gradient(180deg, #fff8ed, #fff1d6);
+}
+
+.att-stat-card--lunch {
+  background: linear-gradient(180deg, #f0fbfc, #def6f8);
 }
 
 .att-stat-label {
@@ -1377,6 +1542,113 @@ onMounted(() => {
   cursor: not-allowed;
 }
 
+.att-meal-bulk {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  flex-shrink: 0;
+}
+
+.att-mark-all--breakfast {
+  border-color: #fcd34d;
+  background: #fffbeb;
+  color: #b45309;
+}
+
+.att-mark-all--breakfast:hover:not(:disabled) {
+  background: #fef3c7;
+  border-color: #f59e0b;
+}
+
+.att-mark-all--lunch {
+  border-color: #7dd3fc;
+  background: #f0f9ff;
+  color: #0369a1;
+}
+
+.att-mark-all--lunch:hover:not(:disabled) {
+  background: #e0f2fe;
+  border-color: #38bdf8;
+}
+
+.att-meal-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 0.6rem;
+}
+
+.att-meal-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  flex: 1 1 6.5rem;
+  min-height: 34px;
+  padding: 0.4rem 0.6rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 999px;
+  background: #f8fafc;
+  color: #64748b;
+  font-size: 0.74rem;
+  font-weight: 700;
+  line-height: 1.2;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.att-meal-chip:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.att-meal-check {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1rem;
+  height: 1rem;
+  border: 1.5px solid #cbd5e1;
+  border-radius: 0.28rem;
+  background: #fff;
+  flex-shrink: 0;
+}
+
+.att-meal-check i {
+  font-size: 0.55rem;
+  line-height: 1;
+}
+
+.att-meal-check.checked {
+  border-color: currentColor;
+  background: currentColor;
+  color: #fff;
+}
+
+.att-meal-chip--breakfast.active {
+  border-color: #f59e0b;
+  background: #fff7ed;
+  color: #b45309;
+}
+
+.att-meal-chip--breakfast.active .att-meal-check.checked {
+  border-color: #f59e0b;
+  background: #f59e0b;
+  color: #fff;
+}
+
+.att-meal-chip--lunch.active {
+  border-color: #0ea5e9;
+  background: #e0f2fe;
+  color: #0369a1;
+}
+
+.att-meal-chip--lunch.active .att-meal-check.checked {
+  border-color: #0ea5e9;
+  background: #0ea5e9;
+  color: #fff;
+}
+
 /* ===== Student cards ===== */
 .att-card {
   display: flex;
@@ -1593,6 +1865,18 @@ onMounted(() => {
   background: #fafbfc;
 }
 
+@media (max-width: 1399.98px) {
+  .att-overview {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 1399.98px) {
+  .att-overview {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
 @media (max-width: 991.98px) {
   .att-page {
     padding: 1rem;
@@ -1610,7 +1894,7 @@ onMounted(() => {
   }
 
   .att-overview {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
   .att-toolbar {
