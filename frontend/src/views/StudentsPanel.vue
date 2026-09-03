@@ -789,6 +789,8 @@ const calendarWeeks = computed(() => {
       date: dateStr,
       status: rec ? rec.status : null,
       note: rec ? rec.note || '' : '',
+      ateBreakfast: rec ? !!rec.ateBreakfast : false,
+      ateLunch: rec ? !!rec.ateLunch : false,
       isCurrentMonth: true,
       isToday: dateStr === todayStr,
     })
@@ -806,10 +808,12 @@ const calendarWeeks = computed(() => {
 })
 
 const attSummary = computed(() => {
-  const counts = { present: 0, absent: 0, late: 0, excused: 0, total: 0 }
+  const counts = { present: 0, absent: 0, late: 0, excused: 0, total: 0, breakfast: 0, lunch: 0 }
   for (const r of attRecords.value) {
     counts.total++
     if (counts[r.status] !== undefined) counts[r.status]++
+    if (r.ateBreakfast) counts.breakfast++
+    if (r.ateLunch) counts.lunch++
   }
   return counts
 })
@@ -824,6 +828,10 @@ function attDayTooltip(cell) {
   if (!cell.isCurrentMonth) return ''
   if (!cell.status) return 'No record'
   let tip = cell.status.charAt(0).toUpperCase() + cell.status.slice(1)
+  const meals = []
+  if (cell.ateBreakfast) meals.push('Ăn sáng')
+  if (cell.ateLunch) meals.push('Ăn trưa')
+  if (meals.length) tip += ` · ${meals.join(' · ')}`
   if (cell.note) tip += `: ${cell.note}`
   return tip
 }
@@ -1874,6 +1882,10 @@ defineExpose({ load })
                     <span v-if="cell.isCurrentMonth" class="att-day-num" :class="{ 'att-day-today': cell.isToday }">
                       {{ cell.dayNum }}
                     </span>
+                    <span v-if="cell.ateBreakfast || cell.ateLunch" class="att-day-meals">
+                      <span v-if="cell.ateBreakfast" class="att-meal-mark">S</span>
+                      <span v-if="cell.ateLunch" class="att-meal-mark att-meal-mark--lunch">T</span>
+                    </span>
                   </div>
                 </div>
               </div>
@@ -1883,6 +1895,8 @@ defineExpose({ load })
                 <span class="att-legend-item"><span class="att-legend-dot att-dot--absent"></span> Nghỉ ({{ attSummary.absent }})</span>
                 <span class="att-legend-item"><span class="att-legend-dot att-dot--late"></span> Trễ ({{ attSummary.late }})</span>
                 <span class="att-legend-item"><span class="att-legend-dot att-dot--excused"></span> Có phép ({{ attSummary.excused }})</span>
+                <span class="att-legend-item"><span class="att-legend-dot att-dot--breakfast"></span> Ăn sáng ({{ attSummary.breakfast }})</span>
+                <span class="att-legend-item"><span class="att-legend-dot att-dot--lunch"></span> Ăn trưa ({{ attSummary.lunch }})</span>
                 <span class="att-legend-item"><span class="att-legend-dot att-dot--none"></span> Chưa ghi nhận</span>
               </div>
             </template>
@@ -2859,7 +2873,35 @@ defineExpose({ load })
 .att-dot--absent  { background: #f5365c; }
 .att-dot--late    { background: #fb6340; }
 .att-dot--excused { background: #11cdef; }
+.att-dot--breakfast { background: #d97706; }
+.att-dot--lunch { background: #0284c7; }
 .att-dot--none    { background: #e9ecef; }
+
+.att-day-meals {
+  position: absolute;
+  right: 0.15rem;
+  bottom: 0.1rem;
+  display: flex;
+  gap: 0.1rem;
+}
+
+.att-meal-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0.7rem;
+  height: 0.7rem;
+  border-radius: 0.15rem;
+  background: #f59e0b;
+  color: #fff;
+  font-size: 0.45rem;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.att-meal-mark--lunch {
+  background: #0284c7;
+}
 
 @media (max-width: 900px) {
   .student-list-header {

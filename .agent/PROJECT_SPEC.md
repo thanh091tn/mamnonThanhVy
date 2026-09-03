@@ -129,10 +129,13 @@ Academic years / class transfer:
 
 Attendance:
 - Student attendance by class/date/session.
-- Student monthly summaries.
+- Teacher can mark breakfast / lunch (`ateBreakfast`, `ateLunch`) for present students on `/attendance`.
+- Daily totals: Tổng ăn sáng / Tổng ăn trưa on the attendance overview cards.
+- Student monthly summaries include breakfast/lunch day counts.
 - Teacher attendance and leave-related records.
 - Teacher leave request flow.
 - Manager/admin leave calendar.
+- Meal check spec: `.agent/ATTENDANCE_MEAL_SPEC.md`. Do not change `meal_days` fee calculation until that spec’s phase 2 is explicitly approved.
 
 Fees:
 - Fee item templates (`/fee-items`).
@@ -239,7 +242,7 @@ Important tables include:
 - `classes` (includes `academic_year_id`)
 - `class_teachers`
 - `student_class_history` (includes `from_academic_year_id`, `to_academic_year_id`)
-- `student_attendance`
+- `student_attendance` (includes `ate_breakfast`, `ate_lunch`)
 - `teacher_attendance`
 - `users`
 - `student_bulk_jobs`

@@ -146,6 +146,10 @@ function statusClass(status) {
   return 'badge bg-gradient-secondary'
 }
 
+function mealLabel(value) {
+  return value === true || value === 'true' ? 'Có' : '—'
+}
+
 watch([selectedClassId, selectedDate], () => {
   loadAttendance()
 })
@@ -282,6 +286,14 @@ defineExpose({ loadClasses, loadAttendance })
                   <span>Chưa ghi nhận</span>
                   <strong>{{ summary.noRecord }}</strong>
                 </article>
+                <article class="attendance-stat stat-breakfast page-rise-fast page-lift" style="--delay: 280ms">
+                  <span>Ăn sáng</span>
+                  <strong>{{ summary.breakfastCount || 0 }}</strong>
+                </article>
+                <article class="attendance-stat stat-lunch page-rise-fast page-lift" style="--delay: 320ms">
+                  <span>Ăn trưa</span>
+                  <strong>{{ summary.lunchCount || 0 }}</strong>
+                </article>
               </div>
 
               <div v-if="attendanceView === 'day'" class="student-month-card mt-4">
@@ -298,6 +310,8 @@ defineExpose({ loadClasses, loadAttendance })
                         <th>Avatar</th>
                         <th>Tên học sinh</th>
                         <th>Trạng thái</th>
+                        <th>Ăn sáng</th>
+                        <th>Ăn trưa</th>
                         <th>Ghi chú</th>
                       </tr>
                     </thead>
@@ -316,10 +330,12 @@ defineExpose({ loadClasses, loadAttendance })
                         </td>
                         <td class="student-name-cell">{{ row.studentName }}</td>
                         <td><span :class="statusClass(row.status)">{{ statusLabel(row.status) }}</span></td>
+                        <td>{{ mealLabel(row.ateBreakfast) }}</td>
+                        <td>{{ mealLabel(row.ateLunch) }}</td>
                         <td class="text-secondary">{{ row.note || '—' }}</td>
                       </tr>
                       <tr v-if="!dailyRows.length">
-                        <td colspan="4" class="py-4 text-center text-sm text-secondary">
+                        <td colspan="6" class="py-4 text-center text-sm text-secondary">
                           Lớp này chưa có học sinh.
                         </td>
                       </tr>
@@ -346,6 +362,8 @@ defineExpose({ loadClasses, loadAttendance })
                         <th>Nghỉ</th>
                         <th>Trễ</th>
                         <th>Có phép</th>
+                        <th>Ăn sáng</th>
+                        <th>Ăn trưa</th>
                         <th>Chưa ghi nhận</th>
                       </tr>
                     </thead>
@@ -368,10 +386,12 @@ defineExpose({ loadClasses, loadAttendance })
                         <td class="stat-absent-text">{{ row.absent }}</td>
                         <td class="stat-late-text">{{ row.late }}</td>
                         <td class="stat-excused-text">{{ row.excused }}</td>
+                        <td class="stat-breakfast-text">{{ row.breakfastDays || 0 }}</td>
+                        <td class="stat-lunch-text">{{ row.lunchDays || 0 }}</td>
                         <td>{{ row.noRecord }}</td>
                       </tr>
                       <tr v-if="!rows.length">
-                        <td colspan="8" class="py-4 text-center text-sm text-secondary">
+                        <td colspan="10" class="py-4 text-center text-sm text-secondary">
                           Lớp này chưa có học sinh.
                         </td>
                       </tr>
@@ -624,7 +644,7 @@ defineExpose({ loadClasses, loadAttendance })
 
 .attendance-summary-grid {
   display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 0.75rem;
 }
 
@@ -661,6 +681,10 @@ defineExpose({ loadClasses, loadAttendance })
 .stat-late-text { color: #fb6340 !important; }
 .stat-excused strong,
 .stat-excused-text { color: #11cdef !important; }
+.stat-breakfast strong,
+.stat-breakfast-text { color: #d97706 !important; }
+.stat-lunch strong,
+.stat-lunch-text { color: #0284c7 !important; }
 
 .student-month-card {
   overflow: hidden;
