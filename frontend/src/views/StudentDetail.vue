@@ -109,14 +109,6 @@ const classChangeNote = ref('')
 const createdAt = ref('')
 const updatedAt = ref('')
 
-const filteredClassOptions = computed(() => {
-  if (!form.value.academicYearId) return classOptions.value
-  const filtered = classOptions.value.filter(
-    (item) => item.academicYearId === Number(form.value.academicYearId)
-  )
-  return filtered.length ? filtered : classOptions.value
-})
-
 const classIsChanging = computed(() => {
   if (isCreateMode.value) return false
   const curYear = form.value.academicYearId === '' ? '' : String(form.value.academicYearId)
@@ -217,17 +209,6 @@ watch(
   ],
   () => {
     if (currentAddressSame.value) syncPermanentAddressFromCurrent()
-  }
-)
-
-watch(
-  () => form.value.academicYearId,
-  () => {
-    if (!classOptions.value.length || !form.value.classId || !form.value.academicYearId) return
-    const selectedClass = classOptions.value.find((item) => String(item.id) === String(form.value.classId))
-    if (selectedClass?.academicYearId != null && selectedClass.academicYearId !== Number(form.value.academicYearId)) {
-      form.value.classId = ''
-    }
   }
 )
 
@@ -650,7 +631,7 @@ onBeforeUnmount(() => {
                 <label>Lớp chính *</label>
                 <select v-model="form.classId" class="form-control" :disabled="studyInfoLocked">
                   <option value="">Chọn lớp</option>
-                  <option v-for="c in filteredClassOptions" :key="c.id" :value="String(c.id)">{{ c.name }}</option>
+                  <option v-for="c in classOptions" :key="c.id" :value="String(c.id)">{{ c.name }}</option>
                 </select>
               </div>
               <div class="field">

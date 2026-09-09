@@ -76,7 +76,7 @@ function mapClassOption(row) {
     id: row.id,
     name: row.name,
     level: row.level ?? "",
-    academicYearId: row.academic_year_id != null ? Number(row.academic_year_id) : null,
+    academicYearId: null,
     maxStudents: row.max_students != null ? Number(row.max_students) : 35,
     minAgeMonths: row.min_age_months != null ? Number(row.min_age_months) : null,
     maxAgeMonths: row.max_age_months != null ? Number(row.max_age_months) : null,
@@ -143,25 +143,28 @@ async function buildPreview(studentIds, action, config, effectiveDate) {
     const targetClassId = normalizeId(config.targetClassId, "targetClassId");
     if (targetClassId && targetClassId.error) return { error: targetClassId.error };
     if (!targetClassId) return { error: "targetClassId is required" };
+
+    const targetYearId = normalizeId(config.targetAcademicYearId, "targetAcademicYearId");
+    if (targetYearId && targetYearId.error) return { error: targetYearId.error };
+    if (!targetYearId) return { error: "targetAcademicYearId is required" };
+    const yearResult = await pool.query(`SELECT * FROM academic_years WHERE id = $1`, [targetYearId]);
+    if (!yearResult.rowCount) return { error: "Target academic year not found" };
+    targetYear = mapYear(yearResult.rows[0]);
+
     const classResult = await pool.query(
-      `SELECT c.id, c.name, c.level, c.academic_year_id, c.max_students, c.min_age_months, c.max_age_months,
-              COUNT(s.id) FILTER (WHERE COALESCE(s.status, 'active') IN ('active', 'leave')) AS current_students
+      `SELECT c.id, c.name, c.level, c.max_students, c.min_age_months, c.max_age_months,
+              COUNT(s.id) FILTER (
+                WHERE s.academic_year_id = $2
+                  AND COALESCE(s.status, 'active') IN ('active', 'leave')
+              ) AS current_students
        FROM classes c
        LEFT JOIN students s ON s.class_id = c.id
        WHERE c.id = $1
        GROUP BY c.id`,
-      [targetClassId]
+      [targetClassId, targetYearId]
     );
     if (!classResult.rowCount) return { error: "Target class not found" };
     targetClass = mapClassOption(classResult.rows[0]);
-
-    const targetYearId = normalizeId(config.targetAcademicYearId ?? targetClass.academicYearId, "targetAcademicYearId");
-    if (targetYearId && targetYearId.error) return { error: targetYearId.error };
-    if (targetYearId) {
-      const yearResult = await pool.query(`SELECT * FROM academic_years WHERE id = $1`, [targetYearId]);
-      if (!yearResult.rowCount) return { error: "Target academic year not found" };
-      targetYear = mapYear(yearResult.rows[0]);
-    }
   }
 
   let nextStatus = null;
@@ -200,8 +203,8 @@ async function buildPreview(studentIds, action, config, effectiveDate) {
       after:
         action === "transfer"
           ? {
-              academicYearId: targetYear?.id ?? targetClass.academicYearId,
-              academicYearName: targetYear?.name ?? "",
+              academicYearId: targetYear.id,
+              academicYearName: targetYear.name,
               classId: targetClass.id,
               className: targetClass.name,
               status: row.status ?? "active",
@@ -239,7 +242,7 @@ async function applyTransition(studentIds, action, config, effectiveDate, note, 
   const targetClassId = action === "transfer" ? Number(config.targetClassId) : null;
   const targetYearId =
     action === "transfer"
-      ? Number(config.targetAcademicYearId || preview.summary.targetClass?.academicYearId || 0) || null
+      ? Number(config.targetAcademicYearId)
       : null;
   const nextStatus = action === "status" ? normalizeStudentStatus(config.status) : null;
 
@@ -361,7 +364,7 @@ router.get("/metadata", async (_req, res, next) => {
     const [years, classes] = await Promise.all([
       pool.query(`SELECT * FROM academic_years ORDER BY start_date NULLS LAST, name`),
       pool.query(
-        `SELECT c.id, c.name, c.level, c.academic_year_id, c.max_students, c.min_age_months, c.max_age_months,
+        `SELECT c.id, c.name, c.level, c.max_students, c.min_age_months, c.max_age_months,
                 COUNT(s.id) FILTER (WHERE COALESCE(s.status, 'active') IN ('active', 'leave')) AS current_students
          FROM classes c
          LEFT JOIN students s ON s.class_id = c.id

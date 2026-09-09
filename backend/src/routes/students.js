@@ -273,7 +273,7 @@ function mapClassOption(row) {
     id: row.id,
     name: row.name,
     level: row.level ?? "",
-    academicYearId: row.academic_year_id != null ? Number(row.academic_year_id) : null,
+    academicYearId: null,
   };
 }
 
@@ -325,12 +325,9 @@ async function resolveClassId(raw) {
   if (!Number.isInteger(id) || id < 1) {
     return { error: "classId must be a positive integer or empty" };
   }
-  const c = await pool.query(`SELECT id, academic_year_id FROM classes WHERE id = $1`, [id]);
+  const c = await pool.query(`SELECT id FROM classes WHERE id = $1`, [id]);
   if (!c.rowCount) return { error: "Class not found" };
-  return {
-    id,
-    academicYearId: c.rows[0].academic_year_id != null ? Number(c.rows[0].academic_year_id) : null,
-  };
+  return { id };
 }
 
 async function resolveAcademicPlacement({ classId, academicYearId }) {
@@ -339,14 +336,9 @@ async function resolveAcademicPlacement({ classId, academicYearId }) {
   const aid = await resolveAcademicYearId(academicYearId);
   if (aid?.error) return { error: aid.error };
 
-  const nextAcademicYearId = aid?.id ?? cid?.academicYearId ?? null;
-  if (cid?.academicYearId != null && nextAcademicYearId != null && cid.academicYearId !== nextAcademicYearId) {
-    return { error: "Class does not belong to selected academic year" };
-  }
-
   return {
     classId: cid?.id ?? null,
-    academicYearId: nextAcademicYearId,
+    academicYearId: aid?.id ?? null,
   };
 }
 
@@ -785,7 +777,7 @@ router.get("/metadata", async (req, res, next) => {
     const [years, classes] = await Promise.all([
       pool.query(`SELECT * FROM academic_years ORDER BY start_date NULLS LAST, name`),
       pool.query(
-        `SELECT c.id, c.name, c.level, c.academic_year_id
+        `SELECT c.id, c.name, c.level
          FROM classes c
          ${classAccess}
          ORDER BY c.name, c.id`,

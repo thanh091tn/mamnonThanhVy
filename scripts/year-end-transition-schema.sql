@@ -11,6 +11,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_academic_years_current
 ON academic_years(is_current) WHERE is_current = TRUE;
 
 ALTER TABLE classes ADD COLUMN IF NOT EXISTS academic_year_id INTEGER REFERENCES academic_years(id) ON DELETE SET NULL;
+UPDATE classes SET academic_year_id = NULL WHERE academic_year_id IS NOT NULL;
 ALTER TABLE classes ADD COLUMN IF NOT EXISTS max_students INTEGER NOT NULL DEFAULT 35;
 ALTER TABLE classes ADD COLUMN IF NOT EXISTS min_age_months INTEGER;
 ALTER TABLE classes ADD COLUMN IF NOT EXISTS max_age_months INTEGER;
