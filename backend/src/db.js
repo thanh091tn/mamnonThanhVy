@@ -149,6 +149,11 @@ export async function initDb() {
     await client.query(`
       ALTER TABLE classes ADD COLUMN IF NOT EXISTS academic_year_id INTEGER REFERENCES academic_years(id) ON DELETE SET NULL;
     `);
+    await client.query(`
+      UPDATE classes
+      SET academic_year_id = NULL
+      WHERE academic_year_id IS NOT NULL;
+    `);
     await client.query(`ALTER TABLE classes ADD COLUMN IF NOT EXISTS max_students INTEGER NOT NULL DEFAULT 35;`);
     await client.query(`ALTER TABLE classes ADD COLUMN IF NOT EXISTS min_age_months INTEGER;`);
     await client.query(`ALTER TABLE classes ADD COLUMN IF NOT EXISTS max_age_months INTEGER;`);
@@ -1016,7 +1021,7 @@ export function mapClassRow(row) {
     name: row.name,
     level: row.level ?? "",
     room: row.room ?? "",
-    academicYearId: row.academic_year_id != null ? Number(row.academic_year_id) : null,
+    academicYearId: null,
     maxStudents: row.max_students != null ? Number(row.max_students) : 35,
     minAgeMonths: row.min_age_months != null ? Number(row.min_age_months) : null,
     maxAgeMonths: row.max_age_months != null ? Number(row.max_age_months) : null,

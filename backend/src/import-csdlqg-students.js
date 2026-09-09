@@ -202,14 +202,14 @@ async function currentAcademicYearId(client) {
   return result.rows[0]?.id ?? null;
 }
 
-async function recreateClasses(client, classDefs, academicYearId) {
+async function recreateClasses(client, classDefs) {
   const byName = new Map();
   for (const def of classDefs) {
     const inserted = await client.query(
-      `INSERT INTO classes (name, level, room, teacher_id, academic_year_id)
-       VALUES ($1, $2, '', NULL, $3)
+      `INSERT INTO classes (name, level, room, teacher_id)
+       VALUES ($1, $2, '', NULL)
        RETURNING id`,
-      [def.className, def.level, academicYearId]
+      [def.className, def.level]
     );
     byName.set(def.className, Number(inserted.rows[0].id));
   }
@@ -248,7 +248,7 @@ async function importFromCsdlqg() {
     await truncateStudentAndClassData(client);
 
     const academicYearId = await currentAcademicYearId(client);
-    const classIdsByName = await recreateClasses(client, FILE_CLASSES, academicYearId);
+    const classIdsByName = await recreateClasses(client, FILE_CLASSES);
 
     for (const row of students) {
       const classId = classIdsByName.get(row.className) ?? null;

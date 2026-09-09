@@ -118,12 +118,13 @@ School management:
 - Students table stores `created_at` / `updated_at`; API returns `createdAt` / `updatedAt`.
 - Students list filter by academic year (dropdown), status, class, and name.
 - Teachers CRUD and teacher roles.
-- Classes CRUD (classes can be linked to an academic year).
+- Classes CRUD. Classes are shared across academic years; a class record must not be scoped to one academic year.
 - Class-teacher assignments.
 - Student class history (includes from/to academic year).
 
 Academic years / class transfer:
 - `academic_years` table with a single current year (`is_current`).
+- `students.class_id` and `students.academic_year_id` are independent current-placement fields. The same class can contain students from multiple academic years.
 - Year-end / class-transfer admin flow at `/year-end-transition`.
 - Bulk transfer or status update with preview and job tracking.
 
@@ -239,7 +240,7 @@ Important tables include:
 - `students` (includes `academic_year_id`)
 - `teachers`
 - `teacher_roles`
-- `classes` (includes `academic_year_id`)
+- `classes` (`academic_year_id` is legacy compatibility data and must remain `NULL`; classes are shared across years)
 - `class_teachers`
 - `student_class_history` (includes `from_academic_year_id`, `to_academic_year_id`)
 - `student_attendance` (includes `ate_breakfast`, `ate_lunch`)
@@ -282,7 +283,7 @@ Follow existing patterns:
 - Fee admin screens (`FeeItems`, `FeePeriods`, `FeePolicies`, `FeeCollection`): prefer full-width list + right drawer for forms/detail; lock body scroll while drawer is open; keep only one vertical scrollbar in the drawer body.
 - For fee admin tables, prefer fixed-layout operational tables with explicit column widths/alignment over wide free-flow tables that require horizontal scrolling.
 - Prefer Vue 3 Composition API and `<script setup>` when matching nearby files.
-- Students list: academic year filter is a dropdown (ascending year names); class filter can narrow by selected year when classes are year-scoped.
+- Students list: academic year filter is a dropdown (ascending year names). Academic year and class filters are independent and combine against each student's placement.
 
 ## Coding Conventions
 

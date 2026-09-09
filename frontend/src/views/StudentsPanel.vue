@@ -93,14 +93,6 @@ const selectedFilterAcademicYearId = computed(() => {
   return Number.isInteger(id) && id > 0 ? id : null
 })
 
-const filterClassOptions = computed(() => {
-  if (selectedFilterAcademicYearId.value == null) return classOptions.value
-  const matched = classOptions.value.filter(
-    (c) => c.academicYearId === selectedFilterAcademicYearId.value
-  )
-  return matched.length ? matched : classOptions.value
-})
-
 const filteredItems = computed(() => {
   let list = items.value
   const keyword = String(filterKeyword.value || '').trim().toLowerCase()
@@ -143,12 +135,6 @@ const pagedItems = computed(() => {
 })
 
 watch(filteredItems, () => { currentPage.value = 1 })
-
-watch(filterAcademicYearId, () => {
-  if (filterClassId.value == null) return
-  const stillValid = filterClassOptions.value.some((c) => c.id === filterClassId.value)
-  if (!stillValid) filterClassId.value = null
-})
 
 function goToPage(page) {
   currentPage.value = Math.max(1, Math.min(page, totalPages.value))
@@ -911,7 +897,7 @@ defineExpose({ load })
             <i class="ni ni-books me-1"></i> Tất cả
           </div>
           <div
-            v-for="c in filterClassOptions"
+            v-for="c in classOptions"
             :key="c.id"
             :class="[filterClassItemClass, filterClassId === c.id ? activeFilterClassItemClass : '']"
             @click="filterClassId = c.id"

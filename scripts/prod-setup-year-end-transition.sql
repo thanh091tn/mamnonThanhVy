@@ -27,7 +27,7 @@ SET academic_year_id = (SELECT id FROM academic_years WHERE name = '2025-2026'),
 WHERE academic_year_id IS DISTINCT FROM (SELECT id FROM academic_years WHERE name = '2025-2026');
 
 UPDATE classes
-SET academic_year_id = (SELECT id FROM academic_years WHERE name = '2025-2026')
-WHERE academic_year_id IS DISTINCT FROM (SELECT id FROM academic_years WHERE name = '2025-2026');
+SET academic_year_id = NULL
+WHERE academic_year_id IS NOT NULL;
 
 COMMIT;

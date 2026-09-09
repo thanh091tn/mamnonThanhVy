@@ -46,14 +46,6 @@ const config = ref({
   note: '',
 })
 
-const filteredTargetClasses = computed(() => {
-  if (!config.value.targetAcademicYearId) return metadata.value.classes
-  const filtered = metadata.value.classes.filter(
-    (c) => c.academicYearId === Number(config.value.targetAcademicYearId)
-  )
-  return filtered.length ? filtered : metadata.value.classes
-})
-
 const selectedCount = computed(() => selectedIds.value.length)
 const visibleStudents = computed(() => {
   const keyword = String(filters.value.keyword || '').trim().toLowerCase()
@@ -79,7 +71,9 @@ function statusText(status) {
 function canGoNext() {
   if (currentStep.value === 1) return selectedCount.value > 0
   if (currentStep.value === 2) {
-    if (config.value.action === 'transfer') return Boolean(config.value.targetClassId)
+    if (config.value.action === 'transfer') {
+      return Boolean(config.value.targetAcademicYearId && config.value.targetClassId)
+    }
     return Boolean(config.value.status)
   }
   if (currentStep.value === 3) return preview.value && !hasPreviewErrors.value
@@ -371,8 +365,8 @@ onBeforeUnmount(() => clearInterval(pollTimer.value))
           <span>Lớp mới</span>
           <select v-model="config.targetClassId" class="form-control">
             <option value="">Chọn lớp</option>
-            <option v-for="c in filteredTargetClasses" :key="c.id" :value="c.id">
-              {{ c.name }} ({{ c.currentStudents }} Học sinh)
+            <option v-for="c in metadata.classes" :key="c.id" :value="c.id">
+              {{ c.name }}
             </option>
           </select>
         </label>
