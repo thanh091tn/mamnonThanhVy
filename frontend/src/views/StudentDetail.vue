@@ -19,8 +19,8 @@ const store = useStore()
 const isAdmin = computed(() => store.state.authUser?.role === 'admin')
 const canManageStudents = computed(() => ['admin', 'teacher'].includes(store.state.authUser?.role))
 const studyInfoLocked = computed(() => !canManageStudents.value)
-/** Temporarily hidden on student detail page. */
-const showParentInfo = false
+const showParentInfo = true
+const showParentAccount = false
 const showEducationRegistryInfo = false
 
 const STATUS_OPTIONS = [
@@ -548,7 +548,7 @@ onBeforeUnmount(() => {
           <a href="#student-info" :class="{ active: activeSection === 'student-info' }">Thông tin học sinh</a>
           <a href="#study-info" :class="{ active: activeSection === 'study-info' }">Thông tin học tập</a>
           <a v-if="showParentInfo" href="#family-info" :class="{ active: activeSection === 'family-info' }">Thông tin gia đình</a>
-          <a v-if="showParentInfo" href="#parent-account" :class="{ active: activeSection === 'parent-account' }">Tài khoản phụ huynh</a>
+          <a v-if="showParentAccount" href="#parent-account" :class="{ active: activeSection === 'parent-account' }">Tài khoản phụ huynh</a>
           <a href="#address-info" :class="{ active: activeSection === 'address-info' }">Thông tin địa chỉ</a>
           <a v-if="showEducationRegistryInfo" href="#extra-info" :class="{ active: activeSection === 'extra-info' }">Thông tin phục vụ CSDLQG ngành Giáo dục</a>
           <a href="#note-info" :class="{ active: activeSection === 'note-info' }">Ghi chú</a>
@@ -695,7 +695,7 @@ onBeforeUnmount(() => {
             </div>
           </section>
 
-          <section v-if="showParentInfo" id="parent-account" class="profile-card profile-card-mint">
+          <section v-if="showParentAccount" id="parent-account" class="profile-card profile-card-mint">
             <h6 class="profile-section-title">Thông tin phụ huynh</h6>
             <p class="profile-muted">Thông tin đăng nhập luôn đồng nhất với Số điện thoại/email khai báo ở trên</p>
             <div class="account-table">
